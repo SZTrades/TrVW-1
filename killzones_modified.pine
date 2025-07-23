@@ -50,9 +50,9 @@ var array<string> preMktDirections = array.new<string>()
 var array<float> nyRanges = array.new<float>()
 var array<string> nyDirections = array.new<string>()
 
-// Check if we are in PreMkt session
-preMktSession = not na(time(timeframe.period, PreMkt_SessTime))
-nySession = not na(time(timeframe.period, NY_SessTime))
+// Check if we are in PreMkt session - Using correct NY time for calculations
+preMktSession = not na(time(timeframe.period, "0700-0900"))
+nySession = not na(time(timeframe.period, "1000-1330"))
 
 // PreMkt Session Logic
 if preMktSession and not inPreMktSession
