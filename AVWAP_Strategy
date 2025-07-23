@@ -41,10 +41,11 @@ avwap2_end_session = not na(time(timeframe.period, avwap2_end))
 
 // AVWAP #1 Logic (PreMkt)
 if avwap1_session and not avwap1_active
-    // Start AVWAP calculation
+    // Start AVWAP calculation (reset values)
     avwap1_active := true
     avwap1_sum_pv := 0.0
     avwap1_sum_v := 0.0
+    avwap1_value := na
 
 if avwap1_active and not avwap1_end_session
     // Update AVWAP calculation
@@ -53,18 +54,17 @@ if avwap1_active and not avwap1_end_session
     avwap1_sum_v := avwap1_sum_v + volume
     avwap1_value := avwap1_sum_v > 0 ? avwap1_sum_pv / avwap1_sum_v : na
 
-if avwap1_end_session
-    // Reset AVWAP #1
+if avwap1_end_session and avwap1_active
+    // Stop AVWAP #1 (don't reset values, just stop)
     avwap1_active := false
-    avwap1_sum_pv := 0.0
-    avwap1_sum_v := 0.0
 
 // AVWAP #2 Logic (NY Open)
 if avwap2_session and not avwap2_active
-    // Start AVWAP calculation
+    // Start AVWAP calculation (reset values)
     avwap2_active := true
     avwap2_sum_pv := 0.0
     avwap2_sum_v := 0.0
+    avwap2_value := na
 
 if avwap2_active and not avwap2_end_session
     // Update AVWAP calculation
@@ -73,18 +73,16 @@ if avwap2_active and not avwap2_end_session
     avwap2_sum_v := avwap2_sum_v + volume
     avwap2_value := avwap2_sum_v > 0 ? avwap2_sum_pv / avwap2_sum_v : na
 
-if avwap2_end_session
-    // Reset AVWAP #2
+if avwap2_end_session and avwap2_active
+    // Stop AVWAP #2 (don't reset values, just stop)
     avwap2_active := false
-    avwap2_sum_pv := 0.0
-    avwap2_sum_v := 0.0
 
 // Convert plot style
 plotStyleConverted = PlotStyle == 'Line' ? plot.style_line : PlotStyle == 'Circles' ? plot.style_circles : plot.style_cross
 
-// Plot AVWAP lines
-plot(show_AVWAP1 and not na(avwap1_value) ? avwap1_value : na, "PreMkt AVWAP", color = avwap1_color, linewidth = LineWidth, style = plotStyleConverted)
-plot(show_AVWAP2 and not na(avwap2_value) ? avwap2_value : na, "NY AVWAP", color = avwap2_color, linewidth = LineWidth, style = plotStyleConverted)
+// Plot AVWAP lines (only when active)
+plot(show_AVWAP1 and avwap1_active and not na(avwap1_value) ? avwap1_value : na, "PreMkt AVWAP", color = avwap1_color, linewidth = LineWidth, style = plotStyleConverted)
+plot(show_AVWAP2 and avwap2_active and not na(avwap2_value) ? avwap2_value : na, "NY AVWAP", color = avwap2_color, linewidth = LineWidth, style = plotStyleConverted)
 
 // Labels for AVWAP values
 if ShowLabels and show_AVWAP1 and not na(avwap1_value) and barstate.islast
