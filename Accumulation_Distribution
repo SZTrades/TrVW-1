@@ -11,6 +11,12 @@ LineWidth = input.int(2, "Line Width", minval = 1, maxval = 5, group = "Display 
 AD_Color = input.color(#808000, "A/D Color", group = "Colors")
 EMA_Color = input.color(#FF7000, "EMA Color", group = "Colors")
 
+// Background Settings
+ShowBackground = input.bool(true, "Show Background Color", group = "Background")
+AccumColor = input.color(#00FF00, "Accumulation Color", group = "Background")
+DistribColor = input.color(#FF0000, "Distribution Color", group = "Background")
+BgTransparency = input.int(95, "Background Transparency", minval = 80, maxval = 99, group = "Background", tooltip = "Higher = More transparent")
+
 // Accumulation/Distribution Calculation
 money_flow_multiplier = close == high and close == low or high == low ? 0.0 : (2 * close - low - high) / (high - low)
 money_flow_volume = money_flow_multiplier * volume
@@ -23,11 +29,10 @@ ad_ema = ta.ema(ad_line, EMA_Length)
 plot(ShowAD ? ad_line : na, title="A/D Line", color=AD_Color, linewidth=LineWidth)
 plot(ShowEMA ? ad_ema : na, title="A/D EMA", color=EMA_Color, linewidth=LineWidth)
 
-// Zero line for reference
-hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dashed)
 
-// Background color based on A/D vs EMA
-bgcolor(ShowAD and ShowEMA ? (ad_line > ad_ema ? color.new(color.green, 95) : color.new(color.red, 95)) : na, title="Trend Background")
+
+// Background color based on A/D vs EMA (customizable)
+bgcolor(ShowBackground and ShowAD and ShowEMA ? (ad_line > ad_ema ? color.new(AccumColor, BgTransparency) : color.new(DistribColor, BgTransparency)) : na, title="Trend Background")
 
 // Table with current values (optional)
 ShowTable = input.bool(false, "Show Values Table", group = "Display Settings")
