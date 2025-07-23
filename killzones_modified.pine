@@ -133,9 +133,9 @@ if ShowStatsTable and barstate.islast
     table.clear(statsTable, 0, 0, 2, StatsLookback + 2)
     
     // Headers
-    table.cell(statsTable, 0, 0, "Date", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
-    table.cell(statsTable, 1, 0, "PreMkt Pts", text_color = color.white, text_size = size.small, bgcolor = color.new(color.orange, 50))
-    table.cell(statsTable, 2, 0, "NY Pts", text_color = color.white, text_size = size.small, bgcolor = color.new(color.green, 50))
+    table.cell(statsTable, 0, 0, "Date", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.gray, 50))
+    table.cell(statsTable, 1, 0, "PreMkt Pts", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.orange, 50))
+    table.cell(statsTable, 2, 0, "NY Pts", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.green, 50))
     
     // Calculate averages
     var float preMktSum = 0.0
