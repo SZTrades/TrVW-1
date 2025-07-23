@@ -226,5 +226,4 @@ if ShowMoreInfo and (preMktSession or nySession)
     currentSession = preMktSession ? "PreMkt Active" : "NY Active"
     currentTime = str.format("{0,time,HH:mm}", timenow)
     
-    infoLine := line.new(x1 = bar_index, y1 = high, x2 = bar_index, y2 = high * 1.01, 
-                        color = ColorMoreInfo, width = 2, style = line.style_solid)
+    infoLine := line.new(x1 = bar_index, y1 = high, x2 = bar_index, y2 = high * 1.01, color = ColorMoreInfo, width = 2, style = line.style_solid)
