@@ -16,13 +16,13 @@ avwap1_color = input.color(#FF6B35, "Color", group = group_1)
 group_2 = "AVWAP London (2:00 AM)"
 show_AVWAP2 = input.bool(true, "Show London AVWAP", group = group_2)
 avwap2_start = input.session("0200-0201", "Start Time", group = group_2, tooltip = "When London AVWAP calculation begins")
-avwap2_color = input.color(#004E89, "Color", group = group_2)
+avwap2_color = input.color(#87CEEB, "Color", group = group_2)
 
 // AVWAP #3 - NY Open (9:30 AM)  
 group_3 = "AVWAP NY Open (9:30 AM)"
 show_AVWAP3 = input.bool(true, "Show NY AVWAP", group = group_3)
 avwap3_start = input.session("0930-0931", "Start Time", group = group_3, tooltip = "When NY AVWAP calculation begins")
-avwap3_color = input.color(#8B0000, "Color", group = group_3)
+avwap3_color = input.color(#D3D3D3, "Color", group = group_3)
 
 
 
