@@ -1,5 +1,5 @@
-//@version=5
-indicator("SZTrades Kill Zones | PreMkt & NY" , 'SZTrades KZ', overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
+//@version=6
+indicator("SZTrades Kill Zones | PreMkt & NY" , 'SZTrades', overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
 
 // Global Settings
 ShowMoreInfo = input.bool(false, 'Show More Info', inline = 'More' , group = 'Global Setting')
@@ -92,12 +92,7 @@ if inPreMktSession and not preMktSession
     // Add label
     if ShowLabels and show_PreMktSess and not na(preMktBox)
         midPoint = (preMktHigh + preMktLow) / 2
-        preMktLabel := label.new(x = bar_index, y = midPoint, 
-                                text = "PreMkt", 
-                                style = label.style_label_left,
-                                color = color.new(PreMkt_color, 20),
-                                textcolor = color.white,
-                                size = size.small)
+        preMktLabel := label.new(x = bar_index, y = midPoint, text = "PreMkt", style = label.style_label_left, color = color.new(PreMkt_color, 20), textcolor = color.white, size = size.small)
     
     // Store statistics data
     if not na(preMktHigh) and not na(preMktLow)
@@ -150,12 +145,7 @@ if inNYSession and not nySession
     // Add label
     if ShowLabels and show_NYSess and not na(nyBox)
         midPoint = (nyHigh + nyLow) / 2
-        nyLabel := label.new(x = bar_index, y = midPoint, 
-                            text = "NY", 
-                            style = label.style_label_left,
-                            color = color.new(NY_color, 20),
-                            textcolor = color.white,
-                            size = size.small)
+        nyLabel := label.new(x = bar_index, y = midPoint, text = "NY", style = label.style_label_left, color = color.new(NY_color, 20), textcolor = color.white, size = size.small)
     
     // Store statistics data
     if not na(nyHigh) and not na(nyLow)
