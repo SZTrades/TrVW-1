@@ -1,0 +1,133 @@
+//@version=6
+indicator("SZTrades Kernel Regression", "SZT Kernel", overlay = true)
+
+// Import kernel functions - Note: You'll need to add this library manually in TradingView
+// import jdehorty/KernelFunctions/2 as kernels
+
+// Kernel Settings
+useKernelSmoothing = input.bool(false, "Enhance Kernel Smoothing", tooltip="Uses crossover mechanism for smoother color changes", group='Kernel Settings')
+h = input.int(8, 'Lookback Window', minval=3, maxval=50, tooltip='Number of bars for estimation. Recommended: 3-50', group="Kernel Settings")
+r = input.float(8.0, 'Relative Weighting', step=0.25, minval=0.25, maxval=25.0, tooltip='Relative weighting of timeframes. Lower = longer timeframes influence. Recommended: 0.25-25', group="Kernel Settings")
+x = input.int(25, "Regression Level", minval=2, maxval=50, tooltip='How tightly fit to data. Smaller = tighter fit. Recommended: 2-25', group="Kernel Settings")
+lag = input.int(2, "Lag", minval=1, maxval=5, tooltip="Lag for crossover detection. Lower = earlier crossovers. Recommended: 1-2", group='Kernel Settings')
+
+// Display Settings
+showKernelEstimate = input.bool(true, "Show Kernel Line", group="Display Settings")
+LineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Display Settings")
+
+// Color Settings
+BullishColor = input.color(#009988, "Bullish Color", group="Colors")
+BearishColor = input.color(#CC3311, "Bearish Color", group="Colors")
+Transparency = input.int(20, "Line Transparency", minval=0, maxval=100, group="Colors")
+
+// Source
+source = input.source(close, "Source", group="Kernel Settings")
+
+// ====================================
+// ==== Kernel Regression Logic ====
+// ====================================
+
+// Manual Kernel Functions (since we can't import the library)
+// Rational Quadratic Kernel Implementation
+rationalQuadratic(src, lookback, relativeWeight, regressionLevel) =>
+    currentWeight = 0.0
+    cumulativeWeight = 0.0
+    
+    for i = 0 to lookback - 1
+        y = src[i]
+        w = math.pow(1 + (math.pow(i, 2) / ((math.pow(relativeWeight, 2)) * 2 * regressionLevel)), -regressionLevel)
+        currentWeight += y * w
+        cumulativeWeight += w
+    
+    result = currentWeight / cumulativeWeight
+    result
+
+// Gaussian Kernel Implementation  
+gaussian(src, lookback, regressionLevel) =>
+    currentWeight = 0.0
+    cumulativeWeight = 0.0
+    
+    for i = 0 to lookback - 1
+        y = src[i]
+        w = math.exp(-math.pow(i, 2) / (2 * math.pow(regressionLevel, 2)))
+        currentWeight += y * w
+        cumulativeWeight += w
+    
+    result = currentWeight / cumulativeWeight
+    result
+
+// Calculate Kernel Estimates
+yhat1 = rationalQuadratic(source, h, r, x)
+yhat2 = gaussian(source, h - lag, x)
+kernelEstimate = yhat1
+
+// Kernel Rate of Change Detection
+wasBearishRate = yhat1[2] > yhat1[1]
+wasBullishRate = yhat1[2] < yhat1[1]
+isBearishRate = yhat1[1] > yhat1
+isBullishRate = yhat1[1] < yhat1
+isBearishChange = isBearishRate and wasBullishRate
+isBullishChange = isBullishRate and wasBearishRate
+
+// Kernel Crossovers
+isBullishCrossAlert = ta.crossover(yhat2, yhat1)
+isBearishCrossAlert = ta.crossunder(yhat2, yhat1) 
+isBullishSmooth = yhat2 >= yhat1
+isBearishSmooth = yhat2 <= yhat1
+
+// Color Logic
+bullishColorWithTransp = color.new(BullishColor, Transparency)
+bearishColorWithTransp = color.new(BearishColor, Transparency)
+colorByCross = isBullishSmooth ? bullishColorWithTransp : bearishColorWithTransp
+colorByRate = isBullishRate ? bullishColorWithTransp : bearishColorWithTransp
+plotColor = showKernelEstimate ? (useKernelSmoothing ? colorByCross : colorByRate) : na
+
+// Plot Kernel Regression Line
+plot(showKernelEstimate ? kernelEstimate : na, color=plotColor, linewidth=LineWidth, title="Kernel Regression")
+
+// Background Color (optional)
+ShowBackground = input.bool(false, "Show Background Color", group="Display Settings")
+BgTransparency = input.int(95, "Background Transparency", minval=80, maxval=99, group="Display Settings")
+
+bgcolor(ShowBackground ? (useKernelSmoothing ? (isBullishSmooth ? color.new(BullishColor, BgTransparency) : color.new(BearishColor, BgTransparency)) : (isBullishRate ? color.new(BullishColor, BgTransparency) : color.new(BearishColor, BgTransparency))) : na)
+
+// Alert Conditions
+alertBullish = useKernelSmoothing ? isBullishCrossAlert : isBullishChange
+alertBearish = useKernelSmoothing ? isBearishCrossAlert : isBearishChange
+
+alertcondition(alertBullish, title='Kernel Bullish Signal', message='Kernel Bullish ▲')
+alertcondition(alertBearish, title='Kernel Bearish Signal', message='Kernel Bearish ▼')
+
+// Table with Current Values (optional)
+ShowTable = input.bool(false, "Show Info Table", group="Display Settings")
+TablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display Settings")
+
+if ShowTable and barstate.islast
+    var table infoTable = table.new(position = TablePosition == "top_left" ? position.top_left : 
+                                   TablePosition == "top_center" ? position.top_center :
+                                   TablePosition == "top_right" ? position.top_right :
+                                   TablePosition == "middle_left" ? position.middle_left :
+                                   TablePosition == "middle_center" ? position.middle_center :
+                                   TablePosition == "middle_right" ? position.middle_right :
+                                   TablePosition == "bottom_left" ? position.bottom_left :
+                                   TablePosition == "bottom_center" ? position.bottom_center :
+                                   position.bottom_right, 
+                                   columns = 2, rows = 4, bgcolor = color.new(color.black, 80), border_width = 1)
+    
+    // Clear table
+    table.clear(infoTable, 0, 0, 1, 3)
+    
+    // Table content
+    table.cell(infoTable, 0, 0, "Metric", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    table.cell(infoTable, 1, 0, "Value", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    
+    table.cell(infoTable, 0, 1, "Kernel Value", text_color = color.white, text_size = size.small)
+    table.cell(infoTable, 1, 1, str.tostring(kernelEstimate, "#.##"), text_color = color.white, text_size = size.small)
+    
+    table.cell(infoTable, 0, 2, "Direction", text_color = color.white, text_size = size.small)
+    direction_text = useKernelSmoothing ? (isBullishSmooth ? "Bullish" : "Bearish") : (isBullishRate ? "Bullish" : "Bearish")
+    direction_color = useKernelSmoothing ? (isBullishSmooth ? color.green : color.red) : (isBullishRate ? color.green : color.red)
+    table.cell(infoTable, 1, 2, direction_text, text_color = direction_color, text_size = size.small)
+    
+    table.cell(infoTable, 0, 3, "Mode", text_color = color.white, text_size = size.small)
+    table.cell(infoTable, 1, 3, useKernelSmoothing ? "Smooth" : "Responsive", text_color = color.white, text_size = size.small)
