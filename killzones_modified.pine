@@ -19,17 +19,17 @@ TablePosition = input.string('top_right', 'Table Position', options = ['top_left
 
 //Session PreMkt (7:00-9:00 AM NY Time)
 show_PreMktSess = input(true, 'PreMkt Session',inline = 'ses1', group = 'PreMkt Kill Zone', tooltip = 'PreMarket Kill Zone 7:00-9:00 AM NY Time')
-PreMkt_SessTime = input.session('1100-1300', '',  group = 'PreMkt Kill Zone')
+PreMkt_SessTime = input.session('0700-0900', '',  group = 'PreMkt Kill Zone')
 PreMkt_color = input.color(#fa7b05, '', inline = 'ses1', group = 'PreMkt Kill Zone')
 show_PreMktKill = input(true, 'PreMkt Kill Zone', group = 'PreMkt Kill Zone')
-PreMkt_KillTime = input.session('1100-1300', '', group = 'PreMkt Kill Zone')
+PreMkt_KillTime = input.session('0700-0900', '', group = 'PreMkt Kill Zone')
 
 //Session NY (10:00 AM - 1:30 PM NY Time)
 show_NYSess = input(true, 'NY Session',  inline = 'ses2', group = 'NY Kill Zone', tooltip = 'New York Kill Zone 10:00 AM - 1:30 PM NY Time') 
-NY_SessTime = input.session('1400-1730', '',  group = 'NY Kill Zone')
+NY_SessTime = input.session('1000-1330', '',  group = 'NY Kill Zone')
 NY_color = input.color(#118502, '', inline = 'ses2', group = 'NY Kill Zone')
 show_NYKill = input(true, 'NY Kill Zone',  group = 'NY Kill Zone') 
-NY_KillTime = input.session('1400-1730', '', group = 'NY Kill Zone')
+NY_KillTime = input.session('1000-1330', '', group = 'NY Kill Zone')
 
 // Session Detection Variables
 var bool inPreMktSession = false
