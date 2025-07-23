@@ -157,9 +157,9 @@ if ShowStatsTable and barstate.islast
             
             // dateStr = str.tostring(array.get(sessionData, 0), "MM/dd") // This line was removed as per new_code
             
-            table.cell(statsTable, 0, i + 1, dateStr, text_color = color.black, text_size = size.normal, bgcolor = color.white)
-            table.cell(statsTable, 1, i + 1, str.tostring(preMktRange, "#.#"), text_color = color.black, text_size = size.normal, bgcolor = preMktColor)
-            table.cell(statsTable, 2, i + 1, str.tostring(nyRange, "#.#"), text_color = color.black, text_size = size.normal, bgcolor = nyColor)
+            table.cell(statsTable, 0, i + 1, dateStr, text_color = color.black, text_size = size.small, bgcolor = color.white)
+            table.cell(statsTable, 1, i + 1, str.tostring(preMktRange, "#.#"), text_color = color.black, text_size = size.small, bgcolor = preMktColor)
+            table.cell(statsTable, 2, i + 1, str.tostring(nyRange, "#.#"), text_color = color.black, text_size = size.small, bgcolor = nyColor)
             
             // Add to sums
             preMktSum += preMktRange
