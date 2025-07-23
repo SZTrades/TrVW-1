@@ -9,15 +9,15 @@ LineStyle = input.string('Solid', 'Line Style', options = ['Solid', 'Dashed', 'D
 // AVWAP #1 - PreMkt Start (7:00 AM)
 group_1 = "AVWAP PreMkt (7:00 AM)"
 show_AVWAP1 = input.bool(true, "Show PreMkt AVWAP", group = group_1)
-avwap1_start = input.session("0700", "Start Time", group = group_1, tooltip = "When PreMkt AVWAP calculation begins")
-avwap1_end = input.session("1845", "Reset Time", group = group_1, tooltip = "When AVWAP resets (6:45 PM)")
+avwap1_start = input.session("0700-0701", "Start Time", group = group_1, tooltip = "When PreMkt AVWAP calculation begins")
+avwap1_end = input.session("1845-1846", "Reset Time", group = group_1, tooltip = "When AVWAP resets (6:45 PM)")
 avwap1_color = input.color(#FF6B35, "Color", group = group_1)
 
 // AVWAP #2 - NY Open (9:30 AM)  
 group_2 = "AVWAP NY Open (9:30 AM)"
 show_AVWAP2 = input.bool(true, "Show NY AVWAP", group = group_2)
-avwap2_start = input.session("0930", "Start Time", group = group_2, tooltip = "When NY AVWAP calculation begins")
-avwap2_end = input.session("1845", "Reset Time", group = group_2, tooltip = "When AVWAP resets (6:45 PM)")
+avwap2_start = input.session("0930-0931", "Start Time", group = group_2, tooltip = "When NY AVWAP calculation begins")
+avwap2_end = input.session("1845-1846", "Reset Time", group = group_2, tooltip = "When AVWAP resets (6:45 PM)")
 avwap2_color = input.color(#004E89, "Color", group = group_2)
 
 // Statistics Settings
