@@ -1,0 +1,30 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © TFlab - Modified for Asia & London only
+
+//@version=5
+indicator("KillZones & Sessions [Modified] | Asia & London Only" , 'Asia & London Kill Zones', overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
+
+// import Sessions and KillZones Library
+import TFlab/SessionAndKillZoneLibrary_TradingFinder/1 as Sess
+
+// Global Setting
+ShowMoreInfo = input.bool(false, 'Show More Info', inline = 'More' , group = 'Global Setting')
+ColorMoreInfo = input.color(#0c3299, '', inline = 'More' , group = 'Global Setting')
+
+//Session Asia - Modified to 7:00-9:00
+show_AsiaSess = input(true, 'Asia Session',inline = 'sesasia', group = 'Asia Session', tooltip = 'Asia Kill Zone 7:00-9:00')
+Asia_SessTime = input.session('0700-0900', '',  group = 'Asia Session')
+Asia_color = input.color(#fa7b05, '', inline = 'sesasia', group = 'Asia Session')
+show_AsiaKill = input(true, 'Asia Kill Zone', group = 'Asia Session')
+Asia_KillTime = input.session('0700-0900', '', group = 'Asia Session')
+
+//Session London - Modified to 10:00-13:00
+show_LondonSess = input(true, 'London Session',  inline = 'seslondon', group = ' London Session', tooltip = 'London Kill Zone 10:00-13:00') 
+London_SessTime = input.session('1000-1300', '',  group = ' London Session')
+London_color = input.color(#118502, '', inline = 'seslondon', group = ' London Session')
+show_LondonKill = input(true, 'London Kill Zone',  group = ' London Session') 
+London_KillTime = input.session('1000-1300', '', group = ' London Session')
+
+// Call Sessions and KillZones Library - Only Asia and London
+Sess.SessionDetector('Asia'  , Asia_SessTime, Asia_KillTime, show_AsiaSess, show_AsiaKill, 'Session', ShowMoreInfo ,Asia_color,ColorMoreInfo)
+Sess.SessionDetector('London', London_SessTime, London_KillTime, show_LondonSess, show_LondonKill, 'Session', ShowMoreInfo ,London_color,ColorMoreInfo)
