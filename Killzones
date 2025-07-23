@@ -1,7 +1,3 @@
-// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// © SZTrades - Custom Kill Zones Indicator
-// Standalone version - No external dependencies
-
 //@version=5
 indicator("SZTrades Kill Zones | PreMkt & NY" , 'SZTrades KZ', overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
 
