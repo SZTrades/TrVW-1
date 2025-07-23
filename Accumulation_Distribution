@@ -15,7 +15,7 @@ EMA_Color = input.color(#FF7000, "EMA Color", group = "Colors")
 ShowBackground = input.bool(true, "Show Background Color", group = "Background")
 AccumColor = input.color(#00FF00, "Accumulation Color", group = "Background")
 DistribColor = input.color(#FF0000, "Distribution Color", group = "Background")
-BgTransparency = input.int(95, "Background Transparency", minval = 80, maxval = 99, group = "Background", tooltip = "Higher = More transparent")
+BgTransparency = input.int(85, "Background Transparency", minval = 0, maxval = 99, group = "Background", tooltip = "0 = Solid color, 99 = Very transparent")
 
 // Accumulation/Distribution Calculation
 money_flow_multiplier = close == high and close == low or high == low ? 0.0 : (2 * close - low - high) / (high - low)
