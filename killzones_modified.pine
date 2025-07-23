@@ -11,19 +11,19 @@ import TFlab/SessionAndKillZoneLibrary_TradingFinder/1 as Sess
 ShowMoreInfo = input.bool(false, 'Show More Info', inline = 'More' , group = 'Global Setting')
 ColorMoreInfo = input.color(#0c3299, '', inline = 'More' , group = 'Global Setting')
 
-//Session 7:00-9:00 AM NY Time
+//Session 7:00-9:00 AM NY Time (12:00-14:00 UTC aprox)
 show_AsiaSess = input(true, '7:00 - 9:00 AM NY Session',inline = 'ses1', group = '7:00 - 9:00 AM NY Kill Zone', tooltip = 'Morning Kill Zone 7:00-9:00 AM New York Time')
-Asia_SessTime = input.session('0700-0900:1234567:America/New_York', '',  group = '7:00 - 9:00 AM NY Kill Zone')
+Asia_SessTime = input.session('1200-1400', '',  group = '7:00 - 9:00 AM NY Kill Zone')
 Asia_color = input.color(#fa7b05, '', inline = 'ses1', group = '7:00 - 9:00 AM NY Kill Zone')
 show_AsiaKill = input(true, '7:00 - 9:00 AM NY Kill Zone', group = '7:00 - 9:00 AM NY Kill Zone')
-Asia_KillTime = input.session('0700-0900:1234567:America/New_York', '', group = '7:00 - 9:00 AM NY Kill Zone')
+Asia_KillTime = input.session('1200-1400', '', group = '7:00 - 9:00 AM NY Kill Zone')
 
-//Session 10:00 AM - 1:00 PM NY Time  
+//Session 10:00 AM - 1:00 PM NY Time (15:00-18:00 UTC aprox)
 show_LondonSess = input(true, '10:00 AM - 1:00 PM NY Session',  inline = 'ses2', group = '10:00 AM - 1:00 PM NY Kill Zone', tooltip = 'Midday Kill Zone 10:00 AM - 1:00 PM New York Time') 
-London_SessTime = input.session('1000-1300:1234567:America/New_York', '',  group = '10:00 AM - 1:00 PM NY Kill Zone')
+London_SessTime = input.session('1500-1800', '',  group = '10:00 AM - 1:00 PM NY Kill Zone')
 London_color = input.color(#118502, '', inline = 'ses2', group = '10:00 AM - 1:00 PM NY Kill Zone')
 show_LondonKill = input(true, '10:00 AM - 1:00 PM NY Kill Zone',  group = '10:00 AM - 1:00 PM NY Kill Zone') 
-London_KillTime = input.session('1000-1300:1234567:America/New_York', '', group = '10:00 AM - 1:00 PM NY Kill Zone')
+London_KillTime = input.session('1500-1800', '', group = '10:00 AM - 1:00 PM NY Kill Zone')
 
 // Call Sessions and KillZones Library - Now with NY timezone
 Sess.SessionDetector('7:00 - 9:00 AM NY'  , Asia_SessTime, Asia_KillTime, show_AsiaSess, show_AsiaKill, 'Session', ShowMoreInfo ,Asia_color,ColorMoreInfo)
