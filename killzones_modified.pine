@@ -2,7 +2,7 @@
 // © TFlab - Modified for Asia & London only
 
 //@version=5
-indicator("KillZones & Sessions [Modified] | Asia & London Only" , 'Asia & London Kill Zones', overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
+indicator("KillZones & Sessions [Modified] | 7:00-9:00 & 10:00-13:00" , 'Custom Kill Zones', overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
 
 // import Sessions and KillZones Library
 import TFlab/SessionAndKillZoneLibrary_TradingFinder/1 as Sess
@@ -11,20 +11,20 @@ import TFlab/SessionAndKillZoneLibrary_TradingFinder/1 as Sess
 ShowMoreInfo = input.bool(false, 'Show More Info', inline = 'More' , group = 'Global Setting')
 ColorMoreInfo = input.color(#0c3299, '', inline = 'More' , group = 'Global Setting')
 
-//Session Asia - Modified to 7:00-9:00
-show_AsiaSess = input(true, 'Asia Session',inline = 'sesasia', group = 'Asia Session', tooltip = 'Asia Kill Zone 7:00-9:00')
-Asia_SessTime = input.session('0700-0900', '',  group = 'Asia Session')
-Asia_color = input.color(#fa7b05, '', inline = 'sesasia', group = 'Asia Session')
-show_AsiaKill = input(true, 'Asia Kill Zone', group = 'Asia Session')
-Asia_KillTime = input.session('0700-0900', '', group = 'Asia Session')
+//Session 7:00-9:00 (formerly Asia)
+show_AsiaSess = input(true, '7:00 - 9:00 Session',inline = 'ses1', group = '7:00 - 9:00 Kill Zone', tooltip = 'Morning Kill Zone 7:00-9:00')
+Asia_SessTime = input.session('0700-0900', '',  group = '7:00 - 9:00 Kill Zone')
+Asia_color = input.color(#fa7b05, '', inline = 'ses1', group = '7:00 - 9:00 Kill Zone')
+show_AsiaKill = input(true, '7:00 - 9:00 Kill Zone', group = '7:00 - 9:00 Kill Zone')
+Asia_KillTime = input.session('0700-0900', '', group = '7:00 - 9:00 Kill Zone')
 
-//Session London - Modified to 10:00-13:00
-show_LondonSess = input(true, 'London Session',  inline = 'seslondon', group = ' London Session', tooltip = 'London Kill Zone 10:00-13:00') 
-London_SessTime = input.session('1000-1300', '',  group = ' London Session')
-London_color = input.color(#118502, '', inline = 'seslondon', group = ' London Session')
-show_LondonKill = input(true, 'London Kill Zone',  group = ' London Session') 
-London_KillTime = input.session('1000-1300', '', group = ' London Session')
+//Session 10:00-13:00 (formerly London)
+show_LondonSess = input(true, '10:00 - 13:00 Session',  inline = 'ses2', group = '10:00 - 13:00 Kill Zone', tooltip = 'Midday Kill Zone 10:00-13:00') 
+London_SessTime = input.session('1000-1300', '',  group = '10:00 - 13:00 Kill Zone')
+London_color = input.color(#118502, '', inline = 'ses2', group = '10:00 - 13:00 Kill Zone')
+show_LondonKill = input(true, '10:00 - 13:00 Kill Zone',  group = '10:00 - 13:00 Kill Zone') 
+London_KillTime = input.session('1000-1300', '', group = '10:00 - 13:00 Kill Zone')
 
-// Call Sessions and KillZones Library - Only Asia and London
-Sess.SessionDetector('Asia'  , Asia_SessTime, Asia_KillTime, show_AsiaSess, show_AsiaKill, 'Session', ShowMoreInfo ,Asia_color,ColorMoreInfo)
-Sess.SessionDetector('London', London_SessTime, London_KillTime, show_LondonSess, show_LondonKill, 'Session', ShowMoreInfo ,London_color,ColorMoreInfo)
+// Call Sessions and KillZones Library - Now with custom names
+Sess.SessionDetector('7:00 - 9:00'  , Asia_SessTime, Asia_KillTime, show_AsiaSess, show_AsiaKill, 'Session', ShowMoreInfo ,Asia_color,ColorMoreInfo)
+Sess.SessionDetector('10:00 - 13:00', London_SessTime, London_KillTime, show_LondonSess, show_LondonKill, 'Session', ShowMoreInfo ,London_color,ColorMoreInfo)
