@@ -4,15 +4,16 @@ indicator("SZTrades Kernel Regression", "SZT Kernel", overlay = true)
 // Import kernel functions - Note: You'll need to add this library manually in TradingView
 // import jdehorty/KernelFunctions/2 as kernels
 
-// Kernel Settings
-useKernelSmoothing = input.bool(false, "Enhance Kernel Smoothing", tooltip="Uses crossover mechanism for smoother color changes", group='Kernel Settings')
-h = input.int(8, 'Lookback Window', minval=3, maxval=50, tooltip='Number of bars for estimation. Recommended: 3-50', group="Kernel Settings")
-r = input.float(8.0, 'Relative Weighting', step=0.25, minval=0.25, maxval=25.0, tooltip='Relative weighting of timeframes. Lower = longer timeframes influence. Recommended: 0.25-25', group="Kernel Settings")
-x = input.int(25, "Regression Level", minval=2, maxval=50, tooltip='How tightly fit to data. Smaller = tighter fit. Recommended: 2-25', group="Kernel Settings")
-lag = input.int(2, "Lag", minval=1, maxval=5, tooltip="Lag for crossover detection. Lower = earlier crossovers. Recommended: 1-2", group='Kernel Settings')
+// Kernel Settings  
+h = input.int(8, 'Lookback Window', minval=3, tooltip='The number of bars used for the estimation. This is a sliding value that represents the most recent historical bars. Recommended range: 3-50', group="Kernel Settings")
+r = input.float(8., 'Relative Weighting', step=0.25, tooltip='Relative weighting of time frames. As this value approaches zero, the longer time frames will exert more influence on the estimation. As this value approaches infinity, the behavior of the Rational Quadratic Kernel will become identical to the Gaussian kernel. Recommended range: 0.25-25', group="Kernel Settings")
+x = input.int(25, "Regression Level", tooltip='Bar index on which to start regression. Controls how tightly fit the kernel estimate is to the data. Smaller values are a tighter fit. Larger values are a looser fit. Recommended range: 2-25', group="Kernel Settings")
+useKernelSmoothing = input.bool(false, "Enhance Kernel Smoothing", tooltip="Uses a crossover based mechanism to smoothen kernel color changes. This often results in less color transitions overall and may result in more ML entry signals being generated.", group='Kernel Settings')
+lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Lower values result in earlier crossovers. Recommended range: 1-2", group='Kernel Settings')
 
 // Display Settings
-showKernelEstimate = input.bool(true, "Show Kernel Line", group="Display Settings")
+useKernelFilter = input.bool(true, "Trade with Kernel", group="Kernel Settings")
+showKernelEstimate = input.bool(true, "Show Kernel Estimate", group="Display Settings")
 LineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Display Settings")
 
 // Color Settings
@@ -27,33 +28,42 @@ source = input.source(close, "Source", group="Kernel Settings")
 // ==== Kernel Regression Logic ====
 // ====================================
 
-// Manual Kernel Functions (since we can't import the library)
-// Rational Quadratic Kernel Implementation
-rationalQuadratic(src, lookback, relativeWeight, regressionLevel) =>
-    currentWeight = 0.0
-    cumulativeWeight = 0.0
+// Kernel Functions - Recreated to match original library behavior
+// Rational Quadratic Kernel
+rationalQuadratic(src, lookback, relativeWeight, startingBar) =>
+    sumWeightedY = 0.0
+    sumWeights = 0.0
     
     for i = 0 to lookback - 1
         y = src[i]
-        w = math.pow(1 + (math.pow(i, 2) / ((math.pow(relativeWeight, 2)) * 2 * regressionLevel)), -regressionLevel)
-        currentWeight += y * w
-        cumulativeWeight += w
+        distanceSquared = math.pow(i, 2)
+        // Rational Quadratic formula: (1 + distance²/(2*α*ρ²))^(-α)
+        alpha = relativeWeight
+        rho = startingBar
+        weight = math.pow(1 + distanceSquared / (2 * alpha * math.pow(rho, 2)), -alpha)
+        
+        sumWeightedY += y * weight
+        sumWeights += weight
     
-    result = currentWeight / cumulativeWeight
+    result = sumWeights > 0 ? sumWeightedY / sumWeights : src
     result
 
-// Gaussian Kernel Implementation  
-gaussian(src, lookback, regressionLevel) =>
-    currentWeight = 0.0
-    cumulativeWeight = 0.0
+// Gaussian Kernel  
+gaussian(src, lookback, startingBar) =>
+    sumWeightedY = 0.0
+    sumWeights = 0.0
     
     for i = 0 to lookback - 1
         y = src[i]
-        w = math.exp(-math.pow(i, 2) / (2 * math.pow(regressionLevel, 2)))
-        currentWeight += y * w
-        cumulativeWeight += w
+        distanceSquared = math.pow(i, 2)
+        // Gaussian formula: exp(-distance²/(2*σ²))
+        sigma = startingBar
+        weight = math.exp(-distanceSquared / (2 * math.pow(sigma, 2)))
+        
+        sumWeightedY += y * weight
+        sumWeights += weight
     
-    result = currentWeight / cumulativeWeight
+    result = sumWeights > 0 ? sumWeightedY / sumWeights : src
     result
 
 // Calculate Kernel Estimates
