@@ -19,17 +19,23 @@ TablePosition = input.string('top_right', 'Table Position', options = ['top_left
 
 //Session PreMkt (7:00-9:00 AM NY Time)
 show_PreMktSess = input(true, 'PreMkt Session',inline = 'ses1', group = 'PreMkt Kill Zone', tooltip = 'PreMarket Kill Zone 7:00-9:00 AM NY Time')
-PreMkt_SessTime = input.session('0700-0900', '',  group = 'PreMkt Kill Zone')
+PreMkt_SessTime_Input = input.session('0700-0900', 'PreMkt Time',  group = 'PreMkt Kill Zone')
 PreMkt_color = input.color(#fa7b05, '', inline = 'ses1', group = 'PreMkt Kill Zone')
 show_PreMktKill = input(true, 'PreMkt Kill Zone', group = 'PreMkt Kill Zone')
-PreMkt_KillTime = input.session('0700-0900', '', group = 'PreMkt Kill Zone')
+PreMkt_KillTime_Input = input.session('0700-0900', 'PreMkt Kill Time', group = 'PreMkt Kill Zone')
 
 //Session NY (10:00 AM - 1:30 PM NY Time)
 show_NYSess = input(true, 'NY Session',  inline = 'ses2', group = 'NY Kill Zone', tooltip = 'New York Kill Zone 10:00 AM - 1:30 PM NY Time') 
-NY_SessTime = input.session('1000-1330', '',  group = 'NY Kill Zone')
+NY_SessTime_Input = input.session('1000-1330', 'NY Time',  group = 'NY Kill Zone')
 NY_color = input.color(#118502, '', inline = 'ses2', group = 'NY Kill Zone')
 show_NYKill = input(true, 'NY Kill Zone',  group = 'NY Kill Zone') 
-NY_KillTime = input.session('1000-1330', '', group = 'NY Kill Zone')
+NY_KillTime_Input = input.session('1000-1330', 'NY Kill Time', group = 'NY Kill Zone')
+
+// Auto-adjust times for library (add 4 hours to compensate for timezone difference)
+PreMkt_SessTime = "1100-1300"  // 7AM + 4hrs = 11AM, 9AM + 4hrs = 1PM
+PreMkt_KillTime = "1100-1300"
+NY_SessTime = "1400-1730"     // 10AM + 4hrs = 2PM, 1:30PM + 4hrs = 5:30PM  
+NY_KillTime = "1400-1730"
 
 // Session Detection Variables
 var bool inPreMktSession = false
@@ -50,9 +56,9 @@ var array<string> preMktDirections = array.new<string>()
 var array<float> nyRanges = array.new<float>()
 var array<string> nyDirections = array.new<string>()
 
-// Check if we are in PreMkt session - Using same times as input settings
-preMktSession = not na(time(timeframe.period, PreMkt_SessTime))
-nySession = not na(time(timeframe.period, NY_SessTime))
+// Check if we are in PreMkt session - Using user input times for statistics
+preMktSession = not na(time(timeframe.period, PreMkt_SessTime_Input))
+nySession = not na(time(timeframe.period, NY_SessTime_Input))
 
 // PreMkt Session Logic
 if preMktSession and not inPreMktSession
