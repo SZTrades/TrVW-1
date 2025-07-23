@@ -133,65 +133,47 @@ if ShowStatsTable and barstate.islast
     table.clear(statsTable, 0, 0, 2, StatsLookback + 2)
     
     // Headers
-    table.cell(statsTable, 0, 0, "Date", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.gray, 50))
-    table.cell(statsTable, 1, 0, "PreMkt Pts", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.orange, 50))
-    table.cell(statsTable, 2, 0, "NY Pts", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.green, 50))
+    table.cell(statsTable, 0, 0, "Date", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    table.cell(statsTable, 1, 0, "PreMkt Pts", text_color = color.white, text_size = size.small, bgcolor = color.new(color.orange, 50))
+    table.cell(statsTable, 2, 0, "NY Pts", text_color = color.white, text_size = size.small, bgcolor = color.new(color.green, 50))
     
     // Calculate averages
     var float preMktSum = 0.0
     var float nySum = 0.0
-    var int validDays = 0
+    var int dayCount = 0
     
-    preMktSum := 0.0
-    nySum := 0.0
-    validDays := 0
+    // Fill data rows and calculate sums
+    for i = 0 to StatsLookback - 1
+        if i < array.size(dates) // Changed from sessionsData to dates
+            dateStr = array.get(dates, array.size(dates) - 1 - i) // Changed from sessionData to dates
+            
+            preMktRange = array.get(preMktRanges, array.size(preMktRanges) - 1 - i) // Changed from sessionData to preMktRanges
+            nyRange = array.get(nyRanges, array.size(nyRanges) - 1 - i) // Changed from sessionData to nyRanges
+            preMktDir = array.get(preMktDirections, array.size(preMktDirections) - 1 - i) // Changed from sessionData to preMktDirections
+            nyDir = array.get(nyDirections, array.size(nyDirections) - 1 - i) // Changed from sessionData to nyDirections
+            
+            preMktColor = preMktDir == "Bull" ? color.new(color.green, 70) : color.new(color.red, 70)
+            nyColor = nyDir == "Bull" ? color.new(color.green, 70) : color.new(color.red, 70)
+            
+            // dateStr = str.tostring(array.get(sessionData, 0), "MM/dd") // This line was removed as per new_code
+            
+            table.cell(statsTable, 0, i + 1, dateStr, text_color = color.black, text_size = size.normal, bgcolor = color.white)
+            table.cell(statsTable, 1, i + 1, str.tostring(preMktRange, "#.#"), text_color = color.black, text_size = size.normal, bgcolor = preMktColor)
+            table.cell(statsTable, 2, i + 1, str.tostring(nyRange, "#.#"), text_color = color.black, text_size = size.normal, bgcolor = nyColor)
+            
+            // Add to sums
+            preMktSum += preMktRange
+            nySum += nyRange
+            dayCount += 1
     
-    // Fill data and calculate sums
-    arraySize = array.size(dates)
-    for i = 0 to math.min(arraySize - 1, StatsLookback - 1)
-        if i < arraySize
-            row = i + 1
-            
-            // Date
-            dateStr = array.get(dates, i)
-            table.cell(statsTable, 0, row, dateStr, text_color = color.white, text_size = size.tiny)
-            
-            // PreMkt Data
-            if i < array.size(preMktRanges)
-                preMktRange = array.get(preMktRanges, i)
-                preMktPts = str.tostring(math.round(preMktRange, 1))
-                preMktDir = array.get(preMktDirections, i)
-                preMktColor = preMktDir == "Bull" ? color.new(color.lime, 80) : color.new(color.red, 80)
-                
-                table.cell(statsTable, 1, row, preMktPts, text_color = color.white, text_size = size.tiny, bgcolor = preMktColor)
-                preMktSum += preMktRange
-            
-            // NY Data
-            if i < array.size(nyRanges)
-                nyRange = array.get(nyRanges, i)
-                nyPts = str.tostring(math.round(nyRange, 1))
-                nyDir = array.get(nyDirections, i)
-                nyColor = nyDir == "Bull" ? color.new(color.lime, 80) : color.new(color.red, 80)
-                
-                table.cell(statsTable, 2, row, nyPts, text_color = color.white, text_size = size.tiny, bgcolor = nyColor)
-                nySum += nyRange
-            
-            validDays += 1
-    
-    // Add statistics row at the bottom
-    if validDays > 0
-        statsRow = math.min(arraySize, StatsLookback) + 1
+    // Add totals row
+    if dayCount > 0
+        preMktAvg = preMktSum / dayCount
+        nyAvg = nySum / dayCount
         
-        // Statistics header
-        table.cell(statsTable, 0, statsRow, "Avg (" + str.tostring(validDays) + "d)", text_color = color.yellow, text_size = size.tiny, bgcolor = color.new(color.blue, 70))
-        
-        // PreMkt Average
-        preMktAvg = preMktSum / validDays
-        table.cell(statsTable, 1, statsRow, str.tostring(math.round(preMktAvg, 1)), text_color = color.yellow, text_size = size.tiny, bgcolor = color.new(color.blue, 70))
-        
-        // NY Average
-        nyAvg = nySum / validDays
-        table.cell(statsTable, 2, statsRow, str.tostring(math.round(nyAvg, 1)), text_color = color.yellow, text_size = size.tiny, bgcolor = color.new(color.blue, 70))
+        table.cell(statsTable, 0, StatsLookback + 1, "Avg (" + str.tostring(dayCount) + "d)", text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 20))
+        table.cell(statsTable, 1, StatsLookback + 1, str.tostring(preMktAvg, "#.#"), text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 20))
+        table.cell(statsTable, 2, StatsLookback + 1, str.tostring(nyAvg, "#.#"), text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 20))
 
 // Call Sessions and KillZones Library
 Sess.SessionDetector('PreMkt'  , PreMkt_SessTime, PreMkt_KillTime, show_PreMktSess, show_PreMktKill, 'Session', ShowMoreInfo, PreMkt_color, ColorMoreInfo)
