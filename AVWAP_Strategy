@@ -1,0 +1,126 @@
+//@version=6
+indicator("SZTrades AVWAP Strategy", "SZT AVWAP", overlay = true, max_bars_back = 5000)
+
+// Global Settings
+ShowLabels = input.bool(true, 'Show AVWAP Labels', group = 'Display Settings')
+LineWidth = input.int(2, 'Line Width', minval = 1, maxval = 5, group = 'Display Settings')
+LineStyle = input.string('Solid', 'Line Style', options = ['Solid', 'Dashed', 'Dotted'], group = 'Display Settings')
+
+// AVWAP #1 - PreMkt Start (7:00 AM)
+group_1 = "AVWAP PreMkt (7:00 AM)"
+show_AVWAP1 = input.bool(true, "Show PreMkt AVWAP", group = group_1)
+avwap1_start = input.session("0700", "Start Time", group = group_1, tooltip = "When PreMkt AVWAP calculation begins")
+avwap1_end = input.session("1845", "Reset Time", group = group_1, tooltip = "When AVWAP resets (6:45 PM)")
+avwap1_color = input.color(#FF6B35, "Color", group = group_1)
+
+// AVWAP #2 - NY Open (9:30 AM)  
+group_2 = "AVWAP NY Open (9:30 AM)"
+show_AVWAP2 = input.bool(true, "Show NY AVWAP", group = group_2)
+avwap2_start = input.session("0930", "Start Time", group = group_2, tooltip = "When NY AVWAP calculation begins")
+avwap2_end = input.session("1845", "Reset Time", group = group_2, tooltip = "When AVWAP resets (6:45 PM)")
+avwap2_color = input.color(#004E89, "Color", group = group_2)
+
+// Statistics Settings
+ShowStatsTable = input.bool(true, 'Show AVWAP Statistics', group = 'Statistics')
+StatsLookback = input.int(5, 'Days to Show', minval = 1, maxval = 10, group = 'Statistics')
+TablePosition = input.string('bottom_right', 'Table Position', options = ['top_left', 'top_center', 'top_right', 'middle_left', 'middle_center', 'middle_right', 'bottom_left', 'bottom_center', 'bottom_right'], group = 'Statistics')
+
+// AVWAP Calculation Variables
+var float avwap1_sum_pv = 0.0
+var float avwap1_sum_v = 0.0
+var float avwap1_value = na
+var bool avwap1_active = false
+
+var float avwap2_sum_pv = 0.0
+var float avwap2_sum_v = 0.0
+var float avwap2_value = na
+var bool avwap2_active = false
+
+// Check if we are in AVWAP sessions
+avwap1_session = not na(time(timeframe.period, avwap1_start))
+avwap2_session = not na(time(timeframe.period, avwap2_start))
+reset_session = not na(time(timeframe.period, avwap1_end))
+
+// AVWAP #1 Logic (PreMkt)
+if avwap1_session and not avwap1_active
+    // Start AVWAP calculation
+    avwap1_active := true
+    avwap1_sum_pv := 0.0
+    avwap1_sum_v := 0.0
+
+if avwap1_active and not reset_session
+    // Update AVWAP calculation
+    typical_price = hlc3
+    avwap1_sum_pv := avwap1_sum_pv + (typical_price * volume)
+    avwap1_sum_v := avwap1_sum_v + volume
+    avwap1_value := avwap1_sum_v > 0 ? avwap1_sum_pv / avwap1_sum_v : na
+
+if reset_session
+    // Reset AVWAP
+    avwap1_active := false
+    avwap1_sum_pv := 0.0
+    avwap1_sum_v := 0.0
+
+// AVWAP #2 Logic (NY Open)
+if avwap2_session and not avwap2_active
+    // Start AVWAP calculation
+    avwap2_active := true
+    avwap2_sum_pv := 0.0
+    avwap2_sum_v := 0.0
+
+if avwap2_active and not reset_session
+    // Update AVWAP calculation
+    typical_price = hlc3
+    avwap2_sum_pv := avwap2_sum_pv + (typical_price * volume)
+    avwap2_sum_v := avwap2_sum_v + volume
+    avwap2_value := avwap2_sum_v > 0 ? avwap2_sum_pv / avwap2_sum_v : na
+
+if reset_session
+    // Reset AVWAP
+    avwap2_active := false
+    avwap2_sum_pv := 0.0
+    avwap2_sum_v := 0.0
+
+// Convert line style
+lineStyleConverted = LineStyle == 'Solid' ? line.style_solid : LineStyle == 'Dashed' ? line.style_dashed : line.style_dotted
+
+// Plot AVWAP lines
+plot(show_AVWAP1 and not na(avwap1_value) ? avwap1_value : na, "PreMkt AVWAP", color = avwap1_color, linewidth = LineWidth, style = plot.style_line)
+plot(show_AVWAP2 and not na(avwap2_value) ? avwap2_value : na, "NY AVWAP", color = avwap2_color, linewidth = LineWidth, style = plot.style_line)
+
+// Labels for AVWAP values
+if ShowLabels and show_AVWAP1 and not na(avwap1_value) and barstate.islast
+    label.new(x = bar_index, y = avwap1_value, text = "PreMkt: " + str.tostring(avwap1_value, "#.##"), style = label.style_label_left, color = color.new(avwap1_color, 20), textcolor = color.white, size = size.small)
+
+if ShowLabels and show_AVWAP2 and not na(avwap2_value) and barstate.islast
+    label.new(x = bar_index, y = avwap2_value, text = "NY: " + str.tostring(avwap2_value, "#.##"), style = label.style_label_left, color = color.new(avwap2_color, 20), textcolor = color.white, size = size.small)
+
+// Statistics Table (placeholder for future implementation)
+if ShowStatsTable and barstate.islast
+    var table statsTable = table.new(position = TablePosition == "top_left" ? position.top_left : 
+                                     TablePosition == "top_center" ? position.top_center :
+                                     TablePosition == "top_right" ? position.top_right :
+                                     TablePosition == "middle_left" ? position.middle_left :
+                                     TablePosition == "middle_center" ? position.middle_center :
+                                     TablePosition == "middle_right" ? position.middle_right :
+                                     TablePosition == "bottom_left" ? position.bottom_left :
+                                     TablePosition == "bottom_center" ? position.bottom_center :
+                                     position.bottom_right, 
+                                     columns = 3, rows = 4, bgcolor = color.new(color.black, 80), border_width = 1)
+    
+    // Clear table
+    table.clear(statsTable, 0, 0, 2, 3)
+    
+    // Headers
+    table.cell(statsTable, 0, 0, "AVWAP", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    table.cell(statsTable, 1, 0, "Current", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    table.cell(statsTable, 2, 0, "Status", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    
+    // Data rows
+    table.cell(statsTable, 0, 1, "PreMkt", text_color = color.white, text_size = size.small, bgcolor = color.new(avwap1_color, 70))
+    table.cell(statsTable, 1, 1, not na(avwap1_value) ? str.tostring(avwap1_value, "#.##") : "N/A", text_color = color.white, text_size = size.small)
+    table.cell(statsTable, 2, 1, avwap1_active ? "Active" : "Inactive", text_color = avwap1_active ? color.green : color.red, text_size = size.small)
+    
+    table.cell(statsTable, 0, 2, "NY", text_color = color.white, text_size = size.small, bgcolor = color.new(avwap2_color, 70))
+    table.cell(statsTable, 1, 2, not na(avwap2_value) ? str.tostring(avwap2_value, "#.##") : "N/A", text_color = color.white, text_size = size.small)
+    table.cell(statsTable, 2, 2, avwap2_active ? "Active" : "Inactive", text_color = avwap2_active ? color.green : color.red, text_size = size.small)
