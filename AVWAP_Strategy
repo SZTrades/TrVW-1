@@ -12,11 +12,17 @@ show_AVWAP1 = input.bool(true, "Show PreMkt AVWAP", group = group_1)
 avwap1_start = input.session("0700-0701", "Start Time", group = group_1, tooltip = "When PreMkt AVWAP calculation begins")
 avwap1_color = input.color(#FF6B35, "Color", group = group_1)
 
-// AVWAP #2 - NY Open (9:30 AM)  
-group_2 = "AVWAP NY Open (9:30 AM)"
-show_AVWAP2 = input.bool(true, "Show NY AVWAP", group = group_2)
-avwap2_start = input.session("0930-0931", "Start Time", group = group_2, tooltip = "When NY AVWAP calculation begins")
+// AVWAP #2 - London Open (2:00 AM)  
+group_2 = "AVWAP London (2:00 AM)"
+show_AVWAP2 = input.bool(true, "Show London AVWAP", group = group_2)
+avwap2_start = input.session("0200-0201", "Start Time", group = group_2, tooltip = "When London AVWAP calculation begins")
 avwap2_color = input.color(#004E89, "Color", group = group_2)
+
+// AVWAP #3 - NY Open (9:30 AM)  
+group_3 = "AVWAP NY Open (9:30 AM)"
+show_AVWAP3 = input.bool(true, "Show NY AVWAP", group = group_3)
+avwap3_start = input.session("0930-0931", "Start Time", group = group_3, tooltip = "When NY AVWAP calculation begins")
+avwap3_color = input.color(#8B0000, "Color", group = group_3)
 
 
 
@@ -31,12 +37,18 @@ var float avwap2_sum_v = 0.0
 var float avwap2_value = na
 var bool avwap2_active = false
 
+var float avwap3_sum_pv = 0.0
+var float avwap3_sum_v = 0.0
+var float avwap3_value = na
+var bool avwap3_active = false
+
 // Simple daily reset logic
 is_new_day = ta.change(dayofweek) != 0
 
 // Check if we are in AVWAP sessions
 avwap1_session = not na(time(timeframe.period, avwap1_start))
 avwap2_session = not na(time(timeframe.period, avwap2_start))
+avwap3_session = not na(time(timeframe.period, avwap3_start))
 
 // AVWAP #1 Logic (PreMkt)
 if avwap1_session and not avwap1_active
@@ -57,7 +69,7 @@ if avwap1_active
 if is_new_day and avwap1_active
     avwap1_active := false
 
-// AVWAP #2 Logic (NY Open)
+// AVWAP #2 Logic (London Open)
 if avwap2_session and not avwap2_active
     // Start AVWAP calculation (reset values)
     avwap2_active := true
@@ -76,12 +88,32 @@ if avwap2_active
 if is_new_day and avwap2_active
     avwap2_active := false
 
+// AVWAP #3 Logic (NY Open)
+if avwap3_session and not avwap3_active
+    // Start AVWAP calculation (reset values)
+    avwap3_active := true
+    avwap3_sum_pv := 0.0
+    avwap3_sum_v := 0.0
+    avwap3_value := na
+
+if avwap3_active
+    // Update AVWAP calculation
+    typical_price = hlc3
+    avwap3_sum_pv := avwap3_sum_pv + (typical_price * volume)
+    avwap3_sum_v := avwap3_sum_v + volume
+    avwap3_value := avwap3_sum_v > 0 ? avwap3_sum_pv / avwap3_sum_v : na
+
+// Reset on new day
+if is_new_day and avwap3_active
+    avwap3_active := false
+
 // Convert plot style
 plotStyleConverted = PlotStyle == 'Line' ? plot.style_line : PlotStyle == 'Circles' ? plot.style_circles : plot.style_cross
 
 // Plot AVWAP lines (only when active)
 plot(show_AVWAP1 and avwap1_active and not na(avwap1_value) ? avwap1_value : na, "PreMkt AVWAP", color = avwap1_color, linewidth = LineWidth, style = plotStyleConverted)
-plot(show_AVWAP2 and avwap2_active and not na(avwap2_value) ? avwap2_value : na, "NY AVWAP", color = avwap2_color, linewidth = LineWidth, style = plotStyleConverted)
+plot(show_AVWAP2 and avwap2_active and not na(avwap2_value) ? avwap2_value : na, "London AVWAP", color = avwap2_color, linewidth = LineWidth, style = plotStyleConverted)
+plot(show_AVWAP3 and avwap3_active and not na(avwap3_value) ? avwap3_value : na, "NY AVWAP", color = avwap3_color, linewidth = LineWidth, style = plotStyleConverted)
 
 // Labels for AVWAP values
 if ShowLabels and show_AVWAP1 and not na(avwap1_value) and barstate.islast
@@ -89,4 +121,7 @@ if ShowLabels and show_AVWAP1 and not na(avwap1_value) and barstate.islast
 
 if ShowLabels and show_AVWAP2 and not na(avwap2_value) and barstate.islast
     label.new(x = bar_index, y = avwap2_value, text = str.tostring(avwap2_value, "#.##"), style = label.style_none, color = na, textcolor = color.black, size = size.small)
+
+if ShowLabels and show_AVWAP3 and not na(avwap3_value) and barstate.islast
+    label.new(x = bar_index, y = avwap3_value, text = str.tostring(avwap3_value, "#.##"), style = label.style_none, color = na, textcolor = color.black, size = size.small)
 
