@@ -1,0 +1,48 @@
+hola como estas, sabes programar con pinescript 6? quiero modificar un indicador para cambiar el título de las Sessions de.
+Asia a 7:00 - 9:00 y London a 10:00 - 13:30 y eliminar las otras 2, que opinas?
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © TFlab
+
+//@version=5
+indicator("KillZones & Sessions [TradingFinder] Volume | Asia, London & NY (am-pm)" , 'TFlab Kill Zones', overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
+
+// import Sessions and KillZones Library
+import TFlab/SessionAndKillZoneLibrary_TradingFinder/1 as Sess
+
+// Global Setting
+ShowMoreInfo = input.bool(false, 'Show More Info', inline = 'More' , group = 'Global Setting')
+ColorMoreInfo = input.color(#0c3299, '', inline = 'More' , group = 'Global Setting')
+
+//Session Asia
+show_AsiaSess = input(true, 'Asia Session',inline = 'sesasia', group = 'Asia Session', tooltip = 'Sydney + Tokyo')
+Asia_SessTime = input.session('2300-0600', '',  group = 'Asia Session')
+Asia_color = input.color(#fa7b05, '', inline = 'sesasia', group = 'Asia Session')
+show_AsiaKill = input(true, 'Asia Kill Zone', group = 'Asia Session')
+Asia_KillTime = input.session('2300-0355', '', group = 'Asia Session')
+
+//Session London
+show_LondonSess = input(true, 'London Session',  inline = 'seslondon', group = ' London Session', tooltip = 'Frankfurt + London') 
+London_SessTime = input.session('0700-1425', '',  group = ' London Session')
+London_color = input.color(#118502, '', inline = 'seslondon', group = ' London Session')
+show_LondonKill = input(true, 'London Kill Zone',  group = ' London Session') 
+London_KillTime = input.session('0700-0955', '', group = ' London Session')
+
+//Session AM NewYork
+show_amNewyorkSess = input(true, 'NewYork AM Session', inline = 'sesamNewyork', group = 'NewYork AM Session') 
+amNewyork_SessTime = input.session('1430-1925', '',  group = 'NewYork AM Session')
+amNewyork_color = input.color(#b40f0f, '', inline = 'sesamNewyork', group = 'NewYork AM Session')
+show_amNewyorkKill = input(true, 'NewYork Am Kill Zone',  group = 'NewYork AM Session') 
+amNewyork_KillTime = input.session('1430-1655', '', group = 'NewYork AM Session')
+
+//Session AM NewYork
+show_pmNewyorkSess = input(true, 'NewYork PM Session', inline = 'sespmNewyork', group = 'NewYork PM Session') 
+pmNewyork_SessTime = input.session('1930-2255', '',  group = 'NewYork PM Session')
+pmNewyork_color = input.color(#0c6dff, '', inline = 'sespmNewyork', group = 'NewYork PM Session')
+show_pmNewyorkKill = input(true, 'NewYork PM Kill Zone',  group = 'NewYork PM Session') 
+pmNewyork_KillTime = input.session('1930-2055', '', group = 'NewYork PM Session')
+
+// Call Sessions and KillZones Library
+Sess.SessionDetector('Asia'  , Asia_SessTime, Asia_KillTime, show_AsiaSess, show_AsiaKill, 'Session', ShowMoreInfo ,Asia_color,ColorMoreInfo)
+Sess.SessionDetector('London', London_SessTime, London_KillTime, show_LondonSess, show_LondonKill, 'Session', ShowMoreInfo ,London_color,ColorMoreInfo)
+Sess.SessionDetector('NY am' , amNewyork_SessTime, amNewyork_KillTime, show_amNewyorkSess, show_amNewyorkKill, 'Session', ShowMoreInfo ,amNewyork_color,ColorMoreInfo)
+Sess.SessionDetector('NY pm' , pmNewyork_SessTime, pmNewyork_KillTime, show_pmNewyorkSess, show_pmNewyorkKill, 'Session', ShowMoreInfo ,pmNewyork_color,ColorMoreInfo)
