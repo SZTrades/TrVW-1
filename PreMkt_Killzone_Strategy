@@ -11,7 +11,7 @@ killzoneEnd = input.session("0859-0900", "Killzone End", group="Time Settings")
 
 // Risk Management
 stopLoss = input.float(2.5, "Stop Loss (pts)", minval=0.5, maxval=10.0, step=0.1, group="Risk Management")
-takeProfit = input.float(5.0, "Take Profit (pts)", minval=1.0, maxval=20.0, step=0.1, group="Risk Management")
+takeProfit = input.float(5.0, "Take Profit (pts)", minval=1.0, maxval=50.0, step=0.1, group="Risk Management")
 breakEvenLevel = input.float(3.0, "Breakeven Level (pts)", minval=1.0, maxval=5.0, step=0.1, group="Risk Management")
 trailLevel = input.float(3.0, "Trail Level (pts)", minval=1.0, maxval=5.0, step=0.1, group="Risk Management")
 useConfluenceBreak = input.bool(false, "Use Confluence Break Exit", group="Risk Management", tooltip="Exit immediately when A/D or Kernel confluence breaks")
