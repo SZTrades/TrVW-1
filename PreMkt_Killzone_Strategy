@@ -14,6 +14,7 @@ stopLoss = input.float(2.5, "Stop Loss (pts)", minval=0.5, maxval=10.0, step=0.1
 takeProfit = input.float(5.0, "Take Profit (pts)", minval=1.0, maxval=20.0, step=0.1, group="Risk Management")
 breakEvenLevel = input.float(3.0, "Breakeven Level (pts)", minval=1.0, maxval=5.0, step=0.1, group="Risk Management")
 trailLevel = input.float(3.0, "Trail Level (pts)", minval=1.0, maxval=5.0, step=0.1, group="Risk Management")
+useConfluenceBreak = input.bool(false, "Use Confluence Break Exit", group="Risk Management", tooltip="Exit immediately when A/D or Kernel confluence breaks")
 
 // Filters
 useATRFilter = input.bool(true, "Use ATR Filter", group="Filters")
@@ -271,8 +272,8 @@ if strategy.position_size != 0
             else
                 strategy.close("Long", comment="Target Hit")
         
-        // Confluence break - exit immediately (but not on AVWAP touch)
-        if not isBullishAD or not isBullishKernel
+        // Confluence break - exit immediately (optional)
+        if useConfluenceBreak and (not isBullishAD or not isBullishKernel)
             strategy.close("Long", comment="Confluence Break")
         else
             // Regular stop loss
@@ -300,8 +301,8 @@ if strategy.position_size != 0
             else
                 strategy.close("Short", comment="Target Hit")
         
-        // Confluence break - exit immediately (but not on AVWAP touch)
-        if not isBearishAD or not isBearishKernel
+        // Confluence break - exit immediately (optional)
+        if useConfluenceBreak and (not isBearishAD or not isBearishKernel)
             strategy.close("Short", comment="Confluence Break")
         else
             // Regular stop loss
