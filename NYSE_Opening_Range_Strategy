@@ -29,7 +29,7 @@ useCleanExits = input.bool(true, "Use Clean Exits (recommended)", group="Strateg
 var float range_high = na
 var float range_low = na
 var bool range_set = false
-var bool can_trade = false
+var bool trade_taken_today = false
 
 // Daily reset
 is_new_day = ta.change(dayofweek) != 0
@@ -37,6 +37,7 @@ if is_new_day
     range_high := na
     range_low := na
     range_set := false
+    trade_taken_today := false
 
 // Check if we're in opening range session (9:30-9:45)
 in_opening_range = not na(time(timeframe.period, openingRangeSession))
@@ -75,16 +76,18 @@ can_trade_today = switch tradingDays
     "News Days Only" => true  // For now, would need calendar integration
     => true
 
-// Entry conditions
-long_condition = bullish_breakout and can_trade_today and strategy.position_size == 0
-short_condition = bearish_breakout and can_trade_today and strategy.position_size == 0
+// Entry conditions (only one trade per day)
+long_condition = bullish_breakout and can_trade_today and strategy.position_size == 0 and not trade_taken_today
+short_condition = bearish_breakout and can_trade_today and strategy.position_size == 0 and not trade_taken_today
 
 // Entry Logic
 if long_condition
     strategy.entry("Long ORB", strategy.long, qty=shares_to_trade, alert_message="Long Breakout: " + str.tostring(close))
+    trade_taken_today := true
 
 if short_condition  
     strategy.entry("Short ORB", strategy.short, qty=shares_to_trade, alert_message="Short Breakdown: " + str.tostring(close))
+    trade_taken_today := true
 
 // ====================================
 // ==== Exit Logic ====
