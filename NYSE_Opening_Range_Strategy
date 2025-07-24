@@ -77,58 +77,32 @@ can_trade_today = switch tradingDays
     => true
 
 // Entry conditions (only one trade per day)
-long_condition = bullish_breakout and can_trade_today and strategy.position_size == 0 and not trade_taken_today
-short_condition = bearish_breakout and can_trade_today and strategy.position_size == 0 and not trade_taken_today
+long_condition = bullish_breakout and strategy.position_size == 0 and not trade_taken_today
+short_condition = bearish_breakout and strategy.position_size == 0 and not trade_taken_today
 
-// Entry Logic
+// Entry Logic (simplified)
 if long_condition
-    strategy.entry("Long ORB", strategy.long, qty=shares_to_trade, alert_message="Long Breakout: " + str.tostring(close))
+    strategy.entry("Long ORB", strategy.long, qty=1, alert_message="Long Breakout")
     trade_taken_today := true
 
 if short_condition  
-    strategy.entry("Short ORB", strategy.short, qty=shares_to_trade, alert_message="Short Breakdown: " + str.tostring(close))
+    strategy.entry("Short ORB", strategy.short, qty=1, alert_message="Short Breakdown")
     trade_taken_today := true
 
 // ====================================
 // ==== Exit Logic ====
 // ====================================
 
-// Calculate stop loss and take profit levels
+// Simple exits for testing
 if strategy.position_size > 0  // Long position
     stop_loss = range_low
     take_profit = strategy.position_avg_price + (strategy.position_avg_price - stop_loss) * riskRewardRatio
-    
-    if not useTrailingStop
-        // Fixed TP/SL
-        strategy.exit("Long Exit", "Long ORB", stop=stop_loss, limit=take_profit)
-    else
-        // Trailing stop logic
-        profit_points = close - strategy.position_avg_price
-        risk_points = strategy.position_avg_price - stop_loss
-        
-        if profit_points >= risk_points * 1.0  // 1R in profit
-            trail_price = close - (risk_points * trailingDistance)
-            strategy.exit("Long Trail", "Long ORB", trail_price=trail_price, trail_offset=risk_points * trailingDistance)
-        else
-            strategy.exit("Long SL", "Long ORB", stop=stop_loss)
+    strategy.exit("Long Exit", "Long ORB", stop=stop_loss, limit=take_profit)
 
 if strategy.position_size < 0  // Short position
     stop_loss = range_high  
     take_profit = strategy.position_avg_price - (stop_loss - strategy.position_avg_price) * riskRewardRatio
-    
-    if not useTrailingStop
-        // Fixed TP/SL
-        strategy.exit("Short Exit", "Short ORB", stop=stop_loss, limit=take_profit)
-    else
-        // Trailing stop logic
-        profit_points = strategy.position_avg_price - close
-        risk_points = stop_loss - strategy.position_avg_price
-        
-        if profit_points >= risk_points * 1.0  // 1R in profit
-            trail_price = close + (risk_points * trailingDistance)
-            strategy.exit("Short Trail", "Short ORB", trail_price=trail_price, trail_offset=risk_points * trailingDistance)
-        else
-            strategy.exit("Short SL", "Short ORB", stop=stop_loss)
+    strategy.exit("Short Exit", "Short ORB", stop=stop_loss, limit=take_profit)
 
 // Force close at end of session (if clean exits enabled)
 if useCleanExits and trading_session_end and strategy.position_size != 0
