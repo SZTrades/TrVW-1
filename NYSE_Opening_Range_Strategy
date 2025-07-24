@@ -58,7 +58,7 @@ trading_session_end = not na(time(timeframe.period, "1445-1446"))
 
 // Calculate range size for position sizing
 range_size = range_set ? range_high - range_low : na
-shares_to_trade = range_set and range_size > 0 ? math.round(fixedRiskUSD / range_size) : 1
+shares_to_trade = 1  // Simplified for testing
 
 // ====================================
 // ==== Entry Conditions ====
@@ -146,6 +146,11 @@ fill(plot(range_set ? range_low : na, color=color.new(color.green, 90)), range_f
 
 // Highlight trading session
 bgcolor(in_trading_session ? color.new(color.yellow, 98) : na, title="Trading Session")
+
+// Debug signals
+plotshape(range_set ? high : na, "Range Set", shape.circle, location.absolute, color.blue, size=size.tiny)
+plotshape(bullish_breakout ? low : na, "Bull Breakout", shape.triangleup, location.belowbar, color.orange, size=size.small)
+plotshape(bearish_breakout ? high : na, "Bear Breakout", shape.triangledown, location.abovebar, color.purple, size=size.small)
 
 // Entry signals
 plotshape(long_condition ? low : na, "Long Entry", shape.labelup, location.belowbar, color.green, size=size.normal, text="LONG")
