@@ -1,0 +1,170 @@
+//@version=6
+strategy("NYSE Opening Range Breakout - Guru Test", "ORB Test", overlay=true, margin_long=100, margin_short=100, default_qty_type=strategy.fixed, default_qty_value=1, initial_capital=10000)
+
+// ====================================
+// ==== Strategy Settings ====
+// ====================================
+
+// Session Settings
+openingRangeSession = input.session("0930-0945", "Opening Range Session", group="Time Settings", tooltip="First 15min candle to define range")
+tradingSession = input.session("0945-1445", "Trading Session", group="Time Settings", tooltip="When we can take trades")
+
+// Risk Management  
+fixedRiskUSD = input.float(100, "Fixed Risk per Trade ($)", minval=10, maxval=1000, step=10, group="Risk Management")
+riskRewardRatio = input.float(1.4, "Risk:Reward Ratio", minval=0.5, maxval=3.0, step=0.1, group="Risk Management")
+
+// Strategy Modes
+useTrailingStop = input.bool(false, "Use Trailing Stop (instead of TP)", group="Strategy Mode")
+trailingDistance = input.float(0.15, "Trailing Distance (R)", minval=0.05, maxval=0.5, step=0.05, group="Strategy Mode", tooltip="Distance for trailing stop in R multiples")
+
+// Filters
+tradingDays = input.string("All Days", "Trading Days", options=["All Days", "Mon-Fri Only", "News Days Only"], group="Filters")
+useCleanExits = input.bool(true, "Use Clean Exits (recommended)", group="Strategy Mode", tooltip="Close positions at end of session instead of holding forever")
+
+// ====================================
+// ==== Opening Range Logic ====
+// ====================================
+
+// Variables to store opening range
+var float range_high = na
+var float range_low = na
+var bool range_set = false
+var bool can_trade = false
+
+// Daily reset
+is_new_day = ta.change(dayofweek) != 0
+if is_new_day
+    range_high := na
+    range_low := na
+    range_set := false
+
+// Check if we're in opening range session (9:30-9:45)
+in_opening_range = not na(time(timeframe.period, openingRangeSession))
+
+// Set opening range when first 15min candle closes
+if in_opening_range and not range_set
+    range_high := high
+    range_low := low
+    range_set := true
+
+// Update range during the 15min window
+if in_opening_range and range_set
+    range_high := math.max(range_high, high)
+    range_low := math.min(range_low, low)
+
+// Check if we're in trading session (9:45-14:45)
+in_trading_session = not na(time(timeframe.period, tradingSession))
+trading_session_end = not na(time(timeframe.period, "1445-1446"))
+
+// Calculate range size for position sizing
+range_size = range_set ? range_high - range_low : na
+shares_to_trade = range_set and range_size > 0 ? math.round(fixedRiskUSD / range_size) : 1
+
+// ====================================
+// ==== Entry Conditions ====
+// ====================================
+
+// Breakout conditions
+bullish_breakout = range_set and close > range_high and in_trading_session
+bearish_breakout = range_set and close < range_low and in_trading_session
+
+// Day filter logic
+can_trade_today = switch tradingDays
+    "All Days" => true
+    "Mon-Fri Only" => dayofweek >= 2 and dayofweek <= 6  // Mon=2, Fri=6
+    "News Days Only" => true  // For now, would need calendar integration
+    => true
+
+// Entry conditions
+long_condition = bullish_breakout and can_trade_today and strategy.position_size == 0
+short_condition = bearish_breakout and can_trade_today and strategy.position_size == 0
+
+// Entry Logic
+if long_condition
+    strategy.entry("Long ORB", strategy.long, qty=shares_to_trade, alert_message="Long Breakout: " + str.tostring(close))
+
+if short_condition  
+    strategy.entry("Short ORB", strategy.short, qty=shares_to_trade, alert_message="Short Breakdown: " + str.tostring(close))
+
+// ====================================
+// ==== Exit Logic ====
+// ====================================
+
+// Calculate stop loss and take profit levels
+if strategy.position_size > 0  // Long position
+    stop_loss = range_low
+    take_profit = strategy.position_avg_price + (strategy.position_avg_price - stop_loss) * riskRewardRatio
+    
+    if not useTrailingStop
+        // Fixed TP/SL
+        strategy.exit("Long Exit", "Long ORB", stop=stop_loss, limit=take_profit)
+    else
+        // Trailing stop logic
+        profit_points = close - strategy.position_avg_price
+        risk_points = strategy.position_avg_price - stop_loss
+        
+        if profit_points >= risk_points * 1.0  // 1R in profit
+            trail_price = close - (risk_points * trailingDistance)
+            strategy.exit("Long Trail", "Long ORB", trail_price=trail_price, trail_offset=risk_points * trailingDistance)
+        else
+            strategy.exit("Long SL", "Long ORB", stop=stop_loss)
+
+if strategy.position_size < 0  // Short position
+    stop_loss = range_high  
+    take_profit = strategy.position_avg_price - (stop_loss - strategy.position_avg_price) * riskRewardRatio
+    
+    if not useTrailingStop
+        // Fixed TP/SL
+        strategy.exit("Short Exit", "Short ORB", stop=stop_loss, limit=take_profit)
+    else
+        // Trailing stop logic
+        profit_points = strategy.position_avg_price - close
+        risk_points = stop_loss - strategy.position_avg_price
+        
+        if profit_points >= risk_points * 1.0  // 1R in profit
+            trail_price = close + (risk_points * trailingDistance)
+            strategy.exit("Short Trail", "Short ORB", trail_price=trail_price, trail_offset=risk_points * trailingDistance)
+        else
+            strategy.exit("Short SL", "Short ORB", stop=stop_loss)
+
+// Force close at end of session (if clean exits enabled)
+if useCleanExits and trading_session_end and strategy.position_size != 0
+    strategy.close_all(comment="End of Session")
+
+// ====================================
+// ==== Plotting ====
+// ====================================
+
+// Plot opening range
+plot(range_set ? range_high : na, "Range High", color=color.red, linewidth=2, style=plot.style_line)
+plot(range_set ? range_low : na, "Range Low", color=color.green, linewidth=2, style=plot.style_line)
+
+// Fill opening range
+range_fill = plot(range_set ? math.avg(range_high, range_low) : na, "Range Mid", color=color.new(color.gray, 100))
+fill(plot(range_set ? range_high : na, color=color.new(color.red, 90)), range_fill, color=color.new(color.red, 95), title="Range Fill")
+fill(plot(range_set ? range_low : na, color=color.new(color.green, 90)), range_fill, color=color.new(color.green, 95), title="Range Fill")
+
+// Highlight trading session
+bgcolor(in_trading_session ? color.new(color.yellow, 98) : na, title="Trading Session")
+
+// Entry signals
+plotshape(long_condition ? low : na, "Long Entry", shape.labelup, location.belowbar, color.green, size=size.normal, text="LONG")
+plotshape(short_condition ? high : na, "Short Entry", shape.labeldown, location.abovebar, color.red, size=size.normal, text="SHORT")
+
+// Range info table
+if barstate.islast and range_set
+    var table info_table = table.new(position.top_right, columns=2, rows=4, bgcolor=color.new(color.black, 80), border_width=1)
+    
+    table.clear(info_table, 0, 0, 1, 3)
+    
+    table.cell(info_table, 0, 0, "Opening Range", text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 0, "Value", text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 50))
+    
+    table.cell(info_table, 0, 1, "High", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 1, str.tostring(range_high, "#.##"), text_color=color.red, text_size=size.small)
+    
+    table.cell(info_table, 0, 2, "Low", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 2, str.tostring(range_low, "#.##"), text_color=color.green, text_size=size.small)
+    
+    table.cell(info_table, 0, 3, "Size", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 3, str.tostring(range_size, "#.##") + " pts", text_color=color.blue, text_size=size.small)
