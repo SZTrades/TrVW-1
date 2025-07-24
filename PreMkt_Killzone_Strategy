@@ -6,7 +6,7 @@ strategy("SZTrades PreMkt Killzone Strategy", "SZT PreMkt", overlay=true, margin
 // ====================================
 
 // Session Settings
-killzoneStart = input.session("0700-0701", "Killzone Start", group="Time Settings")
+killzoneStart = input.session("0700-0900", "Killzone Session", group="Time Settings")
 killzoneEnd = input.session("0859-0900", "Killzone End", group="Time Settings") 
 
 // Risk Management
@@ -20,6 +20,10 @@ useATRFilter = input.bool(true, "Use ATR Filter", group="Filters")
 atrLength = input.int(14, "ATR Length", minval=5, maxval=50, group="Filters")
 atrLookback = input.int(10, "ATR Average Days", minval=5, maxval=20, group="Filters")
 adEmaLength = input.int(50, "A/D EMA Length", minval=20, maxval=200, group="Filters")
+
+// Advanced Filters
+useRangeFilter = input.bool(true, "Use Range Filter (after first loss)", group="Filters", tooltip="Prevents second trade if price is in upper/lower 20% of daily range")
+trailStep = input.float(2.0, "Trail Step (pts)", minval=0.5, maxval=5.0, step=0.1, group="Risk Management", tooltip="Trail stop every X points when momentum continues")
 
 // Second Trade Settings
 allowSecondTrade = input.bool(true, "Allow Second Trade", group="Trade Management")
@@ -154,12 +158,20 @@ current_atr = ta.atr(atrLength)
 avg_atr = ta.sma(current_atr, atrLookback)
 atr_filter = useATRFilter ? current_atr > avg_atr : true
 
+// Daily Range Filter  
+daily_high = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off)
+daily_low = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off)
+daily_range = daily_high - daily_low
+upper_20_percent = daily_high - (daily_range * 0.2)
+lower_20_percent = daily_low + (daily_range * 0.2)
+in_extreme_range = close > upper_20_percent or close < lower_20_percent
+
 // ====================================
 // ==== Session and Entry Logic ====
 // ====================================
 
 // Check if in killzone
-in_killzone = not na(time(timeframe.period, "0700-0859"))
+in_killzone = not na(time(timeframe.period, killzoneStart))
 killzone_end_time = not na(time(timeframe.period, killzoneEnd))
 
 // Entry Conditions
@@ -179,16 +191,26 @@ var bool trailing_active = false
 var int last_trade_time = na
 var bool first_trade_hit_target = false
 var int trades_today = 0
+var bool first_trade_loss = false
+var float highest_profit = 0.0
+var float lowest_profit = 0.0
 
 // Reset daily counters
 if is_new_day
     trades_today := 0
     first_trade_hit_target := false
+    first_trade_loss := false
     last_trade_time := na
+    highest_profit := 0.0
+    lowest_profit := 0.0
 
 // Time filter for second trade
 time_since_last_trade = allowSecondTrade and not na(last_trade_time) ? (time - last_trade_time) / (1000 * 60) : 999
-can_take_second_trade = allowSecondTrade and (na(last_trade_time) or time_since_last_trade >= minTimeBetweenTrades) and not first_trade_hit_target and trades_today < 2
+
+// Range filter for second trade (after first loss)
+range_filter_ok = not useRangeFilter or not first_trade_loss or (first_trade_loss and not in_extreme_range and current_atr > avg_atr)
+
+can_take_second_trade = allowSecondTrade and (na(last_trade_time) or time_since_last_trade >= minTimeBetweenTrades) and not first_trade_hit_target and trades_today < 2 and range_filter_ok
 
 // Entry Logic
 if strategy.position_size == 0 and (na(last_trade_time) or can_take_second_trade)
@@ -201,6 +223,7 @@ if strategy.position_size == 0 and (na(last_trade_time) or can_take_second_trade
         trailing_active := false
         last_trade_time := time
         trades_today := trades_today + 1
+        highest_profit := 0.0
         
     if short_entry_condition
         strategy.entry("Short", strategy.short)
@@ -211,6 +234,14 @@ if strategy.position_size == 0 and (na(last_trade_time) or can_take_second_trade
         trailing_active := false
         last_trade_time := time
         trades_today := trades_today + 1
+        lowest_profit := 0.0
+
+// Track trade results for range filter
+if strategy.position_size[1] != 0 and strategy.position_size == 0
+    // Trade just closed - check if it was a loss
+    trade_result = strategy.netprofit - strategy.netprofit[1]
+    if trade_result < 0 and trades_today == 1
+        first_trade_loss := true
 
 // Exit Logic
 if strategy.position_size != 0
@@ -220,23 +251,28 @@ if strategy.position_size != 0
     
     // Long position management
     if strategy.position_size > 0
+        current_profit = close - entry_price
+        highest_profit := math.max(highest_profit, current_profit)
+        
         // Move to breakeven
-        if close >= entry_price + breakEvenLevel and not breakeven_moved
+        if current_profit >= breakEvenLevel and not breakeven_moved
             stop_price := entry_price
             breakeven_moved := true
         
-        // Target hit - check for trailing
-        if close >= target_price
+        // Target hit - check for trailing (Let Winners Run Logic)
+        if current_profit >= takeProfit
             first_trade_hit_target := true
-            // Check if momentum continues for trailing
-            if isBullishKernel and isBullishAD and not trailing_active
+            // Check if momentum continues for trailing - Modified conditions
+            if isBullishAD and close > avwap_premkt and isBullishKernel
                 trailing_active := true
-                stop_price := entry_price + trailLevel
+                // Trail every X points
+                trail_level = entry_price + trailLevel + (math.floor(highest_profit / trailStep) * trailStep)
+                stop_price := math.max(stop_price, trail_level)
             else
                 strategy.close("Long", comment="Target Hit")
         
-        // Confluence break - exit immediately
-        if not isBullishKernel or not isBullishAD
+        // Confluence break - exit immediately (but not on AVWAP touch)
+        if not isBullishAD or not isBullishKernel
             strategy.close("Long", comment="Confluence Break")
         else
             // Regular stop loss
@@ -244,23 +280,28 @@ if strategy.position_size != 0
     
     // Short position management  
     if strategy.position_size < 0
+        current_profit = entry_price - close
+        lowest_profit := math.max(lowest_profit, current_profit)
+        
         // Move to breakeven
-        if close <= entry_price - breakEvenLevel and not breakeven_moved
+        if current_profit >= breakEvenLevel and not breakeven_moved
             stop_price := entry_price
             breakeven_moved := true
         
-        // Target hit - check for trailing
-        if close <= target_price
+        // Target hit - check for trailing (Let Winners Run Logic)
+        if current_profit >= takeProfit
             first_trade_hit_target := true
-            // Check if momentum continues for trailing
-            if isBearishKernel and isBearishAD and not trailing_active
+            // Check if momentum continues for trailing - Modified conditions
+            if isBearishAD and close < avwap_premkt and isBearishKernel
                 trailing_active := true
-                stop_price := entry_price - trailLevel
+                // Trail every X points
+                trail_level = entry_price - trailLevel - (math.floor(lowest_profit / trailStep) * trailStep)
+                stop_price := math.min(stop_price, trail_level)
             else
                 strategy.close("Short", comment="Target Hit")
         
-        // Confluence break - exit immediately
-        if not isBearishKernel or not isBearishAD
+        // Confluence break - exit immediately (but not on AVWAP touch)
+        if not isBearishAD or not isBearishKernel
             strategy.close("Short", comment="Confluence Break")
         else
             // Regular stop loss
