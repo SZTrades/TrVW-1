@@ -5,12 +5,18 @@ indicator("SZTrades RTH ATR", "RTH ATR", overlay=true)
 // ==== Settings ====
 // ====================================
 
+// Session Settings
+sessionStart = input.session("0930-0931", "Session Start Time", group="Session Settings", tooltip="When to start ATR calculation (default: 9:30 AM for RTH)")
+sessionEnd = input.session("1600-1601", "Session End Time", group="Session Settings", tooltip="Session end time for reference")
+
 // ATR Settings
+atrPeriods = input.int(4, "ATR Periods", minval=1, maxval=20, step=1, group="ATR Settings", tooltip="Number of bars to average for ATR calculation")
 multiplier = input.float(0.8, "Target Multiplier", minval=0.1, maxval=2.0, step=0.1, group="ATR Settings", tooltip="Multiply ATR by this for conservative target")
 
 // Display Settings
 showTable = input.bool(true, "Show ATR Table", group="Display")
 tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+showLines = input.bool(false, "Show ATR Lines", group="Display", tooltip="Show visual target lines from current price")
 
 // ====================================
 // ==== RTH ATR Logic ====
@@ -21,9 +27,9 @@ var array<float> rth_ranges = array.new<float>()
 var float current_rth_atr = na
 var bool rth_session_active = false
 
-// Check if we're in RTH (9:30 AM onwards)
-rth_start = not na(time(timeframe.period, "0930-0931"))
-in_rth = not na(time(timeframe.period, "0930-1600"))
+// Check if we're in session (user-defined times)
+session_start = not na(time(timeframe.period, sessionStart))
+in_session = not na(time(timeframe.period, str.substring(sessionStart, 0, 4) + "-" + str.substring(sessionEnd, 0, 4)))
 
 // Daily reset
 is_new_day = ta.change(dayofweek) != 0
@@ -32,12 +38,12 @@ if is_new_day
     current_rth_atr := na
     rth_session_active := false
 
-// Start tracking from 9:30 AM
-if rth_start and not rth_session_active
+// Start tracking from session start
+if session_start and not rth_session_active
     rth_session_active := true
 
-// Calculate True Range for current bar (only during RTH)
-if rth_session_active and in_rth
+// Calculate True Range for current bar (only during session)
+if rth_session_active and in_session
     // True Range = max of (high-low, high-prev_close, prev_close-low)
     true_range = math.max(high - low, math.max(math.abs(high - close[1]), math.abs(close[1] - low)))
     
@@ -45,8 +51,8 @@ if rth_session_active and in_rth
     if barstate.isconfirmed
         array.push(rth_ranges, true_range)
         
-        // Keep only last 4 RTH bars
-        if array.size(rth_ranges) > 4
+        // Keep only last X bars (user-defined)
+        if array.size(rth_ranges) > atrPeriods
             array.shift(rth_ranges)
         
         // Calculate RTH ATR (average of available ranges)
@@ -79,7 +85,7 @@ if showTable and barstate.islast and not na(current_rth_atr)
     table.clear(atr_table, 0, 0, 1, 2)
     
     // Headers
-    table.cell(atr_table, 0, 0, "RTH ATR", text_color = color.black, text_size = size.normal, bgcolor = color.white)
+    table.cell(atr_table, 0, 0, "ATR(" + str.tostring(atrPeriods) + ")", text_color = color.black, text_size = size.normal, bgcolor = color.white)
     table.cell(atr_table, 1, 0, "", text_color = color.black, text_size = size.normal, bgcolor = color.white)
     
     // Current ATR
@@ -94,10 +100,7 @@ if showTable and barstate.islast and not na(current_rth_atr)
 // ==== Optional Visual Lines ====
 // ====================================
 
-// Plot ATR levels (optional)
-showLines = input.bool(false, "Show ATR Lines", group="Display")
-
-// Current price reference lines
+// Current price reference lines (ATR Lines)
 upper_target = showLines and not na(current_rth_atr) ? close + target_range : na
 lower_target = showLines and not na(current_rth_atr) ? close - target_range : na
 
