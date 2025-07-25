@@ -97,11 +97,10 @@ if showTable and barstate.islast and not na(current_rth_atr)
 // Plot ATR levels (optional)
 showLines = input.bool(false, "Show ATR Lines", group="Display")
 
-if showLines and not na(current_rth_atr)
-    // Current price reference lines
-    upper_target = close + target_range
-    lower_target = close - target_range
-    
-    // Plot target range from current price
-    plot(upper_target, "Upper Target", color=color.new(color.green, 50), linewidth=1, style=plot.style_circles)
-    plot(lower_target, "Lower Target", color=color.new(color.red, 50), linewidth=1, style=plot.style_circles)
+// Current price reference lines
+upper_target = showLines and not na(current_rth_atr) ? close + target_range : na
+lower_target = showLines and not na(current_rth_atr) ? close - target_range : na
+
+// Plot target range from current price
+plot(upper_target, "Upper Target", color=color.new(color.green, 50), linewidth=1, style=plot.style_circles)
+plot(lower_target, "Lower Target", color=color.new(color.red, 50), linewidth=1, style=plot.style_circles)
