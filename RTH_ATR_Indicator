@@ -73,22 +73,22 @@ if showTable and barstate.islast and not na(current_rth_atr)
                                    tablePosition == "bottom_left" ? position.bottom_left :
                                    tablePosition == "bottom_center" ? position.bottom_center :
                                    position.bottom_right, 
-                                   columns = 2, rows = 3, bgcolor = color.new(color.black, 80), border_width = 1)
+                                   columns = 2, rows = 3, bgcolor = color.white, border_width = 1, border_color = color.black)
     
     // Clear table
     table.clear(atr_table, 0, 0, 1, 2)
     
     // Headers
-    table.cell(atr_table, 0, 0, "RTH ATR", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.gray, 50))
-    table.cell(atr_table, 1, 0, "", text_color = color.white, text_size = size.normal, bgcolor = color.new(color.gray, 50))
+    table.cell(atr_table, 0, 0, "RTH ATR", text_color = color.black, text_size = size.normal, bgcolor = color.white)
+    table.cell(atr_table, 1, 0, "", text_color = color.black, text_size = size.normal, bgcolor = color.white)
     
     // Current ATR
-    table.cell(atr_table, 0, 1, "Current", text_color = color.white, text_size = size.small)
-    table.cell(atr_table, 1, 1, str.tostring(current_rth_atr, "#.# pts"), text_color = color.yellow, text_size = size.small)
+    table.cell(atr_table, 0, 1, "Current", text_color = color.black, text_size = size.small, bgcolor = color.white)
+    table.cell(atr_table, 1, 1, str.tostring(current_rth_atr, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.white)
     
     // Target
-    table.cell(atr_table, 0, 2, "Target", text_color = color.white, text_size = size.small)
-    table.cell(atr_table, 1, 2, str.tostring(target_range, "#.# pts"), text_color = color.green, text_size = size.small)
+    table.cell(atr_table, 0, 2, "Target", text_color = color.black, text_size = size.small, bgcolor = color.white)
+    table.cell(atr_table, 1, 2, str.tostring(target_range, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.white)
 
 // ====================================
 // ==== Optional Visual Lines ====
