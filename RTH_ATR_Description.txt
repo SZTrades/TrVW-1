@@ -1,0 +1,25 @@
+📊 **SZTrades RTH ATR - Mental Target Calculator**
+
+🎯 **Purpose**: Align your scalping targets with ACTUAL market volatility, not guru fantasies.
+
+🧠 **Problem Solved**: 
+- Stop burning mental energy on unrealistic targets
+- Eliminate emotional P&L damage from misaligned expectations  
+- Preserve cognitive resources for quality setups
+
+⚡ **How It Works**:
+- Calculates rolling ATR from session start (default: 9:30 AM RTH)
+- Shows REALISTIC target based on recent volatility
+- Default 0.5x multiplier = "golden chunk" (conservative)
+- Clean table display with current average + target
+
+🎛️ **Flexible Settings**:
+- Custom session times (RTH, Asia, London, post-events)
+- Adjustable ATR periods (1-20 bars)
+- Target multiplier (0.1-2.0x)
+
+💰 **Edge**: Know what the market is ACTUALLY giving vs. what you're hoping for.
+
+⚡ **Energy Saver**: One glance = instant target alignment. No overthinking, no glucose drain.
+
+Perfect for disciplined scalpers who trade with market reality, not against it.
