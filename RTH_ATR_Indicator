@@ -79,22 +79,22 @@ if showTable and barstate.islast and not na(current_rth_atr)
                                    tablePosition == "bottom_left" ? position.bottom_left :
                                    tablePosition == "bottom_center" ? position.bottom_center :
                                    position.bottom_right, 
-                                   columns = 2, rows = 3, bgcolor = color.white, border_width = 2, border_color = color.black)
+                                   columns = 2, rows = 3, bgcolor = color.new(color.white, 5), border_width = 3, border_color = color.black)
     
     // Clear table
     table.clear(atr_table, 0, 0, 1, 2)
     
     // Headers
-    table.cell(atr_table, 0, 0, "Avg.", text_color = color.black, text_size = size.normal, bgcolor = color.white)
-    table.cell(atr_table, 1, 0, "(" + str.tostring(atrPeriods) + ")", text_color = color.black, text_size = size.normal, bgcolor = color.white)
+    table.cell(atr_table, 0, 0, "Avg.", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+    table.cell(atr_table, 1, 0, "(" + str.tostring(atrPeriods) + ")", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
     
     // Current ATR
-    table.cell(atr_table, 0, 1, "Current", text_color = color.black, text_size = size.small, bgcolor = color.white)
-    table.cell(atr_table, 1, 1, str.tostring(current_rth_atr, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.white)
+    table.cell(atr_table, 0, 1, "Current", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(atr_table, 1, 1, str.tostring(current_rth_atr, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
     
     // Target
-    table.cell(atr_table, 0, 2, "Target", text_color = color.black, text_size = size.small, bgcolor = color.white)
-    table.cell(atr_table, 1, 2, str.tostring(target_range, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.white)
+    table.cell(atr_table, 0, 2, "Target", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(atr_table, 1, 2, str.tostring(target_range, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
 
 // ====================================
 // ==== Optional Visual Lines ====
