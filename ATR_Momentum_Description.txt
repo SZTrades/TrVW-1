@@ -1,0 +1,40 @@
+📊 **ATR Momentum Oscillator - Multi-Asset 4H**
+
+🎯 **Purpose**: Identify momentum exhaustion and potential reversal points using normalized ATR movements with Bollinger Band confluence.
+
+🔍 **How It Works**:
+- Calculates biggest price move over X periods
+- Normalizes by dividing by current ATR 
+- Shows when momentum reaches extreme levels (±3.0+ ATR units)
+- Adds Bollinger Band filter for confluence signals
+
+⚡ **Signal Logic**:
+🔴 **Red Dot (Sell Signal)**: Move/ATR ≥ +3.0 + Price > Upper BB = Bullish exhaustion
+🟢 **Green Dot (Buy Signal)**: Move/ATR ≤ -3.0 + Price < Lower BB = Bearish exhaustion
+
+📈 **Asset Presets**:
+🥇 **Gold**: 12 periods, ±3.0 threshold, ATR(14) - Standard trending moves
+🥈 **Silver**: 8 periods, ±2.5 threshold, ATR(10) - More volatile, faster signals  
+💵 **DXY**: 18 periods, ±4.0 threshold, ATR(20) - Slower moves, higher threshold
+⚙️ **Custom**: Full manual control for any asset
+
+🎛️ **Settings Groups**:
+- **Asset Presets**: Quick setup for Gold/Silver/DXY/Custom
+- **Core Settings**: Lookback periods (3-48), ATR length (5-50)
+- **Thresholds**: Upper/Lower momentum levels (±1.0 to ±8.0)
+- **Bollinger Bands**: BB length/multiplier for confluence
+
+📊 **Table Info**:
+- **ATR**: Current ATR value
+- **Move/ATR**: Current momentum ratio (green=bullish, red=bearish)
+- **Status**: NORMAL / EXTREME ↑ / EXTREME ↓
+
+🧠 **Best Use Cases**:
+- 4H timeframe for swing reversals
+- Confluence with other momentum indicators
+- Counter-trend entries at extreme levels
+- Not for trending breakout trades
+
+💡 **Pro Tip**: Best signals occur when oscillator hits extreme AND price is outside Bollinger Bands. Single conditions may give false signals.
+
+Perfect for traders who want to catch swing reversals with data-driven momentum exhaustion signals.
