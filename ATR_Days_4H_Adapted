@@ -110,23 +110,22 @@ fill(underPlot, plotLowerLine, color=color.new(color.purple, 85), title="Extreme
 bgcolor(move >= finalUpperThreshold ? color.new(color.red, 95) : move <= finalLowerThreshold ? color.new(color.green, 95) : na, title="Extreme Momentum Background")
 
 // === INFO TABLE (4H Optimized) ===
-var infoTable = table.new(position=position.top_right, columns=2, rows=3, bgcolor=color.new(color.black, 20), 
-                          border_color=color.white, border_width=1, frame_width=1)
+var infoTable = table.new(position=position.top_right, columns=2, rows=3, bgcolor=color.white, 
+                          border_color=color.black, border_width=1, frame_width=1)
 
 if barstate.islast
     table.clear(infoTable, 0, 0, 1, 2)
     
     // Current ATR
-    table.cell(infoTable, 0, 0, text="ATR", bgcolor=color.blue, text_color=color.white, text_size=size.small)
-    table.cell(infoTable, 1, 0, text=str.tostring(math.round(curAtr * 100) / 100), bgcolor=color.black, text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 0, 0, text="ATR", bgcolor=color.white, text_color=color.black, text_size=size.small)
+    table.cell(infoTable, 1, 0, text=str.tostring(math.round(curAtr * 100) / 100), bgcolor=color.white, text_color=color.black, text_size=size.small)
     
-    // Current Momentum
-    table.cell(infoTable, 0, 1, text="Momentum", bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    // Current Momentum (Move ÷ ATR)
+    table.cell(infoTable, 0, 1, text="Move/ATR", bgcolor=color.white, text_color=color.black, text_size=size.small)
     momentumColor = move > 0 ? color.green : color.red
     table.cell(infoTable, 1, 1, text=str.tostring(math.round(move * 100) / 100), bgcolor=momentumColor, text_color=color.white, text_size=size.small)
     
     // Status
     status = move >= finalUpperThreshold ? "EXTREME ↑" : move <= finalLowerThreshold ? "EXTREME ↓" : "NORMAL"
-    statusColor = move >= finalUpperThreshold ? color.red : move <= finalLowerThreshold ? color.lime : color.gray
-    table.cell(infoTable, 0, 2, text="Status", bgcolor=color.gray, text_color=color.white, text_size=size.small)
-    table.cell(infoTable, 1, 2, text=status, bgcolor=statusColor, text_color=color.black, text_size=size.small)
+    table.cell(infoTable, 0, 2, text="Status", bgcolor=color.white, text_color=color.black, text_size=size.small)
+    table.cell(infoTable, 1, 2, text=status, bgcolor=color.white, text_color=color.black, text_size=size.small)
