@@ -15,8 +15,14 @@
 
 🎛️ **Flexible Settings**:
 - Custom session times (RTH, Asia, London, post-events)
-- Adjustable ATR periods (1-20 bars)
+- Adjustable ATR periods (1-100 bars)
 - Target multiplier (0.1-2.0x)
+
+📊 **Recommended Periods by Timeframe**:
+- 15m: 4-8 periods (1-2 hours data)
+- 5m: 12-24 periods (1-2 hours data)
+- 3m: 20-40 periods (1-2 hours data)  
+- 1m: 60-120 periods (1-2 hours data)
 
 💰 **Edge**: Know what the market is ACTUALLY giving vs. what you're hoping for.
 
