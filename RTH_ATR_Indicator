@@ -79,7 +79,7 @@ if showTable and barstate.islast and not na(current_rth_atr)
                                    tablePosition == "bottom_left" ? position.bottom_left :
                                    tablePosition == "bottom_center" ? position.bottom_center :
                                    position.bottom_right, 
-                                   columns = 2, rows = 3, bgcolor = color.new(color.white, 5), border_width = 3, border_color = color.black)
+                                   columns = 2, rows = 3, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
     
     // Clear table
     table.clear(atr_table, 0, 0, 1, 2)
