@@ -1,0 +1,255 @@
+//@version=6
+indicator("SZTrades Market Structure Detector", "SZT MS", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// Swing Detection Settings
+swingLength = input.int(5, "Swing Detection Length", minval=2, maxval=50, tooltip="Lower values = more sensitive. Use 3-7 for 1-5m, 8-15 for 15m+", group="Swing Detection")
+minSwingSize = input.float(0.0, "Minimum Swing Size (Points)", minval=0.0, tooltip="Filter out small swings. Use 0 for maximum sensitivity", group="Swing Detection")
+
+// Display Settings  
+showSwingLines = input.bool(true, "Show Swing Lines", group="Display")
+showLabels = input.bool(true, "Show HH/HL/LH/LL Labels", group="Display")
+showBOS = input.bool(true, "Show Break of Structure", group="Display")
+showCHoCH = input.bool(true, "Show Change of Character", group="Display")
+
+// Colors
+bullColor = input.color(color.new(color.green, 0), "Bullish Color", group="Colors")
+bearColor = input.color(color.new(color.red, 0), "Bearish Color", group="Colors")
+bosColor = input.color(color.new(color.blue, 0), "BOS Color", group="Colors")
+chochColor = input.color(color.new(color.orange, 0), "CHoCH Color", group="Colors")
+
+// Line Settings
+lineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Display")
+labelSize = input.string("small", "Label Size", options=["tiny", "small", "normal", "large"], group="Display")
+
+// ====================================
+// ==== Swing Detection ====
+// ====================================
+
+// More sensitive swing detection
+isSwingHigh = ta.pivothigh(high, swingLength, swingLength)
+isSwingLow = ta.pivotlow(low, swingLength, swingLength)
+
+// Filter by minimum swing size if specified
+validSwingHigh = isSwingHigh and (minSwingSize == 0.0 or (high[swingLength] - low[swingLength*2] >= minSwingSize))
+validSwingLow = isSwingLow and (minSwingSize == 0.0 or (high[swingLength*2] - low[swingLength] >= minSwingSize))
+
+// ====================================
+// ==== Market Structure Variables ====
+// ====================================
+
+var float lastHighPrice = na
+var int lastHighBar = na
+var float lastLowPrice = na
+var int lastLowBar = na
+var float prevHighPrice = na
+var int prevHighBar = na
+var float prevLowPrice = na
+var int prevLowBar = na
+
+var string currentTrend = "Unknown" // "Bullish", "Bearish", "Unknown"
+var string lastStructure = "Unknown" // "HH", "HL", "LH", "LL"
+
+// Arrays to store structure points for BOS detection
+var array<float> highPrices = array.new<float>()
+var array<int> highBars = array.new<int>()
+var array<float> lowPrices = array.new<float>()
+var array<int> lowBars = array.new<int>()
+
+// ====================================
+// ==== Structure Detection Logic ====
+// ====================================
+
+// Convert label size string to Pine size
+labelSizeConverted = labelSize == "tiny" ? size.tiny : labelSize == "small" ? size.small : labelSize == "normal" ? size.normal : size.large
+
+// Process swing highs
+if validSwingHigh
+    currentHigh = high[swingLength]
+    currentHighBar = bar_index - swingLength
+    
+    // Store previous values
+    prevHighPrice := lastHighPrice
+    prevHighBar := lastHighBar
+    
+    // Update current values
+    lastHighPrice := currentHigh
+    lastHighBar := currentHighBar
+    
+    // Add to arrays for BOS detection
+    array.unshift(highPrices, currentHigh)
+    array.unshift(highBars, currentHighBar)
+    if array.size(highPrices) > 10
+        array.pop(highPrices)
+        array.pop(highBars)
+    
+    // Determine structure type
+    if not na(prevHighPrice)
+        if currentHigh > prevHighPrice
+            lastStructure := "HH"
+            if currentTrend != "Bullish"
+                currentTrend := "Bullish"
+        else
+            lastStructure := "LH"
+            if currentTrend != "Bearish"
+                currentTrend := "Bearish"
+        
+        // Create line to previous high
+        if showSwingLines and not na(prevHighBar)
+            line.new(prevHighBar, prevHighPrice, currentHighBar, currentHigh, 
+                     color=lastStructure == "HH" ? bullColor : bearColor, 
+                     width=lineWidth, 
+                     style=line.style_solid)
+        
+        // Create label
+        if showLabels
+            labelColor = lastStructure == "HH" ? bullColor : bearColor
+            label.new(currentHighBar, currentHigh, 
+                     text=lastStructure, 
+                     color=color.new(labelColor, 80), 
+                     textcolor=labelColor, 
+                     style=label.style_label_down, 
+                     size=labelSizeConverted)
+
+// Process swing lows
+if validSwingLow
+    currentLow = low[swingLength]
+    currentLowBar = bar_index - swingLength
+    
+    // Store previous values
+    prevLowPrice := lastLowPrice
+    prevLowBar := lastLowBar
+    
+    // Update current values
+    lastLowPrice := currentLow
+    lastLowBar := currentLowBar
+    
+    // Add to arrays for BOS detection
+    array.unshift(lowPrices, currentLow)
+    array.unshift(lowBars, currentLowBar)
+    if array.size(lowPrices) > 10
+        array.pop(lowPrices)
+        array.pop(lowBars)
+    
+    // Determine structure type
+    if not na(prevLowPrice)
+        if currentLow < prevLowPrice
+            lastStructure := "LL"
+            if currentTrend != "Bearish"
+                currentTrend := "Bearish"
+        else
+            lastStructure := "HL"
+            if currentTrend != "Bullish"
+                currentTrend := "Bullish"
+        
+        // Create line to previous low
+        if showSwingLines and not na(prevLowBar)
+            line.new(prevLowBar, prevLowPrice, currentLowBar, currentLow, 
+                     color=lastStructure == "LL" ? bearColor : bullColor, 
+                     width=lineWidth, 
+                     style=line.style_solid)
+        
+        // Create label
+        if showLabels
+            labelColor = lastStructure == "LL" ? bearColor : bullColor
+            label.new(currentLowBar, currentLow, 
+                     text=lastStructure, 
+                     color=color.new(labelColor, 80), 
+                     textcolor=labelColor, 
+                     style=label.style_label_up, 
+                     size=labelSizeConverted)
+
+// ====================================
+// ==== Break of Structure (BOS) Detection ====
+// ====================================
+
+var float lastBOSLevel = na
+var string lastBOSType = na
+
+// Check for BOS on bullish trend
+if showBOS and currentTrend == "Bullish" and array.size(lowPrices) >= 2
+    recentLow = array.get(lowPrices, 1) // Previous swing low
+    if close < recentLow and (na(lastBOSLevel) or recentLow != lastBOSLevel)
+        lastBOSLevel := recentLow
+        lastBOSType := "Bearish"
+        
+        // Create BOS label
+        label.new(bar_index, low, 
+                 text="BOS ↓", 
+                 color=color.new(bosColor, 80), 
+                 textcolor=bosColor, 
+                 style=label.style_label_up, 
+                 size=labelSizeConverted)
+
+// Check for BOS on bearish trend  
+if showBOS and currentTrend == "Bearish" and array.size(highPrices) >= 2
+    recentHigh = array.get(highPrices, 1) // Previous swing high
+    if close > recentHigh and (na(lastBOSLevel) or recentHigh != lastBOSLevel)
+        lastBOSLevel := recentHigh
+        lastBOSType := "Bullish"
+        
+        // Create BOS label
+        label.new(bar_index, high, 
+                 text="BOS ↑", 
+                 color=color.new(bosColor, 80), 
+                 textcolor=bosColor, 
+                 style=label.style_label_down, 
+                 size=labelSizeConverted)
+
+// ====================================
+// ==== Change of Character (CHoCH) Detection ====
+// ====================================
+
+var string previousTrend = currentTrend
+if showCHoCH and currentTrend != previousTrend and currentTrend != "Unknown" and previousTrend != "Unknown"
+    
+    chochText = currentTrend == "Bullish" ? "CHoCH ↑" : "CHoCH ↓"
+    chochStyle = currentTrend == "Bullish" ? label.style_label_up : label.style_label_down
+    chochY = currentTrend == "Bullish" ? low : high
+    
+    label.new(bar_index, chochY, 
+             text=chochText, 
+             color=color.new(chochColor, 80), 
+             textcolor=chochColor, 
+             style=chochStyle, 
+             size=labelSizeConverted)
+
+// Update previous trend for next bar
+previousTrend := currentTrend
+
+// ====================================
+// ==== Current Market Structure Info ====
+// ====================================
+
+// Table to show current market structure
+if barstate.islast
+    var table infoTable = table.new(position.top_left, 2, 3, bgcolor=color.new(color.white, 20), border_width=1)
+    
+    table.clear(infoTable, 0, 0, 1, 2)
+    
+    // Headers
+    table.cell(infoTable, 0, 0, "Market Structure", text_color=color.black, text_size=size.small, bgcolor=color.new(color.white, 30))
+    table.cell(infoTable, 1, 0, "", text_color=color.black, text_size=size.small, bgcolor=color.new(color.white, 30))
+    
+    // Current trend
+    trendColor = currentTrend == "Bullish" ? bullColor : currentTrend == "Bearish" ? bearColor : color.gray
+    table.cell(infoTable, 0, 1, "Trend:", text_color=color.black, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+    table.cell(infoTable, 1, 1, currentTrend, text_color=trendColor, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+    
+    // Last structure
+    structureColor = lastStructure == "HH" or lastStructure == "HL" ? bullColor : lastStructure == "LH" or lastStructure == "LL" ? bearColor : color.gray
+    table.cell(infoTable, 0, 2, "Last:", text_color=color.black, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+    table.cell(infoTable, 1, 2, lastStructure, text_color=structureColor, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+
+// ====================================
+// ==== Plots for Alerts (Optional) ====
+// ====================================
+
+// Plot invisible lines that can be used for alerts
+plotshape(validSwingHigh and lastStructure == "HH", title="Higher High", style=shape.triangleup, location=location.abovebar, color=color.new(bullColor, 100), size=size.tiny)
+plotshape(validSwingLow and lastStructure == "HL", title="Higher Low", style=shape.triangleup, location=location.belowbar, color=color.new(bullColor, 100), size=size.tiny)
+plotshape(validSwingHigh and lastStructure == "LH", title="Lower High", style=shape.triangledown, location=location.abovebar, color=color.new(bearColor, 100), size=size.tiny)
+plotshape(validSwingLow and lastStructure == "LL", title="Lower Low", style=shape.triangledown, location=location.belowbar, color=color.new(bearColor, 100), size=size.tiny)
