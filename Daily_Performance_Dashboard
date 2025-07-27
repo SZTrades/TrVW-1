@@ -22,9 +22,9 @@ slSize = input.float(0.0, "Stop Loss Size ($)", group="Manual Input")
 // ==== Daily Reset Logic ====
 // ====================================
 
-// Market open time (9:30 AM ET)
-marketOpen = not na(time(timeframe.period, "0930-0931", timezone.New_York))
-newDay = ta.change(dayofweek) != 0 or (resetDaily and marketOpen)
+// Reset at 6:00 PM ET (18:00) to include Asia/Pre-market trades
+dailyReset = not na(time(timeframe.period, "1800-1801", timezone.New_York))
+newDay = ta.change(dayofweek) != 0 or (resetDaily and dailyReset)
 
 // ====================================
 // ==== Performance Variables ====
