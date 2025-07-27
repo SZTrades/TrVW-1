@@ -17,6 +17,7 @@ tradeResult = input.string("None", "Trade Result", options=["None", "Win", "Loss
 tradePnL = input.float(0.0, "Trade P&L ($)", group="Manual Input")
 tradeRR = input.float(0.0, "Trade R/R Ratio", group="Manual Input")
 slSize = input.float(0.0, "Stop Loss Size ($)", group="Manual Input")
+holdingTime = input.float(0.0, "Holding Time (minutes)", group="Manual Input")
 
 // ====================================
 // ==== Daily Reset Logic ====
@@ -42,6 +43,7 @@ var float totalRR = 0.0
 var float totalWinAmount = 0.0
 var float totalLossAmount = 0.0
 var float totalSLSize = 0.0
+var float totalHoldingTime = 0.0
 var float bestTrade = 0.0
 var float worstTrade = 0.0
 var int winCount = 0
@@ -58,6 +60,7 @@ if newDay
     totalWinAmount := 0.0
     totalLossAmount := 0.0
     totalSLSize := 0.0
+    totalHoldingTime := 0.0
     bestTrade := 0.0
     worstTrade := 0.0
     winCount := 0
@@ -93,11 +96,13 @@ if manualMode and tradeResult != "None" and tradePnL != 0.0
         if tradePnL < worstTrade
             worstTrade := tradePnL
     
-    // Update R/R and SL tracking
+    // Update R/R, SL, and holding time tracking
     if tradeRR > 0
         totalRR := totalRR + tradeRR
     if slSize > 0
         totalSLSize := totalSLSize + slSize
+    if holdingTime > 0
+        totalHoldingTime := totalHoldingTime + holdingTime
 
 // ====================================
 // ==== Note: Strategy Detection ====
@@ -117,6 +122,7 @@ avgRR = dailyTrades > 0 ? totalRR / dailyTrades : 0
 avgWin = winCount > 0 ? totalWinAmount / winCount : 0
 avgLoss = lossCount > 0 ? totalLossAmount / lossCount : 0
 avgSL = dailyTrades > 0 ? totalSLSize / dailyTrades : 0
+avgHolding = dailyTrades > 0 ? totalHoldingTime / dailyTrades : 0
 
 // Get current date for display
 currentDate = str.format("{0,date,yyyy-MM-dd}", timenow)
@@ -154,23 +160,25 @@ if (showDailySummary or showTradeBreakdown) and barstate.islast
     // Trade Breakdown Table
     if showTradeBreakdown
         breakdownPos = showDailySummary ? (tablePos == position.top_right ? position.middle_right : position.bottom_right) : tablePos
-        var table breakdownTable = table.new(position = breakdownPos, columns = 2, rows = 4, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+        var table breakdownTable = table.new(position = breakdownPos, columns = 2, rows = 5, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
         
-        table.clear(breakdownTable, 0, 0, 1, 3)
+        table.clear(breakdownTable, 0, 0, 1, 4)
         
         // Header
         table.cell(breakdownTable, 0, 0, "Trade Analysis", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
         table.cell(breakdownTable, 1, 0, "", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
         
-        // Averages
-        table.cell(breakdownTable, 0, 1, "Avg. Win: $" + str.tostring(avgWin, "#,###"), text_color = color.green, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(breakdownTable, 1, 1, "Avg. Loss: $" + str.tostring(avgLoss, "#,###"), text_color = color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        // Row 1: Avg Win/Loss (larger text)
+        table.cell(breakdownTable, 0, 1, "Avg. Win: $" + str.tostring(avgWin, "#,###"), text_color = color.green, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 1, "Avg. Loss: $" + str.tostring(avgLoss, "#,###"), text_color = color.red, text_size = size.normal, bgcolor = color.new(color.white, 5))
         
-        table.cell(breakdownTable, 0, 2, "Avg. SL Size: $" + str.tostring(avgSL, "#,###"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(breakdownTable, 1, 2, "Best Trade: $" + str.tostring(bestTrade, "#,###"), text_color = color.green, text_size = size.small, bgcolor = color.new(color.white, 5))
+        // Row 2: Best/Worst Trade (smaller text)
+        table.cell(breakdownTable, 0, 2, "Best Trade: $" + str.tostring(bestTrade, "#,###"), text_color = color.green, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 2, "Worst Trade: $" + str.tostring(worstTrade, "#,###"), text_color = color.red, text_size = size.tiny, bgcolor = color.new(color.white, 5))
         
-        table.cell(breakdownTable, 0, 3, "Worst Trade: $" + str.tostring(worstTrade, "#,###"), text_color = color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(breakdownTable, 1, 3, "", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        // Row 3: SL Size and Holding Time (smaller text)
+        table.cell(breakdownTable, 0, 3, "Avg. SL Size: $" + str.tostring(avgSL, "#,###"), text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 3, "Avg. Holding: " + str.tostring(avgHolding, "#.#") + "m", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
 
 // ====================================
 // ==== Visual Elements ====
