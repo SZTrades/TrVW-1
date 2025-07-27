@@ -147,26 +147,27 @@ if validSwingLow
 // ==== Zigzag Lines ====
 // ====================================
 
-// Draw zigzag lines connecting swing points
+// Draw zigzag line to previous swing point
 if showZigzag and array.size(zigzagPrices) >= 2
-    for i = 0 to math.min(array.size(zigzagPrices) - 2, 8)
-        price1 = array.get(zigzagPrices, i)
-        bar1 = array.get(zigzagBars, i)
-        isHigh1 = array.get(zigzagIsHigh, i)
+    // Get the two most recent swing points
+    currentPrice = array.get(zigzagPrices, 0)
+    currentBar = array.get(zigzagBars, 0)
+    currentIsHigh = array.get(zigzagIsHigh, 0)
+    
+    prevPrice = array.get(zigzagPrices, 1)
+    prevBar = array.get(zigzagBars, 1)
+    prevIsHigh = array.get(zigzagIsHigh, 1)
+    
+    // Only draw line if they are different types (high to low or low to high)
+    if currentIsHigh != prevIsHigh
+        // Determine line color based on direction
+        lineColor = currentPrice > prevPrice ? bullColor : bearColor
         
-        price2 = array.get(zigzagPrices, i + 1)
-        bar2 = array.get(zigzagBars, i + 1)
-        isHigh2 = array.get(zigzagIsHigh, i + 1)
-        
-        // Only draw lines between different types (high to low or low to high)
-        if isHigh1 != isHigh2
-            // Determine line color based on direction
-            lineColor = price1 > price2 ? bearColor : bullColor
-            
-            line.new(bar2, price2, bar1, price1, 
-                     color=lineColor, 
-                     width=lineWidth, 
-                     style=line.style_solid)
+        line.new(prevBar, prevPrice, currentBar, currentPrice, 
+                 color=lineColor, 
+                 width=lineWidth, 
+                 style=line.style_solid,
+                 extend=extend.none)
 
 // ====================================
 // ==== Current Market Structure Info ====
