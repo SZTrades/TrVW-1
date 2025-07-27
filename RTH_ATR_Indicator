@@ -28,8 +28,8 @@ var float current_rth_atr = na
 var bool rth_session_active = false
 
 // Check if we're in session (user-defined times)
-session_start = not na(time(timeframe.period, sessionStart))
-in_session = not na(time(timeframe.period, str.substring(sessionStart, 0, 4) + "-" + str.substring(sessionEnd, 0, 4)))
+session_start = not na(time(timeframe.period, sessionStart, timezone.New_York))
+in_session = not na(time(timeframe.period, str.substring(sessionStart, 0, 4) + "-" + str.substring(sessionEnd, 0, 4), timezone.New_York))
 
 // Daily reset
 is_new_day = ta.change(dayofweek) != 0

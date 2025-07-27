@@ -1,5 +1,5 @@
 //@version=6
-strategy("SZTrades PreMkt Killzone Strategy", "SZT PreMkt", overlay=true, margin_long=100, margin_short=100, default_qty_type=strategy.fixed, default_qty_value=2)
+strategy("SZTrades PreMkt Killzone Strategy", "SZT PreMkt", overlay=true, margin_long=100, margin_short=100, default_qty_type=strategy.fixed, default_qty_value=2, timezone=timezone.New_York)
 
 // ====================================
 // ==== Strategy Settings ====
@@ -50,7 +50,7 @@ var bool avwap_premkt_active = false
 is_new_day = ta.change(dayofweek) != 0
 
 // London AVWAP (2:00 AM start)
-london_session = not na(time(timeframe.period, "0200-0201"))
+london_session = not na(time(timeframe.period, "0200-0201", timezone.New_York))
 if london_session and not avwap_london_active
     avwap_london_active := true
     avwap_london_sum_pv := 0.0
@@ -67,7 +67,7 @@ if is_new_day and avwap_london_active
     avwap_london_active := false
 
 // PreMkt AVWAP (7:00 AM start)
-premkt_session = not na(time(timeframe.period, "0700-0701"))
+premkt_session = not na(time(timeframe.period, "0700-0701", timezone.New_York))
 if premkt_session and not avwap_premkt_active
     avwap_premkt_active := true
     avwap_premkt_sum_pv := 0.0
@@ -160,8 +160,8 @@ avg_atr = ta.sma(current_atr, atrLookback)
 atr_filter = useATRFilter ? current_atr > avg_atr : true
 
 // Daily Range Filter  
-daily_high = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off)
-daily_low = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off)
+daily_high = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+daily_low = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
 daily_range = daily_high - daily_low
 upper_20_percent = daily_high - (daily_range * 0.2)
 lower_20_percent = daily_low + (daily_range * 0.2)
@@ -172,8 +172,8 @@ in_extreme_range = close > upper_20_percent or close < lower_20_percent
 // ====================================
 
 // Check if in killzone and force close time
-in_killzone = not na(time(timeframe.period, "0700-0900"))
-force_close_time = not na(time(timeframe.period, killzoneEnd))
+in_killzone = not na(time(timeframe.period, "0700-0900", timezone.New_York))
+force_close_time = not na(time(timeframe.period, killzoneEnd, timezone.New_York))
 
 // Entry Conditions
 long_avwap_condition = close > avwap_london and close > avwap_premkt

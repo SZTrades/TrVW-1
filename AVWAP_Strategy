@@ -46,9 +46,9 @@ var bool avwap3_active = false
 is_new_day = ta.change(dayofweek) != 0
 
 // Check if we are in AVWAP sessions
-avwap1_session = not na(time(timeframe.period, avwap1_start))
-avwap2_session = not na(time(timeframe.period, avwap2_start))
-avwap3_session = not na(time(timeframe.period, avwap3_start))
+avwap1_session = not na(time(timeframe.period, avwap1_start, timezone.New_York))
+avwap2_session = not na(time(timeframe.period, avwap2_start, timezone.New_York))
+avwap3_session = not na(time(timeframe.period, avwap3_start, timezone.New_York))
 
 // AVWAP #1 Logic (PreMkt)
 if avwap1_session and not avwap1_active

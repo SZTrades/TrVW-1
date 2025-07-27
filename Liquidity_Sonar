@@ -37,16 +37,16 @@ prevDayWidth = input.int(1, "Previous Day Width", minval=1, maxval=3, group="Ray
 // ====================================
 
 // Weekly levels (previous week for liquidity hunting)
-prevWeeklyHigh = request.security(syminfo.tickerid, "1W", high[1], lookahead=barmerge.lookahead_off)
-prevWeeklyLow = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off)
-weeklyHigh = request.security(syminfo.tickerid, "1W", high, lookahead=barmerge.lookahead_off)
-weeklyLow = request.security(syminfo.tickerid, "1W", low, lookahead=barmerge.lookahead_off)
+prevWeeklyHigh = request.security(syminfo.tickerid, "1W", high[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+prevWeeklyLow = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+weeklyHigh = request.security(syminfo.tickerid, "1W", high, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+weeklyLow = request.security(syminfo.tickerid, "1W", low, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
 
 // Daily levels (RTH session: 18:00-17:00 ET next day)
-dailyHigh = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off)
-dailyLow = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off)
-prevDailyHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
-prevDailyLow = request.security(syminfo.tickerid, "1D", low[1], lookahead=barmerge.lookahead_off)
+dailyHigh = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+dailyLow = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+prevDailyHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+prevDailyLow = request.security(syminfo.tickerid, "1D", low[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
 
 
 

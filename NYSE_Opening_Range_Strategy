@@ -1,5 +1,5 @@
 //@version=6
-strategy("NYSE Opening Range Breakout - Guru Test", "ORB Test", overlay=true, margin_long=100, margin_short=100, default_qty_type=strategy.fixed, default_qty_value=1, initial_capital=10000)
+strategy("NYSE Opening Range Breakout - Guru Test", "ORB Test", overlay=true, margin_long=100, margin_short=100, default_qty_type=strategy.fixed, default_qty_value=1, initial_capital=10000, timezone=timezone.New_York)
 
 // ====================================
 // ==== Strategy Settings ====
@@ -40,7 +40,7 @@ if is_new_day
     trade_taken_today := false
 
 // Check if we're in opening range session (9:30-9:45)
-in_opening_range = not na(time(timeframe.period, openingRangeSession))
+in_opening_range = not na(time(timeframe.period, openingRangeSession, timezone.New_York))
 
 // Set opening range when first 15min candle closes
 if in_opening_range and not range_set
@@ -54,8 +54,8 @@ if in_opening_range and range_set
     range_low := math.min(range_low, low)
 
 // Check if we're in trading session (9:45-14:45)
-in_trading_session = not na(time(timeframe.period, tradingSession))
-trading_session_end = not na(time(timeframe.period, "1445-1446"))
+in_trading_session = not na(time(timeframe.period, tradingSession, timezone.New_York))
+trading_session_end = not na(time(timeframe.period, "1445-1446", timezone.New_York))
 
 // Calculate range size for position sizing
 range_size = range_set ? range_high - range_low : na
