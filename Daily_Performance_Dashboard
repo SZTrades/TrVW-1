@@ -148,14 +148,14 @@ if (showDailySummary or showTradeBreakdown) and barstate.islast
         table.cell(summaryTable, 2, 0, "", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
         
         // Row 1: Trades, Win Rate, Avg R/R
-        table.cell(summaryTable, 0, 1, "Trades: " + str.tostring(dailyTrades), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(summaryTable, 1, 1, "Win Rate: " + str.tostring(winRate, "#.#") + "%", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(summaryTable, 2, 1, "Avg R/R: " + str.tostring(avgRR, "#.##"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 0, 1, "Trades: " + str.tostring(dailyTrades), text_color = color.black, text_size = size.large, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 1, 1, "Win Rate: " + str.tostring(winRate, "#.#") + "%", text_color = color.black, text_size = size.large, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 2, 1, "Avg R/R: " + str.tostring(avgRR, "#.##"), text_color = color.black, text_size = size.large, bgcolor = color.new(color.white, 5))
         
         // Row 2: P&L, Max DD
-        table.cell(summaryTable, 0, 2, "P&L: $" + str.tostring(dailyPnL, "#,###"), text_color = dailyPnL >= 0 ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(summaryTable, 1, 2, "Max DD: -$" + str.tostring(maxDrawdown, "#,###"), text_color = color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(summaryTable, 2, 2, "", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 0, 2, "P&L: $" + str.tostring(dailyPnL, "#,###"), text_color = dailyPnL >= 0 ? color.green : color.red, text_size = size.large, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 1, 2, "Max DD: -$" + str.tostring(maxDrawdown, "#,###"), text_color = color.red, text_size = size.large, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 2, 2, "", text_color = color.black, text_size = size.large, bgcolor = color.new(color.white, 5))
     
     // Trade Breakdown Table
     if showTradeBreakdown
@@ -172,13 +172,13 @@ if (showDailySummary or showTradeBreakdown) and barstate.islast
         table.cell(breakdownTable, 0, 1, "Avg. Win: $" + str.tostring(avgWin, "#,###"), text_color = color.green, text_size = size.normal, bgcolor = color.new(color.white, 5))
         table.cell(breakdownTable, 1, 1, "Avg. Loss: $" + str.tostring(avgLoss, "#,###"), text_color = color.red, text_size = size.normal, bgcolor = color.new(color.white, 5))
         
-        // Row 2: Best/Worst Trade (smaller text)
-        table.cell(breakdownTable, 0, 2, "Best Trade: $" + str.tostring(bestTrade, "#,###"), text_color = color.green, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-        table.cell(breakdownTable, 1, 2, "Worst Trade: $" + str.tostring(worstTrade, "#,###"), text_color = color.red, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+        // Row 2: Best/Worst Trade (same small text)
+        table.cell(breakdownTable, 0, 2, "Best Trade: $" + str.tostring(bestTrade, "#,###"), text_color = color.green, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 2, "Worst Trade: $" + str.tostring(worstTrade, "#,###"), text_color = color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
         
-        // Row 3: SL Size and Holding Time (smaller text)
-        table.cell(breakdownTable, 0, 3, "Avg. SL Size: $" + str.tostring(avgSL, "#,###"), text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-        table.cell(breakdownTable, 1, 3, "Avg. Holding: " + str.tostring(avgHolding, "#.#") + "m", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+        // Row 3: SL Size and Holding Time (same small text)
+        table.cell(breakdownTable, 0, 3, "Avg. SL Size: $" + str.tostring(avgSL, "#,###"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 3, "Avg. Holding: " + str.tostring(avgHolding, "#.#") + "m", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
 
 // ====================================
 // ==== Visual Elements ====
