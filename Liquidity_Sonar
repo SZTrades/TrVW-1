@@ -43,7 +43,7 @@ prevWeeklyLow = request.security(syminfo.tickerid, "1W", low[1], lookahead=barme
 weeklyHigh = request.security(syminfo.tickerid, "1W", high, lookahead=barmerge.lookahead_off)
 weeklyLow = request.security(syminfo.tickerid, "1W", low, lookahead=barmerge.lookahead_off)
 
-// Daily levels (current and previous)
+// Daily levels (RTH session: 18:00-17:00 ET next day)
 dailyHigh = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off)
 dailyLow = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off)
 prevDailyHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
@@ -102,18 +102,18 @@ if showLabels and barstate.islast
     
     // Weekly levels (previous week - main targets)
     if showWeeklyLevels
-        label.new(labelX, prevWeeklyHigh, text="Weekly HIGH", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
-        label.new(labelX, prevWeeklyLow, text="Weekly LOW", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX, prevWeeklyHigh, text="PW. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX, prevWeeklyLow, text="PW. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
     
     // Daily levels (current day) - offset to avoid overlap
     if showDailyLevels
-        label.new(labelX + 3, dailyHigh, text="Daily H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
-        label.new(labelX + 3, dailyLow, text="Daily L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX + 3, dailyHigh, text="D. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX + 3, dailyLow, text="D. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
     
     // Previous daily levels - offset more to avoid overlap
     if showPrevDayLevels
-        label.new(labelX + 6, prevDailyHigh, text="Prev Day H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
-        label.new(labelX + 6, prevDailyLow, text="Prev Day L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX + 6, prevDailyHigh, text="PD. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX + 6, prevDailyLow, text="PD. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
 
 // ====================================
 // ==== Clean Distance Table ====
@@ -127,24 +127,24 @@ if showTable and barstate.islast
     table.clear(sonarTable, 0, 0, 1, 6)
     
     // Header
-    table.cell(sonarTable, 0, 0, "Liquidity Sonar", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 0, "Distance", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 0, "Targets", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 0, "Dist.", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
     
     // Sonar Layout: Center to extremes (high to low)
-    table.cell(sonarTable, 0, 1, "W. High", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 1, str.tostring(distToWeeklyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 1, "PW. H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 1, str.tostring(distToWeeklyHigh, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 2, "Daily H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 2, str.tostring(distToDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 2, "D. H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 2, str.tostring(distToDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 3, "Pr D H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 3, str.tostring(distToPrevDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 3, "PD. H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 3, str.tostring(distToPrevDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 4, "Pr D L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 4, str.tostring(distToPrevDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 4, "PD. L", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 4, str.tostring(distToPrevDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 5, "Daily L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 5, str.tostring(distToDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 5, "D. L", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 5, str.tostring(distToDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 6, "W. Low", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 6, str.tostring(distToWeeklyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 6, "PW. L", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 6, str.tostring(distToWeeklyLow, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
