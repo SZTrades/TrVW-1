@@ -134,16 +134,8 @@ if showPrevDayLevels and barstate.islast
 // ====================================
 
 if showTable and barstate.islast
-    var table sonarTable = table.new(position = tablePosition == "top_left" ? position.top_left : 
-                                    tablePosition == "top_center" ? position.top_center :
-                                    tablePosition == "top_right" ? position.top_right :
-                                    tablePosition == "middle_left" ? position.middle_left :
-                                    tablePosition == "middle_center" ? position.middle_center :
-                                    tablePosition == "middle_right" ? position.middle_right :
-                                    tablePosition == "bottom_left" ? position.bottom_left :
-                                    tablePosition == "bottom_center" ? position.bottom_center :
-                                    position.bottom_right, 
-                                    columns = 2, rows = 7, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+    tablePos = tablePosition == "top_left" ? position.top_left : tablePosition == "top_center" ? position.top_center : tablePosition == "top_right" ? position.top_right : tablePosition == "middle_left" ? position.middle_left : tablePosition == "middle_center" ? position.middle_center : tablePosition == "middle_right" ? position.middle_right : tablePosition == "bottom_left" ? position.bottom_left : tablePosition == "bottom_center" ? position.bottom_center : position.bottom_right
+    var table sonarTable = table.new(position = tablePos, columns = 2, rows = 7, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
     
     // Clear table
     table.clear(sonarTable, 0, 0, 1, 6)
