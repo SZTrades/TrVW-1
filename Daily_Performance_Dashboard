@@ -1,0 +1,191 @@
+//@version=6
+indicator("SZTrades Daily Performance Dashboard", "Daily Dashboard", overlay=false)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// Dashboard Settings
+showDailySummary = input.bool(true, "Show Daily Summary", group="Display")
+showTradeBreakdown = input.bool(true, "Show Trade Breakdown", group="Display")
+resetDaily = input.bool(true, "Reset Daily at Market Open", group="Settings")
+tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+
+// Manual Input Settings (for live trading tracking)
+manualMode = input.bool(false, "Manual Trade Input Mode", group="Manual Input")
+tradeResult = input.string("None", "Trade Result", options=["None", "Win", "Loss"], group="Manual Input")
+tradePnL = input.float(0.0, "Trade P&L ($)", group="Manual Input")
+tradeRR = input.float(0.0, "Trade R/R Ratio", group="Manual Input")
+slSize = input.float(0.0, "Stop Loss Size ($)", group="Manual Input")
+
+// ====================================
+// ==== Daily Reset Logic ====
+// ====================================
+
+// Market open time (9:30 AM ET)
+marketOpen = not na(time(timeframe.period, "0930-0931", timezone.New_York))
+newDay = ta.change(dayofweek) != 0 or (resetDaily and marketOpen)
+
+// ====================================
+// ==== Performance Variables ====
+// ====================================
+
+// Daily counters
+var int dailyTrades = 0
+var int dailyWins = 0
+var float dailyPnL = 0.0
+var float dailyPeak = 0.0
+var float maxDrawdown = 0.0
+
+// Trade analysis
+var float totalRR = 0.0
+var float totalWinAmount = 0.0
+var float totalLossAmount = 0.0
+var float totalSLSize = 0.0
+var float bestTrade = 0.0
+var float worstTrade = 0.0
+var int winCount = 0
+var int lossCount = 0
+
+// Daily reset
+if newDay
+    dailyTrades := 0
+    dailyWins := 0
+    dailyPnL := 0.0
+    dailyPeak := 0.0
+    maxDrawdown := 0.0
+    totalRR := 0.0
+    totalWinAmount := 0.0
+    totalLossAmount := 0.0
+    totalSLSize := 0.0
+    bestTrade := 0.0
+    worstTrade := 0.0
+    winCount := 0
+    lossCount := 0
+
+// ====================================
+// ==== Manual Trade Input ====
+// ====================================
+
+// Process manual trade input
+if manualMode and tradeResult != "None" and tradePnL != 0.0
+    // Update counters
+    dailyTrades := dailyTrades + 1
+    dailyPnL := dailyPnL + tradePnL
+    
+    // Update peak and drawdown
+    if dailyPnL > dailyPeak
+        dailyPeak := dailyPnL
+    currentDD = dailyPeak - dailyPnL
+    if currentDD > maxDrawdown
+        maxDrawdown := currentDD
+    
+    // Process win/loss
+    if tradeResult == "Win"
+        dailyWins := dailyWins + 1
+        winCount := winCount + 1
+        totalWinAmount := totalWinAmount + tradePnL
+        if tradePnL > bestTrade
+            bestTrade := tradePnL
+    else if tradeResult == "Loss"
+        lossCount := lossCount + 1
+        totalLossAmount := totalLossAmount + math.abs(tradePnL)
+        if tradePnL < worstTrade
+            worstTrade := tradePnL
+    
+    // Update R/R and SL tracking
+    if tradeRR > 0
+        totalRR := totalRR + tradeRR
+    if slSize > 0
+        totalSLSize := totalSLSize + slSize
+
+// ====================================
+// ==== Automatic Strategy Detection ====
+// ====================================
+
+// Try to detect strategy performance automatically
+// (This works if the indicator is on a chart with strategy)
+strategyTrades = strategy.closedtrades
+strategyPnL = strategy.netprofit
+
+// Use strategy data if available and manual mode is off
+if not manualMode and strategyTrades > 0
+    // This is a simplified version - would need more complex logic
+    // to properly track daily metrics from strategy
+    dailyPnL := strategyPnL
+
+// ====================================
+// ==== Calculations ====
+// ====================================
+
+// Calculate metrics
+winRate = dailyTrades > 0 ? (dailyWins / dailyTrades) * 100 : 0
+avgRR = dailyTrades > 0 ? totalRR / dailyTrades : 0
+avgWin = winCount > 0 ? totalWinAmount / winCount : 0
+avgLoss = lossCount > 0 ? totalLossAmount / lossCount : 0
+avgSL = dailyTrades > 0 ? totalSLSize / dailyTrades : 0
+
+// Get current date for display
+currentDate = str.format("{0,date,yyyy-MM-dd}", timenow)
+
+// ====================================
+// ==== Display Tables ====
+// ====================================
+
+if (showDailySummary or showTradeBreakdown) and barstate.islast
+    
+    // Calculate table position
+    tablePos = tablePosition == "top_left" ? position.top_left : tablePosition == "top_center" ? position.top_center : tablePosition == "top_right" ? position.top_right : tablePosition == "middle_left" ? position.middle_left : tablePosition == "middle_center" ? position.middle_center : tablePosition == "middle_right" ? position.middle_right : tablePosition == "bottom_left" ? position.bottom_left : tablePosition == "bottom_center" ? position.bottom_center : position.bottom_right
+    
+    // Daily Summary Table
+    if showDailySummary
+        var table summaryTable = table.new(position = tablePos, columns = 3, rows = 3, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+        
+        table.clear(summaryTable, 0, 0, 2, 2)
+        
+        // Header with date
+        table.cell(summaryTable, 0, 0, "Daily Performance", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 1, 0, currentDate, text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 2, 0, "", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        
+        // Row 1: Trades, Win Rate, Avg R/R
+        table.cell(summaryTable, 0, 1, "Trades: " + str.tostring(dailyTrades), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 1, 1, "Win Rate: " + str.tostring(winRate, "#.#") + "%", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 2, 1, "Avg R/R: " + str.tostring(avgRR, "#.##"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        
+        // Row 2: P&L, Max DD
+        table.cell(summaryTable, 0, 2, "P&L: $" + str.tostring(dailyPnL, "#,###"), text_color = dailyPnL >= 0 ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 1, 2, "Max DD: -$" + str.tostring(maxDrawdown, "#,###"), text_color = color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(summaryTable, 2, 2, "", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    // Trade Breakdown Table
+    if showTradeBreakdown
+        breakdownPos = showDailySummary ? (tablePos == position.top_right ? position.middle_right : position.bottom_right) : tablePos
+        var table breakdownTable = table.new(position = breakdownPos, columns = 2, rows = 4, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+        
+        table.clear(breakdownTable, 0, 0, 1, 3)
+        
+        // Header
+        table.cell(breakdownTable, 0, 0, "Trade Analysis", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 0, "", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        
+        // Averages
+        table.cell(breakdownTable, 0, 1, "Avg. Win: $" + str.tostring(avgWin, "#,###"), text_color = color.green, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 1, "Avg. Loss: $" + str.tostring(avgLoss, "#,###"), text_color = color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        
+        table.cell(breakdownTable, 0, 2, "Avg. SL Size: $" + str.tostring(avgSL, "#,###"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 2, "Best Trade: $" + str.tostring(bestTrade, "#,###"), text_color = color.green, text_size = size.small, bgcolor = color.new(color.white, 5))
+        
+        table.cell(breakdownTable, 0, 3, "Worst Trade: $" + str.tostring(worstTrade, "#,###"), text_color = color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(breakdownTable, 1, 3, "", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+
+// ====================================
+// ==== Equity Curve Plot ====
+// ====================================
+
+// Plot daily P&L progression
+plot(dailyPnL, title="Daily P&L", color=dailyPnL >= 0 ? color.green : color.red, linewidth=2)
+hline(0, "Breakeven", color=color.gray, linestyle=hline.style_dashed)
+
+// Plot drawdown
+plot(-maxDrawdown, title="Max Drawdown", color=color.red, linewidth=1, style=plot.style_stepline)
