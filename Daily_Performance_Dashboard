@@ -100,19 +100,12 @@ if manualMode and tradeResult != "None" and tradePnL != 0.0
         totalSLSize := totalSLSize + slSize
 
 // ====================================
-// ==== Automatic Strategy Detection ====
+// ==== Note: Strategy Detection ====
 // ====================================
 
-// Try to detect strategy performance automatically
-// (This works if the indicator is on a chart with strategy)
-strategyTrades = strategy.closedtrades
-strategyPnL = strategy.netprofit
-
-// Use strategy data if available and manual mode is off
-if not manualMode and strategyTrades > 0
-    // This is a simplified version - would need more complex logic
-    // to properly track daily metrics from strategy
-    dailyPnL := strategyPnL
+// Note: This indicator is designed for manual trade tracking
+// For automatic strategy tracking, use this code in a strategy script instead
+// strategy.closedtrades and strategy.netprofit are only available in strategy scripts
 
 // ====================================
 // ==== Calculations ====
