@@ -9,17 +9,15 @@ indicator("Liquidity Sonar", "Sonar", overlay=true)
 showWeeklyLevels = input.bool(true, "Show Weekly H/L", group="Levels")
 showDailyLevels = input.bool(true, "Show Daily H/L", group="Levels")
 showPrevDayLevels = input.bool(true, "Show Previous Day H/L", group="Levels")
-maxWeeklyLevels = input.int(5, "Max Weekly Levels", minval=1, maxval=10, group="Levels", tooltip="Limit weekly H/L rays to avoid chart clutter")
-maxDailyLevels = input.int(5, "Max Daily Levels", minval=1, maxval=10, group="Levels", tooltip="Limit daily H/L rays to avoid chart clutter")
 
-// Ray Settings
-rayLength = input.int(50, "Ray Length (bars)", minval=10, maxval=200, group="Display")
+// Display Settings
 showTable = input.bool(true, "Show Distance Table", group="Display")
 tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
-
-// Label Settings
 showLabels = input.bool(true, "Show Level Labels", group="Display")
-labelOffset = input.int(10, "Label Distance (bars)", minval=5, maxval=50, group="Display", tooltip="Distance from current candle to avoid chart clutter")
+
+// Hardcoded settings
+rayLength = 10
+labelOffset = 10
 
 // Ray Style Settings - Fixed Colors
 weeklyHighColor = input.color(color.green, "Weekly High Color", group="Ray Styles")
@@ -97,23 +95,37 @@ if showPrevDayLevels and barstate.islast
 // ==== Level Labels ====
 // ====================================
 
+// Clean up old labels to prevent trail
+var array<label> allLabels = array.new<label>()
+
 if showLabels and barstate.islast
+    // Clear old labels
+    for i = 0 to array.size(allLabels) - 1
+        label.delete(array.get(allLabels, i))
+    array.clear(allLabels)
+    
     labelX = bar_index + labelOffset
     
     // Weekly levels (previous week - main targets)
     if showWeeklyLevels
-        label.new(labelX, prevWeeklyHigh, text="PW. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
-        label.new(labelX, prevWeeklyLow, text="PW. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        pwh_label = label.new(labelX, prevWeeklyHigh, text="PW. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        pwl_label = label.new(labelX, prevWeeklyLow, text="PW. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        array.push(allLabels, pwh_label)
+        array.push(allLabels, pwl_label)
     
-    // Daily levels (current day) - offset to avoid overlap
+    // Daily levels (current day) - same offset as PD levels
     if showDailyLevels
-        label.new(labelX + 3, dailyHigh, text="D. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
-        label.new(labelX + 3, dailyLow, text="D. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        dh_label = label.new(labelX, dailyHigh, text="D. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        dl_label = label.new(labelX, dailyLow, text="D. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        array.push(allLabels, dh_label)
+        array.push(allLabels, dl_label)
     
-    // Previous daily levels - offset more to avoid overlap
+    // Previous daily levels - same consistent offset
     if showPrevDayLevels
-        label.new(labelX + 6, prevDailyHigh, text="PD. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
-        label.new(labelX + 6, prevDailyLow, text="PD. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        pdh_label = label.new(labelX, prevDailyHigh, text="PD. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        pdl_label = label.new(labelX, prevDailyLow, text="PD. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        array.push(allLabels, pdh_label)
+        array.push(allLabels, pdl_label)
 
 // ====================================
 // ==== Clean Distance Table ====
