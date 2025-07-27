@@ -24,7 +24,8 @@ weeklyHighColor = input.color(color.green, "Weekly High Color", group="Ray Style
 weeklyLowColor = input.color(color.navy, "Weekly Low Color", group="Ray Styles")
 dailyHighColor = input.color(color.green, "Daily High Color", group="Ray Styles")
 dailyLowColor = input.color(color.navy, "Daily Low Color", group="Ray Styles")
-prevDayColor = input.color(color.orange, "Previous Day Color", group="Ray Styles")
+prevDayHighColor = input.color(color.orange, "Previous Day High Color", group="Ray Styles")
+prevDayLowColor = input.color(color.purple, "Previous Day Low Color", group="Ray Styles")
 
 rayTransparency = input.int(20, "Ray Transparency", minval=0, maxval=80, step=10, group="Ray Styles")
 weeklyWidth = input.int(2, "Weekly Line Width", minval=1, maxval=4, group="Ray Styles")
@@ -88,8 +89,8 @@ if showDailyLevels and barstate.islast
 
 // Previous daily levels
 if showPrevDayLevels and barstate.islast
-    line.new(bar_index, prevDailyHigh, bar_index + rayLength, prevDailyHigh, extend=extend.none, color=color.new(prevDayColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
-    line.new(bar_index, prevDailyLow, bar_index + rayLength, prevDailyLow, extend=extend.none, color=color.new(prevDayColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
+    line.new(bar_index, prevDailyHigh, bar_index + rayLength, prevDailyHigh, extend=extend.none, color=color.new(prevDayHighColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
+    line.new(bar_index, prevDailyLow, bar_index + rayLength, prevDailyLow, extend=extend.none, color=color.new(prevDayLowColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
 
 // ====================================
 // ==== Level Labels ====
