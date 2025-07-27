@@ -159,7 +159,15 @@ if (showDailySummary or showTradeBreakdown) and barstate.islast
     
     // Trade Breakdown Table
     if showTradeBreakdown
-        breakdownPos = showDailySummary ? (tablePos == position.top_right ? position.middle_right : position.bottom_right) : tablePos
+        breakdownPos = showDailySummary ? (tablePos == position.top_right ? position.top_left : 
+                                          tablePos == position.top_left ? position.top_right :
+                                          tablePos == position.top_center ? position.top_right :
+                                          tablePos == position.middle_right ? position.middle_left :
+                                          tablePos == position.middle_left ? position.middle_right :
+                                          tablePos == position.middle_center ? position.middle_right :
+                                          tablePos == position.bottom_right ? position.bottom_left :
+                                          tablePos == position.bottom_left ? position.bottom_right :
+                                          position.bottom_right) : tablePos
         var table breakdownTable = table.new(position = breakdownPos, columns = 2, rows = 5, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
         
         table.clear(breakdownTable, 0, 0, 1, 4)
