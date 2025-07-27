@@ -9,7 +9,8 @@ indicator("Liquidity Sonar", "Sonar", overlay=true)
 showWeeklyLevels = input.bool(true, "Show Weekly H/L", group="Levels")
 showDailyLevels = input.bool(true, "Show Daily H/L", group="Levels")
 showPrevDayLevels = input.bool(true, "Show Previous Day H/L", group="Levels")
-showPreMktLevels = input.bool(true, "Show PreMkt H/L", group="Levels")
+maxWeeklyLevels = input.int(5, "Max Weekly Levels", minval=1, maxval=10, group="Levels", tooltip="Limit weekly H/L rays to avoid chart clutter")
+maxDailyLevels = input.int(5, "Max Daily Levels", minval=1, maxval=10, group="Levels", tooltip="Limit daily H/L rays to avoid chart clutter")
 
 // Ray Settings
 rayLength = input.int(50, "Ray Length (bars)", minval=10, maxval=200, group="Display")
@@ -20,13 +21,11 @@ tablePosition = input.string("top_right", "Table Position", options=["top_left",
 weeklyColor = input.color(color.green, "Weekly Levels Color", group="Ray Styles")
 dailyColor = input.color(color.blue, "Daily Levels Color", group="Ray Styles")
 prevDayColor = input.color(color.orange, "Previous Day Color", group="Ray Styles")
-preMktColor = input.color(color.purple, "PreMkt Levels Color", group="Ray Styles")
 
 rayTransparency = input.int(30, "Ray Transparency", minval=0, maxval=80, step=10, group="Ray Styles")
 weeklyWidth = input.int(2, "Weekly Line Width", minval=1, maxval=4, group="Ray Styles")
 dailyWidth = input.int(2, "Daily Line Width", minval=1, maxval=4, group="Ray Styles")
 prevDayWidth = input.int(1, "Previous Day Width", minval=1, maxval=3, group="Ray Styles")
-preMktWidth = input.int(1, "PreMkt Line Width", minval=1, maxval=3, group="Ray Styles")
 
 // ====================================
 // ==== Level Calculations ====
@@ -44,33 +43,35 @@ dailyLow = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.look
 prevDailyHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
 prevDailyLow = request.security(syminfo.tickerid, "1D", low[1], lookahead=barmerge.lookahead_off)
 
-// PreMarket levels (7:00-9:30 AM session)
-var float preMktHigh = na
-var float preMktLow = na
-var bool preMktActive = false
+// Historical level arrays (limited to max settings)
+var array<float> weeklyHighs = array.new<float>()
+var array<float> weeklyLows = array.new<float>()
+var array<float> dailyHighs = array.new<float>()
+var array<float> dailyLows = array.new<float>()
 
-// PreMkt session detection
-preMktSession = not na(time(timeframe.period, "0700-0930"))
-newDay = ta.change(dayofweek) != 0
+// Track new levels and limit arrays
+newWeek = ta.change(time("1W")) != 0
+newDay = ta.change(time("1D")) != 0
 
-// Reset PreMkt levels daily
+// Add new weekly levels
+if newWeek
+    array.unshift(weeklyHighs, weeklyHigh)
+    array.unshift(weeklyLows, weeklyLow)
+    // Keep only max levels
+    if array.size(weeklyHighs) > maxWeeklyLevels
+        array.pop(weeklyHighs)
+    if array.size(weeklyLows) > maxWeeklyLevels
+        array.pop(weeklyLows)
+
+// Add new daily levels  
 if newDay
-    preMktHigh := na
-    preMktLow := na
-    preMktActive := false
-
-// Track PreMkt levels
-if preMktSession and not preMktActive
-    preMktActive := true
-    preMktHigh := high
-    preMktLow := low
-
-if preMktActive and preMktSession
-    preMktHigh := math.max(preMktHigh, high)
-    preMktLow := math.min(preMktLow, low)
-
-if preMktActive and not preMktSession
-    preMktActive := false
+    array.unshift(dailyHighs, dailyHigh)
+    array.unshift(dailyLows, dailyLow)
+    // Keep only max levels
+    if array.size(dailyHighs) > maxDailyLevels
+        array.pop(dailyHighs)
+    if array.size(dailyLows) > maxDailyLevels
+        array.pop(dailyLows)
 
 // ====================================
 // ==== Distance Calculations ====
@@ -91,36 +92,42 @@ distToDailyLow = currentPrice - dailyLow
 distToPrevDailyHigh = prevDailyHigh - currentPrice
 distToPrevDailyLow = currentPrice - prevDailyLow
 
-// Distance to PreMkt levels
-distToPreMktHigh = not na(preMktHigh) ? preMktHigh - currentPrice : na
-distToPreMktLow = not na(preMktLow) ? currentPrice - preMktLow : na
 
-// Current momentum direction (simple)
-momentumDirection = close > close[4] ? "↗️" : close < close[4] ? "↘️" : "↔️"
 
 // ====================================
 // ==== Level Rays (Horizontal Lines) ====
 // ====================================
 
-// Weekly levels
+// Weekly levels (limited)
 if showWeeklyLevels and barstate.islast
+    // Current week
     line.new(bar_index, weeklyHigh, bar_index + rayLength, weeklyHigh, extend=extend.none, color=color.new(weeklyColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
     line.new(bar_index, weeklyLow, bar_index + rayLength, weeklyLow, extend=extend.none, color=color.new(weeklyColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
+    
+    // Historical weekly levels
+    for i = 0 to math.min(array.size(weeklyHighs) - 1, maxWeeklyLevels - 1)
+        if i < array.size(weeklyHighs)
+            line.new(bar_index, array.get(weeklyHighs, i), bar_index + rayLength, array.get(weeklyHighs, i), extend=extend.none, color=color.new(weeklyColor, rayTransparency + 20), width=1, style=line.style_dashed)
+        if i < array.size(weeklyLows)
+            line.new(bar_index, array.get(weeklyLows, i), bar_index + rayLength, array.get(weeklyLows, i), extend=extend.none, color=color.new(weeklyColor, rayTransparency + 20), width=1, style=line.style_dashed)
 
-// Daily levels
+// Daily levels (limited)
 if showDailyLevels and barstate.islast
+    // Current day
     line.new(bar_index, dailyHigh, bar_index + rayLength, dailyHigh, extend=extend.none, color=color.new(dailyColor, rayTransparency), width=dailyWidth, style=line.style_solid)
     line.new(bar_index, dailyLow, bar_index + rayLength, dailyLow, extend=extend.none, color=color.new(dailyColor, rayTransparency), width=dailyWidth, style=line.style_solid)
+    
+    // Historical daily levels
+    for i = 0 to math.min(array.size(dailyHighs) - 1, maxDailyLevels - 1)
+        if i < array.size(dailyHighs)
+            line.new(bar_index, array.get(dailyHighs, i), bar_index + rayLength, array.get(dailyHighs, i), extend=extend.none, color=color.new(dailyColor, rayTransparency + 30), width=1, style=line.style_dotted)
+        if i < array.size(dailyLows)
+            line.new(bar_index, array.get(dailyLows, i), bar_index + rayLength, array.get(dailyLows, i), extend=extend.none, color=color.new(dailyColor, rayTransparency + 30), width=1, style=line.style_dotted)
 
 // Previous daily levels
 if showPrevDayLevels and barstate.islast
     line.new(bar_index, prevDailyHigh, bar_index + rayLength, prevDailyHigh, extend=extend.none, color=color.new(prevDayColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
     line.new(bar_index, prevDailyLow, bar_index + rayLength, prevDailyLow, extend=extend.none, color=color.new(prevDayColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
-
-// PreMkt levels
-if showPreMktLevels and barstate.islast and not na(preMktHigh) and not na(preMktLow)
-    line.new(bar_index, preMktHigh, bar_index + rayLength, preMktHigh, extend=extend.none, color=color.new(preMktColor, rayTransparency + 10), width=preMktWidth, style=line.style_dotted)
-    line.new(bar_index, preMktLow, bar_index + rayLength, preMktLow, extend=extend.none, color=color.new(preMktColor, rayTransparency + 10), width=preMktWidth, style=line.style_dotted)
 
 // ====================================
 // ==== Clean Distance Table ====
@@ -136,10 +143,10 @@ if showTable and barstate.islast
                                     tablePosition == "bottom_left" ? position.bottom_left :
                                     tablePosition == "bottom_center" ? position.bottom_center :
                                     position.bottom_right, 
-                                    columns = 2, rows = 8, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+                                    columns = 2, rows = 7, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
     
     // Clear table
-    table.clear(sonarTable, 0, 0, 1, 7)
+    table.clear(sonarTable, 0, 0, 1, 6)
     
     // Header
     table.cell(sonarTable, 0, 0, "Liquidity Sonar", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
@@ -149,21 +156,17 @@ if showTable and barstate.islast
     table.cell(sonarTable, 0, 1, "W. High", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     table.cell(sonarTable, 1, 1, str.tostring(distToWeeklyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 2, "Pr D H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 2, str.tostring(distToPrevDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 2, "Daily H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 2, str.tostring(distToDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 3, "Pre Mkt H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 3, not na(distToPreMktHigh) ? str.tostring(distToPreMktHigh, "#.#") + " pts" : "N/A", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 3, "Pr D H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 3, str.tostring(distToPrevDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 4, "Pre Mkt L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 4, not na(distToPreMktLow) ? str.tostring(distToPreMktLow, "#.#") + " pts" : "N/A", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 4, "Pr D L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 4, str.tostring(distToPrevDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     
-    table.cell(sonarTable, 0, 5, "PD L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 5, str.tostring(distToPrevDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 0, 5, "Daily L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 5, str.tostring(distToDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     
     table.cell(sonarTable, 0, 6, "W. Low", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     table.cell(sonarTable, 1, 6, str.tostring(distToWeeklyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    
-    // Momentum direction
-    table.cell(sonarTable, 0, 7, "Direction", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-    table.cell(sonarTable, 1, 7, momentumDirection, text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
