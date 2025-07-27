@@ -1,0 +1,161 @@
+//@version=6
+indicator("Liquidity Sonar", "Sonar", overlay=true)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// Level Display Settings
+showWeeklyLevels = input.bool(true, "Show Weekly H/L", group="Levels")
+showDailyLevels = input.bool(true, "Show Daily H/L", group="Levels")
+showPrevDayLevels = input.bool(true, "Show Previous Day H/L", group="Levels")
+showPreMktLevels = input.bool(true, "Show PreMkt H/L", group="Levels")
+
+// Ray Settings
+rayLength = input.int(50, "Ray Length (bars)", minval=10, maxval=200, group="Display")
+showTable = input.bool(true, "Show Distance Table", group="Display")
+tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+
+// ====================================
+// ==== Level Calculations ====
+// ====================================
+
+// Weekly levels (true HTF data)
+weeklyHigh = request.security(syminfo.tickerid, "1W", high, lookahead=barmerge.lookahead_off)
+weeklyLow = request.security(syminfo.tickerid, "1W", low, lookahead=barmerge.lookahead_off)
+prevWeeklyHigh = request.security(syminfo.tickerid, "1W", high[1], lookahead=barmerge.lookahead_off)
+prevWeeklyLow = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off)
+
+// Daily levels (current and previous)
+dailyHigh = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off)
+dailyLow = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off)
+prevDailyHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
+prevDailyLow = request.security(syminfo.tickerid, "1D", low[1], lookahead=barmerge.lookahead_off)
+
+// PreMarket levels (7:00-9:30 AM session)
+var float preMktHigh = na
+var float preMktLow = na
+var bool preMktActive = false
+
+// PreMkt session detection
+preMktSession = not na(time(timeframe.period, "0700-0930"))
+newDay = ta.change(dayofweek) != 0
+
+// Reset PreMkt levels daily
+if newDay
+    preMktHigh := na
+    preMktLow := na
+    preMktActive := false
+
+// Track PreMkt levels
+if preMktSession and not preMktActive
+    preMktActive := true
+    preMktHigh := high
+    preMktLow := low
+
+if preMktActive and preMktSession
+    preMktHigh := math.max(preMktHigh, high)
+    preMktLow := math.min(preMktLow, low)
+
+if preMktActive and not preMktSession
+    preMktActive := false
+
+// ====================================
+// ==== Distance Calculations ====
+// ====================================
+
+// Current price reference
+currentPrice = close
+
+// Distance to weekly levels
+distToWeeklyHigh = weeklyHigh - currentPrice
+distToWeeklyLow = currentPrice - weeklyLow
+distToPrevWeeklyHigh = prevWeeklyHigh - currentPrice
+distToPrevWeeklyLow = currentPrice - prevWeeklyLow
+
+// Distance to daily levels
+distToDailyHigh = dailyHigh - currentPrice
+distToDailyLow = currentPrice - dailyLow
+distToPrevDailyHigh = prevDailyHigh - currentPrice
+distToPrevDailyLow = currentPrice - prevDailyLow
+
+// Distance to PreMkt levels
+distToPreMktHigh = not na(preMktHigh) ? preMktHigh - currentPrice : na
+distToPreMktLow = not na(preMktLow) ? currentPrice - preMktLow : na
+
+// Current momentum direction (simple)
+momentumDirection = close > close[4] ? "↗️" : close < close[4] ? "↘️" : "↔️"
+
+// ====================================
+// ==== Level Rays (Horizontal Lines) ====
+// ====================================
+
+// Weekly levels
+if showWeeklyLevels and barstate.islast
+    line.new(bar_index, weeklyHigh, bar_index + rayLength, weeklyHigh, extend=extend.none, color=color.new(color.green, 30), width=2, style=line.style_solid)
+    line.new(bar_index, weeklyLow, bar_index + rayLength, weeklyLow, extend=extend.none, color=color.new(color.red, 30), width=2, style=line.style_solid)
+    line.new(bar_index, prevWeeklyHigh, bar_index + rayLength, prevWeeklyHigh, extend=extend.none, color=color.new(color.green, 60), width=1, style=line.style_dashed)
+    line.new(bar_index, prevWeeklyLow, bar_index + rayLength, prevWeeklyLow, extend=extend.none, color=color.new(color.red, 60), width=1, style=line.style_dashed)
+
+// Daily levels
+if showDailyLevels and barstate.islast
+    line.new(bar_index, dailyHigh, bar_index + rayLength, dailyHigh, extend=extend.none, color=color.new(color.blue, 30), width=2, style=line.style_solid)
+    line.new(bar_index, dailyLow, bar_index + rayLength, dailyLow, extend=extend.none, color=color.new(color.orange, 30), width=2, style=line.style_solid)
+
+// Previous daily levels
+if showPrevDayLevels and barstate.islast
+    line.new(bar_index, prevDailyHigh, bar_index + rayLength, prevDailyHigh, extend=extend.none, color=color.new(color.blue, 60), width=1, style=line.style_dashed)
+    line.new(bar_index, prevDailyLow, bar_index + rayLength, prevDailyLow, extend=extend.none, color=color.new(color.orange, 60), width=1, style=line.style_dashed)
+
+// PreMkt levels
+if showPreMktLevels and barstate.islast and not na(preMktHigh) and not na(preMktLow)
+    line.new(bar_index, preMktHigh, bar_index + rayLength, preMktHigh, extend=extend.none, color=color.new(color.purple, 40), width=1, style=line.style_dotted)
+    line.new(bar_index, preMktLow, bar_index + rayLength, preMktLow, extend=extend.none, color=color.new(color.purple, 40), width=1, style=line.style_dotted)
+
+// ====================================
+// ==== Clean Distance Table ====
+// ====================================
+
+if showTable and barstate.islast
+    var table sonarTable = table.new(position = tablePosition == "top_left" ? position.top_left : 
+                                    tablePosition == "top_center" ? position.top_center :
+                                    tablePosition == "top_right" ? position.top_right :
+                                    tablePosition == "middle_left" ? position.middle_left :
+                                    tablePosition == "middle_center" ? position.middle_center :
+                                    tablePosition == "middle_right" ? position.middle_right :
+                                    tablePosition == "bottom_left" ? position.bottom_left :
+                                    tablePosition == "bottom_center" ? position.bottom_center :
+                                    position.bottom_right, 
+                                    columns = 2, rows = 8, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+    
+    // Clear table
+    table.clear(sonarTable, 0, 0, 1, 7)
+    
+    // Header
+    table.cell(sonarTable, 0, 0, "Liquidity Sonar", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 0, "Distance", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    // Weekly levels
+    table.cell(sonarTable, 0, 1, "Weekly H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 1, str.tostring(distToWeeklyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 2, "Weekly L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 2, str.tostring(distToWeeklyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    
+    // Daily levels
+    table.cell(sonarTable, 0, 3, "Daily H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 3, str.tostring(distToDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 4, "Daily L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 4, str.tostring(distToDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    
+    // Previous daily levels
+    table.cell(sonarTable, 0, 5, "Prev Day H", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 5, str.tostring(distToPrevDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 6, "Prev Day L", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 6, str.tostring(distToPrevDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    
+    // Momentum direction
+    table.cell(sonarTable, 0, 7, "Direction", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 7, momentumDirection, text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
