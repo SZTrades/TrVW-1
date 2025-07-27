@@ -21,14 +21,16 @@ tablePosition = input.string("top_right", "Table Position", options=["top_left",
 showLabels = input.bool(true, "Show Level Labels", group="Display")
 labelOffset = input.int(10, "Label Distance (bars)", minval=5, maxval=50, group="Display", tooltip="Distance from current candle to avoid chart clutter")
 
-// Ray Style Settings
-weeklyColor = input.color(color.green, "Weekly Levels Color", group="Ray Styles")
-dailyColor = input.color(color.blue, "Daily Levels Color", group="Ray Styles")
+// Ray Style Settings - Fixed Colors
+weeklyHighColor = input.color(color.green, "Weekly High Color", group="Ray Styles")
+weeklyLowColor = input.color(color.navy, "Weekly Low Color", group="Ray Styles")
+dailyHighColor = input.color(color.green, "Daily High Color", group="Ray Styles")
+dailyLowColor = input.color(color.navy, "Daily Low Color", group="Ray Styles")
 prevDayColor = input.color(color.orange, "Previous Day Color", group="Ray Styles")
 
-rayTransparency = input.int(30, "Ray Transparency", minval=0, maxval=80, step=10, group="Ray Styles")
+rayTransparency = input.int(20, "Ray Transparency", minval=0, maxval=80, step=10, group="Ray Styles")
 weeklyWidth = input.int(2, "Weekly Line Width", minval=1, maxval=4, group="Ray Styles")
-dailyWidth = input.int(2, "Daily Line Width", minval=1, maxval=4, group="Ray Styles")
+dailyWidth = input.int(1, "Daily Line Width", minval=1, maxval=4, group="Ray Styles")
 prevDayWidth = input.int(1, "Previous Day Width", minval=1, maxval=3, group="Ray Styles")
 
 // ====================================
@@ -47,35 +49,7 @@ dailyLow = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.look
 prevDailyHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
 prevDailyLow = request.security(syminfo.tickerid, "1D", low[1], lookahead=barmerge.lookahead_off)
 
-// Historical level arrays (limited to max settings)
-var array<float> weeklyHighs = array.new<float>()
-var array<float> weeklyLows = array.new<float>()
-var array<float> dailyHighs = array.new<float>()
-var array<float> dailyLows = array.new<float>()
 
-// Track new levels and limit arrays
-newWeek = ta.change(time("1W")) != 0
-newDay = ta.change(time("1D")) != 0
-
-// Add new weekly levels
-if newWeek
-    array.unshift(weeklyHighs, weeklyHigh)
-    array.unshift(weeklyLows, weeklyLow)
-    // Keep only max levels
-    if array.size(weeklyHighs) > maxWeeklyLevels
-        array.pop(weeklyHighs)
-    if array.size(weeklyLows) > maxWeeklyLevels
-        array.pop(weeklyLows)
-
-// Add new daily levels  
-if newDay
-    array.unshift(dailyHighs, dailyHigh)
-    array.unshift(dailyLows, dailyLow)
-    // Keep only max levels
-    if array.size(dailyHighs) > maxDailyLevels
-        array.pop(dailyHighs)
-    if array.size(dailyLows) > maxDailyLevels
-        array.pop(dailyLows)
 
 // ====================================
 // ==== Distance Calculations ====
@@ -102,31 +76,17 @@ distToPrevDailyLow = currentPrice - prevDailyLow
 // ==== Level Rays (Horizontal Lines) ====
 // ====================================
 
-// Weekly levels (limited)
+// Weekly levels (previous week only - main liquidity targets)
 if showWeeklyLevels and barstate.islast
-    // Current week
-    line.new(bar_index, weeklyHigh, bar_index + rayLength, weeklyHigh, extend=extend.none, color=color.new(weeklyColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
-    line.new(bar_index, weeklyLow, bar_index + rayLength, weeklyLow, extend=extend.none, color=color.new(weeklyColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
-    
-    // Historical weekly levels
-    for i = 0 to math.min(array.size(weeklyHighs) - 1, maxWeeklyLevels - 1)
-        if i < array.size(weeklyHighs)
-            line.new(bar_index, array.get(weeklyHighs, i), bar_index + rayLength, array.get(weeklyHighs, i), extend=extend.none, color=color.new(weeklyColor, rayTransparency + 20), width=1, style=line.style_dashed)
-        if i < array.size(weeklyLows)
-            line.new(bar_index, array.get(weeklyLows, i), bar_index + rayLength, array.get(weeklyLows, i), extend=extend.none, color=color.new(weeklyColor, rayTransparency + 20), width=1, style=line.style_dashed)
+    // Previous week levels (main targets)
+    line.new(bar_index, prevWeeklyHigh, bar_index + rayLength, prevWeeklyHigh, extend=extend.none, color=color.new(weeklyHighColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
+    line.new(bar_index, prevWeeklyLow, bar_index + rayLength, prevWeeklyLow, extend=extend.none, color=color.new(weeklyLowColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
 
-// Daily levels (limited)
+// Daily levels (current day only)
 if showDailyLevels and barstate.islast
-    // Current day
-    line.new(bar_index, dailyHigh, bar_index + rayLength, dailyHigh, extend=extend.none, color=color.new(dailyColor, rayTransparency), width=dailyWidth, style=line.style_solid)
-    line.new(bar_index, dailyLow, bar_index + rayLength, dailyLow, extend=extend.none, color=color.new(dailyColor, rayTransparency), width=dailyWidth, style=line.style_solid)
-    
-    // Historical daily levels
-    for i = 0 to math.min(array.size(dailyHighs) - 1, maxDailyLevels - 1)
-        if i < array.size(dailyHighs)
-            line.new(bar_index, array.get(dailyHighs, i), bar_index + rayLength, array.get(dailyHighs, i), extend=extend.none, color=color.new(dailyColor, rayTransparency + 30), width=1, style=line.style_dotted)
-        if i < array.size(dailyLows)
-            line.new(bar_index, array.get(dailyLows, i), bar_index + rayLength, array.get(dailyLows, i), extend=extend.none, color=color.new(dailyColor, rayTransparency + 30), width=1, style=line.style_dotted)
+    // Current day levels
+    line.new(bar_index, dailyHigh, bar_index + rayLength, dailyHigh, extend=extend.none, color=color.new(dailyHighColor, rayTransparency), width=dailyWidth, style=line.style_solid)
+    line.new(bar_index, dailyLow, bar_index + rayLength, dailyLow, extend=extend.none, color=color.new(dailyLowColor, rayTransparency), width=dailyWidth, style=line.style_solid)
 
 // Previous daily levels
 if showPrevDayLevels and barstate.islast
@@ -142,18 +102,18 @@ if showLabels and barstate.islast
     
     // Weekly levels (previous week - main targets)
     if showWeeklyLevels
-        label.new(labelX, prevWeeklyHigh, text="W.H", style=label.style_none, color=na, textcolor=color.black, size=size.small)
-        label.new(labelX, prevWeeklyLow, text="W.L", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+        label.new(labelX, prevWeeklyHigh, text="Weekly HIGH", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX, prevWeeklyLow, text="Weekly LOW", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
     
-    // Daily levels (current day)
+    // Daily levels (current day) - offset to avoid overlap
     if showDailyLevels
-        label.new(labelX, dailyHigh, text="D.H", style=label.style_none, color=na, textcolor=color.black, size=size.small)
-        label.new(labelX, dailyLow, text="D.L", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+        label.new(labelX + 3, dailyHigh, text="Daily H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX + 3, dailyLow, text="Daily L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
     
-    // Previous daily levels
+    // Previous daily levels - offset more to avoid overlap
     if showPrevDayLevels
-        label.new(labelX, prevDailyHigh, text="PD.H", style=label.style_none, color=na, textcolor=color.black, size=size.small)
-        label.new(labelX, prevDailyLow, text="PD.L", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+        label.new(labelX + 6, prevDailyHigh, text="Prev Day H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        label.new(labelX + 6, prevDailyLow, text="Prev Day L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
 
 // ====================================
 // ==== Clean Distance Table ====
