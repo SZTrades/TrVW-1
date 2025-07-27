@@ -17,6 +17,10 @@ rayLength = input.int(50, "Ray Length (bars)", minval=10, maxval=200, group="Dis
 showTable = input.bool(true, "Show Distance Table", group="Display")
 tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
 
+// Label Settings
+showLabels = input.bool(true, "Show Level Labels", group="Display")
+labelOffset = input.int(10, "Label Distance (bars)", minval=5, maxval=50, group="Display", tooltip="Distance from current candle to avoid chart clutter")
+
 // Ray Style Settings
 weeklyColor = input.color(color.green, "Weekly Levels Color", group="Ray Styles")
 dailyColor = input.color(color.blue, "Daily Levels Color", group="Ray Styles")
@@ -31,11 +35,11 @@ prevDayWidth = input.int(1, "Previous Day Width", minval=1, maxval=3, group="Ray
 // ==== Level Calculations ====
 // ====================================
 
-// Weekly levels (true HTF data)
-weeklyHigh = request.security(syminfo.tickerid, "1W", high, lookahead=barmerge.lookahead_off)
-weeklyLow = request.security(syminfo.tickerid, "1W", low, lookahead=barmerge.lookahead_off)
+// Weekly levels (previous week for liquidity hunting)
 prevWeeklyHigh = request.security(syminfo.tickerid, "1W", high[1], lookahead=barmerge.lookahead_off)
 prevWeeklyLow = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off)
+weeklyHigh = request.security(syminfo.tickerid, "1W", high, lookahead=barmerge.lookahead_off)
+weeklyLow = request.security(syminfo.tickerid, "1W", low, lookahead=barmerge.lookahead_off)
 
 // Daily levels (current and previous)
 dailyHigh = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off)
@@ -80,9 +84,9 @@ if newDay
 // Current price reference
 currentPrice = close
 
-// Distance to weekly levels
-distToWeeklyHigh = weeklyHigh - currentPrice
-distToWeeklyLow = currentPrice - weeklyLow
+// Distance to weekly levels (use previous week as main target)
+distToWeeklyHigh = prevWeeklyHigh - currentPrice
+distToWeeklyLow = currentPrice - prevWeeklyLow
 distToPrevWeeklyHigh = prevWeeklyHigh - currentPrice
 distToPrevWeeklyLow = currentPrice - prevWeeklyLow
 
@@ -128,6 +132,28 @@ if showDailyLevels and barstate.islast
 if showPrevDayLevels and barstate.islast
     line.new(bar_index, prevDailyHigh, bar_index + rayLength, prevDailyHigh, extend=extend.none, color=color.new(prevDayColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
     line.new(bar_index, prevDailyLow, bar_index + rayLength, prevDailyLow, extend=extend.none, color=color.new(prevDayColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
+
+// ====================================
+// ==== Level Labels ====
+// ====================================
+
+if showLabels and barstate.islast
+    labelX = bar_index + labelOffset
+    
+    // Weekly levels (previous week - main targets)
+    if showWeeklyLevels
+        label.new(labelX, prevWeeklyHigh, text="W.H", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+        label.new(labelX, prevWeeklyLow, text="W.L", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+    
+    // Daily levels (current day)
+    if showDailyLevels
+        label.new(labelX, dailyHigh, text="D.H", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+        label.new(labelX, dailyLow, text="D.L", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+    
+    // Previous daily levels
+    if showPrevDayLevels
+        label.new(labelX, prevDailyHigh, text="PD.H", style=label.style_none, color=na, textcolor=color.black, size=size.small)
+        label.new(labelX, prevDailyLow, text="PD.L", style=label.style_none, color=na, textcolor=color.black, size=size.small)
 
 // ====================================
 // ==== Clean Distance Table ====
