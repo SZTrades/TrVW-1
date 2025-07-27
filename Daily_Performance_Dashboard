@@ -9,7 +9,8 @@ indicator("SZTrades Daily Performance Dashboard", "SZT Daily", overlay=true)
 showDailySummary = input.bool(true, "Show Daily Summary", group="Display")
 showTradeBreakdown = input.bool(true, "Show Trade Breakdown", group="Display")
 resetDaily = input.bool(true, "Reset Daily at Market Open", group="Settings")
-tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+dailySummaryPosition = input.string("top_right", "Daily Summary Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Table Position")
+tradeAnalysisPosition = input.string("top_left", "Trade Analysis Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Table Position")
 
 // Manual Input Settings (for live trading tracking)
 manualMode = input.bool(false, "Manual Trade Input Mode", group="Manual Input")
@@ -133,12 +134,12 @@ currentDate = str.format("{0,date,yyyy-MM-dd}", timenow)
 
 if (showDailySummary or showTradeBreakdown) and barstate.islast
     
-    // Calculate table position
-    tablePos = tablePosition == "top_left" ? position.top_left : tablePosition == "top_center" ? position.top_center : tablePosition == "top_right" ? position.top_right : tablePosition == "middle_left" ? position.middle_left : tablePosition == "middle_center" ? position.middle_center : tablePosition == "middle_right" ? position.middle_right : tablePosition == "bottom_left" ? position.bottom_left : tablePosition == "bottom_center" ? position.bottom_center : position.bottom_right
+    // Calculate Daily Summary table position
+    dailySummaryPos = dailySummaryPosition == "top_left" ? position.top_left : dailySummaryPosition == "top_center" ? position.top_center : dailySummaryPosition == "top_right" ? position.top_right : dailySummaryPosition == "middle_left" ? position.middle_left : dailySummaryPosition == "middle_center" ? position.middle_center : dailySummaryPosition == "middle_right" ? position.middle_right : dailySummaryPosition == "bottom_left" ? position.bottom_left : dailySummaryPosition == "bottom_center" ? position.bottom_center : position.bottom_right
     
     // Daily Summary Table
     if showDailySummary
-        var table summaryTable = table.new(position = tablePos, columns = 3, rows = 3, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+        var table summaryTable = table.new(position = dailySummaryPos, columns = 3, rows = 3, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
         
         table.clear(summaryTable, 0, 0, 2, 2)
         
@@ -157,18 +158,12 @@ if (showDailySummary or showTradeBreakdown) and barstate.islast
         table.cell(summaryTable, 1, 2, "Max DD: -$" + str.tostring(maxDrawdown, "#,###"), text_color = color.red, text_size = size.normal, bgcolor = color.new(color.white, 5))
         table.cell(summaryTable, 2, 2, "", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
     
-    // Trade Breakdown Table (positioned to the right of Daily Summary)
+    // Calculate Trade Analysis table position
+    tradeAnalysisPos = tradeAnalysisPosition == "top_left" ? position.top_left : tradeAnalysisPosition == "top_center" ? position.top_center : tradeAnalysisPosition == "top_right" ? position.top_right : tradeAnalysisPosition == "middle_left" ? position.middle_left : tradeAnalysisPosition == "middle_center" ? position.middle_center : tradeAnalysisPosition == "middle_right" ? position.middle_right : tradeAnalysisPosition == "bottom_left" ? position.bottom_left : tradeAnalysisPosition == "bottom_center" ? position.bottom_center : position.bottom_right
+    
+    // Trade Breakdown Table
     if showTradeBreakdown
-        breakdownPos = showDailySummary ? (tablePos == position.top_left ? position.top_center : 
-                                          tablePos == position.top_center ? position.top_right :
-                                          tablePos == position.top_right ? position.middle_right :
-                                          tablePos == position.middle_left ? position.middle_center :
-                                          tablePos == position.middle_center ? position.middle_right :
-                                          tablePos == position.middle_right ? position.bottom_right :
-                                          tablePos == position.bottom_left ? position.bottom_center :
-                                          tablePos == position.bottom_center ? position.bottom_right :
-                                          position.bottom_right) : tablePos
-        var table breakdownTable = table.new(position = breakdownPos, columns = 2, rows = 5, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+        var table breakdownTable = table.new(position = tradeAnalysisPos, columns = 2, rows = 5, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
         
         table.clear(breakdownTable, 0, 0, 1, 4)
         
