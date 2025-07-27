@@ -34,8 +34,8 @@ isSwingHigh = ta.pivothigh(high, swingLength, swingLength)
 isSwingLow = ta.pivotlow(low, swingLength, swingLength)
 
 // Filter by minimum swing size if specified
-validSwingHigh = isSwingHigh and (minSwingSize == 0.0 or (high[swingLength] - low[swingLength*2] >= minSwingSize))
-validSwingLow = isSwingLow and (minSwingSize == 0.0 or (high[swingLength*2] - low[swingLength] >= minSwingSize))
+validSwingHigh = not na(isSwingHigh) and (minSwingSize == 0.0 or (high[swingLength] - low[swingLength*2] >= minSwingSize))
+validSwingLow = not na(isSwingLow) and (minSwingSize == 0.0 or (high[swingLength*2] - low[swingLength] >= minSwingSize))
 
 // ====================================
 // ==== Market Structure Variables ====
