@@ -1,5 +1,5 @@
 //@version=6
-indicator("SZTrades Daily Performance Dashboard", "SZT Daily", overlay=false)
+indicator("SZTrades Daily Performance Dashboard", "SZT Daily", overlay=true)
 
 // ====================================
 // ==== Settings ====
@@ -173,12 +173,8 @@ if (showDailySummary or showTradeBreakdown) and barstate.islast
         table.cell(breakdownTable, 1, 3, "", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
 
 // ====================================
-// ==== Equity Curve Plot ====
+// ==== Visual Elements ====
 // ====================================
 
-// Plot daily P&L progression
-plot(dailyPnL, title="Daily P&L", color=dailyPnL >= 0 ? color.green : color.red, linewidth=2)
-hline(0, "Breakeven", color=color.gray, linestyle=hline.style_dashed)
-
-// Plot drawdown
-plot(-maxDrawdown, title="Max Drawdown", color=color.red, linewidth=1, style=plot.style_stepline)
+// Optional: Add subtle visual indicators on chart
+// (Removed plots since this is now overlay=true for tables only)
