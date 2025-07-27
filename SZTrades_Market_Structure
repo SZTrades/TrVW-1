@@ -10,16 +10,12 @@ swingLength = input.int(5, "Swing Detection Length", minval=2, maxval=50, toolti
 minSwingSize = input.float(0.0, "Minimum Swing Size (Points)", minval=0.0, tooltip="Filter out small swings. Use 0 for maximum sensitivity", group="Swing Detection")
 
 // Display Settings  
-showSwingLines = input.bool(true, "Show Swing Lines", group="Display")
+showZigzag = input.bool(true, "Show Zigzag Lines", group="Display")
 showLabels = input.bool(true, "Show HH/HL/LH/LL Labels", group="Display")
-showBOS = input.bool(true, "Show Break of Structure", group="Display")
-showCHoCH = input.bool(true, "Show Change of Character", group="Display")
 
 // Colors
 bullColor = input.color(color.new(color.green, 0), "Bullish Color", group="Colors")
 bearColor = input.color(color.new(color.red, 0), "Bearish Color", group="Colors")
-bosColor = input.color(color.new(color.blue, 0), "BOS Color", group="Colors")
-chochColor = input.color(color.new(color.orange, 0), "CHoCH Color", group="Colors")
 
 // Line Settings
 lineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Display")
@@ -53,11 +49,10 @@ var int prevLowBar = na
 var string currentTrend = "Unknown" // "Bullish", "Bearish", "Unknown"
 var string lastStructure = "Unknown" // "HH", "HL", "LH", "LL"
 
-// Arrays to store structure points for BOS detection
-var array<float> highPrices = array.new<float>()
-var array<int> highBars = array.new<int>()
-var array<float> lowPrices = array.new<float>()
-var array<int> lowBars = array.new<int>()
+// Arrays to store zigzag points
+var array<float> zigzagPrices = array.new<float>()
+var array<int> zigzagBars = array.new<int>()
+var array<bool> zigzagIsHigh = array.new<bool>()
 
 // ====================================
 // ==== Structure Detection Logic ====
@@ -79,30 +74,23 @@ if validSwingHigh
     lastHighPrice := currentHigh
     lastHighBar := currentHighBar
     
-    // Add to arrays for BOS detection
-    array.unshift(highPrices, currentHigh)
-    array.unshift(highBars, currentHighBar)
-    if array.size(highPrices) > 10
-        array.pop(highPrices)
-        array.pop(highBars)
+    // Add to zigzag arrays
+    array.unshift(zigzagPrices, currentHigh)
+    array.unshift(zigzagBars, currentHighBar)
+    array.unshift(zigzagIsHigh, true)
+    if array.size(zigzagPrices) > 10
+        array.pop(zigzagPrices)
+        array.pop(zigzagBars)
+        array.pop(zigzagIsHigh)
     
     // Determine structure type
     if not na(prevHighPrice)
         if currentHigh > prevHighPrice
             lastStructure := "HH"
-            if currentTrend != "Bullish"
-                currentTrend := "Bullish"
+            currentTrend := "Bullish"
         else
             lastStructure := "LH"
-            if currentTrend != "Bearish"
-                currentTrend := "Bearish"
-        
-        // Create line to previous high
-        if showSwingLines and not na(prevHighBar)
-            line.new(prevHighBar, prevHighPrice, currentHighBar, currentHigh, 
-                     color=lastStructure == "HH" ? bullColor : bearColor, 
-                     width=lineWidth, 
-                     style=line.style_solid)
+            currentTrend := "Bearish"
         
         // Create label
         if showLabels
@@ -127,30 +115,23 @@ if validSwingLow
     lastLowPrice := currentLow
     lastLowBar := currentLowBar
     
-    // Add to arrays for BOS detection
-    array.unshift(lowPrices, currentLow)
-    array.unshift(lowBars, currentLowBar)
-    if array.size(lowPrices) > 10
-        array.pop(lowPrices)
-        array.pop(lowBars)
+    // Add to zigzag arrays
+    array.unshift(zigzagPrices, currentLow)
+    array.unshift(zigzagBars, currentLowBar)
+    array.unshift(zigzagIsHigh, false)
+    if array.size(zigzagPrices) > 10
+        array.pop(zigzagPrices)
+        array.pop(zigzagBars)
+        array.pop(zigzagIsHigh)
     
     // Determine structure type
     if not na(prevLowPrice)
         if currentLow < prevLowPrice
             lastStructure := "LL"
-            if currentTrend != "Bearish"
-                currentTrend := "Bearish"
+            currentTrend := "Bearish"
         else
             lastStructure := "HL"
-            if currentTrend != "Bullish"
-                currentTrend := "Bullish"
-        
-        // Create line to previous low
-        if showSwingLines and not na(prevLowBar)
-            line.new(prevLowBar, prevLowPrice, currentLowBar, currentLow, 
-                     color=lastStructure == "LL" ? bearColor : bullColor, 
-                     width=lineWidth, 
-                     style=line.style_solid)
+            currentTrend := "Bullish"
         
         // Create label
         if showLabels
@@ -163,62 +144,29 @@ if validSwingLow
                      size=labelSizeConverted)
 
 // ====================================
-// ==== Break of Structure (BOS) Detection ====
+// ==== Zigzag Lines ====
 // ====================================
 
-var float lastBOSLevel = na
-var string lastBOSType = na
-
-// Check for BOS on bullish trend
-if showBOS and currentTrend == "Bullish" and array.size(lowPrices) >= 2
-    recentLow = array.get(lowPrices, 1) // Previous swing low
-    if close < recentLow and (na(lastBOSLevel) or recentLow != lastBOSLevel)
-        lastBOSLevel := recentLow
-        lastBOSType := "Bearish"
+// Draw zigzag lines connecting swing points
+if showZigzag and array.size(zigzagPrices) >= 2
+    for i = 0 to math.min(array.size(zigzagPrices) - 2, 8)
+        price1 = array.get(zigzagPrices, i)
+        bar1 = array.get(zigzagBars, i)
+        isHigh1 = array.get(zigzagIsHigh, i)
         
-        // Create BOS label
-        label.new(bar_index, low, 
-                 text="BOS ↓", 
-                 color=color.new(bosColor, 80), 
-                 textcolor=bosColor, 
-                 style=label.style_label_up, 
-                 size=labelSizeConverted)
-
-// Check for BOS on bearish trend  
-if showBOS and currentTrend == "Bearish" and array.size(highPrices) >= 2
-    recentHigh = array.get(highPrices, 1) // Previous swing high
-    if close > recentHigh and (na(lastBOSLevel) or recentHigh != lastBOSLevel)
-        lastBOSLevel := recentHigh
-        lastBOSType := "Bullish"
+        price2 = array.get(zigzagPrices, i + 1)
+        bar2 = array.get(zigzagBars, i + 1)
+        isHigh2 = array.get(zigzagIsHigh, i + 1)
         
-        // Create BOS label
-        label.new(bar_index, high, 
-                 text="BOS ↑", 
-                 color=color.new(bosColor, 80), 
-                 textcolor=bosColor, 
-                 style=label.style_label_down, 
-                 size=labelSizeConverted)
-
-// ====================================
-// ==== Change of Character (CHoCH) Detection ====
-// ====================================
-
-var string previousTrend = currentTrend
-if showCHoCH and currentTrend != previousTrend and currentTrend != "Unknown" and previousTrend != "Unknown"
-    
-    chochText = currentTrend == "Bullish" ? "CHoCH ↑" : "CHoCH ↓"
-    chochStyle = currentTrend == "Bullish" ? label.style_label_up : label.style_label_down
-    chochY = currentTrend == "Bullish" ? low : high
-    
-    label.new(bar_index, chochY, 
-             text=chochText, 
-             color=color.new(chochColor, 80), 
-             textcolor=chochColor, 
-             style=chochStyle, 
-             size=labelSizeConverted)
-
-// Update previous trend for next bar
-previousTrend := currentTrend
+        // Only draw lines between different types (high to low or low to high)
+        if isHigh1 != isHigh2
+            // Determine line color based on direction
+            lineColor = price1 > price2 ? bearColor : bullColor
+            
+            line.new(bar2, price2, bar1, price1, 
+                     color=lineColor, 
+                     width=lineWidth, 
+                     style=line.style_solid)
 
 // ====================================
 // ==== Current Market Structure Info ====
