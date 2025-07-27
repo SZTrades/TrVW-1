@@ -100,9 +100,10 @@ var array<label> allLabels = array.new<label>()
 
 if showLabels and barstate.islast
     // Clear old labels
-    for i = 0 to array.size(allLabels) - 1
-        label.delete(array.get(allLabels, i))
-    array.clear(allLabels)
+    if array.size(allLabels) > 0
+        for i = 0 to array.size(allLabels) - 1
+            label.delete(array.get(allLabels, i))
+        array.clear(allLabels)
     
     labelX = bar_index + labelOffset
     
