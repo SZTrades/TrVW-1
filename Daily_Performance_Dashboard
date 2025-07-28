@@ -1,5 +1,5 @@
 //@version=6
-indicator("SZTrades Daily Performance Dashboard", "SZT Daily", overlay=true)
+strategy("SZTrades Daily Performance Dashboard", "SZT Daily", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1)
 
 // ====================================
 // ==== Settings ====
