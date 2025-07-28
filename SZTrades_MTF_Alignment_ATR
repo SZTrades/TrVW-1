@@ -87,10 +87,10 @@ if showTable and barstate.islast
                                    tablePosition == "bottom_left" ? position.bottom_left :
                                    tablePosition == "bottom_center" ? position.bottom_center :
                                    position.bottom_right, 
-                                   columns = 2, rows = 7, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+                                   columns = 2, rows = 6, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
     
     // Clear table
-    table.clear(mtf_table, 0, 0, 1, 6)
+    table.clear(mtf_table, 0, 0, 1, 5)
     
     // ATR Section
     if not na(current_rth_atr)
@@ -99,10 +99,6 @@ if showTable and barstate.islast
         
         table.cell(mtf_table, 0, 1, "Target", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
         table.cell(mtf_table, 1, 1, str.tostring(target_range, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        
-        // Empty separator row
-        table.cell(mtf_table, 0, 2, "", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-        table.cell(mtf_table, 1, 2, "", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     else
         // No ATR data available
         table.cell(mtf_table, 0, 0, "Avg. ATR", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
@@ -110,24 +106,20 @@ if showTable and barstate.islast
         
         table.cell(mtf_table, 0, 1, "Target", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
         table.cell(mtf_table, 1, 1, "No Data", text_color = color.gray, text_size = size.small, bgcolor = color.new(color.white, 5))
-        
-        // Empty separator row
-        table.cell(mtf_table, 0, 2, "", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
-        table.cell(mtf_table, 1, 2, "", text_color = color.black, text_size = size.tiny, bgcolor = color.new(color.white, 5))
     
     // Multi-Timeframe Semáforo 🚦
     if showAlignment
-        table.cell(mtf_table, 0, 3, "4H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(mtf_table, 1, 3, tf_4h_bull ? "BULL" : "BEAR", text_color = tf_4h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 0, 2, "4H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 2, tf_4h_bull ? "BULL" : "BEAR", text_color = tf_4h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
         
-        table.cell(mtf_table, 0, 4, "1H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(mtf_table, 1, 4, tf_1h_bull ? "BULL" : "BEAR", text_color = tf_1h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 0, 3, "1H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 3, tf_1h_bull ? "BULL" : "BEAR", text_color = tf_1h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
         
-        table.cell(mtf_table, 0, 5, "30M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(mtf_table, 1, 5, tf_30m_bull ? "BULL" : "BEAR", text_color = tf_30m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 0, 4, "30M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 4, tf_30m_bull ? "BULL" : "BEAR", text_color = tf_30m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
         
-        table.cell(mtf_table, 0, 6, "15M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-        table.cell(mtf_table, 1, 6, tf_15m_bull ? "BULL" : "BEAR", text_color = tf_15m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 0, 5, "15M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 5, tf_15m_bull ? "BULL" : "BEAR", text_color = tf_15m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
 
 // ====================================
 // ==== Optional Visual Lines ====
