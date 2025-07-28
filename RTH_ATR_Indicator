@@ -1,5 +1,5 @@
 //@version=6
-indicator("SZTrades RTH ATR", "RTH ATR", overlay=true)
+indicator("SZTrades Avg. ATR", "Avg. ATR", overlay=true)
 
 // ====================================
 // ==== Settings ====
@@ -65,25 +65,7 @@ if rth_session_active and in_session
 // Calculate target range
 target_range = not na(current_rth_atr) ? current_rth_atr * multiplier : na
 
-// ====================================
-// ==== Multi-Timeframe Analysis ====
-// ====================================
 
-// Get timeframe data using request.security
-tf_4h_close = request.security(syminfo.tickerid, "240", close, timezone.New_York)
-tf_4h_open = request.security(syminfo.tickerid, "240", open, timezone.New_York)
-tf_1h_close = request.security(syminfo.tickerid, "60", close, timezone.New_York)
-tf_1h_open = request.security(syminfo.tickerid, "60", open, timezone.New_York)
-tf_30m_close = request.security(syminfo.tickerid, "30", close, timezone.New_York)
-tf_30m_open = request.security(syminfo.tickerid, "30", open, timezone.New_York)
-tf_15m_close = request.security(syminfo.tickerid, "15", close, timezone.New_York)
-tf_15m_open = request.security(syminfo.tickerid, "15", open, timezone.New_York)
-
-// Determine bull/bear for each timeframe
-tf_4h_bull = tf_4h_close > tf_4h_open
-tf_1h_bull = tf_1h_close > tf_1h_open  
-tf_30m_bull = tf_30m_close > tf_30m_open
-tf_15m_bull = tf_15m_close > tf_15m_open
 
 // ====================================
 // ==== Table Display ====
@@ -99,12 +81,12 @@ if showTable and barstate.islast and not na(current_rth_atr)
                                    tablePosition == "bottom_left" ? position.bottom_left :
                                    tablePosition == "bottom_center" ? position.bottom_center :
                                    position.bottom_right, 
-                                   columns = 2, rows = 7, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+                                   columns = 2, rows = 3, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
     
     // Clear table
-    table.clear(atr_table, 0, 0, 1, 6)
+    table.clear(atr_table, 0, 0, 1, 2)
     
-    // ATR Section Headers
+    // Headers
     table.cell(atr_table, 0, 0, "Avg.", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
     table.cell(atr_table, 1, 0, "(" + str.tostring(atrPeriods) + ")", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
     
@@ -115,19 +97,6 @@ if showTable and barstate.islast and not na(current_rth_atr)
     // Target
     table.cell(atr_table, 0, 2, "Target", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
     table.cell(atr_table, 1, 2, str.tostring(target_range, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-    
-    // Multi-Timeframe Semáforo 🚦
-    table.cell(atr_table, 0, 3, "4H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-    table.cell(atr_table, 1, 3, tf_4h_bull ? "BULL" : "BEAR", text_color = tf_4h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
-    
-    table.cell(atr_table, 0, 4, "1H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-    table.cell(atr_table, 1, 4, tf_1h_bull ? "BULL" : "BEAR", text_color = tf_1h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
-    
-    table.cell(atr_table, 0, 5, "30M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-    table.cell(atr_table, 1, 5, tf_30m_bull ? "BULL" : "BEAR", text_color = tf_30m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
-    
-    table.cell(atr_table, 0, 6, "15M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
-    table.cell(atr_table, 1, 6, tf_15m_bull ? "BULL" : "BEAR", text_color = tf_15m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
 
 // ====================================
 // ==== Optional Visual Lines ====
