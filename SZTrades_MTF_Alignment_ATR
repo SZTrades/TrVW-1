@@ -7,8 +7,8 @@ indicator("SZTrades Multi-Timeframe Alignment + Avg. ATR", "MTF + ATR", overlay=
 
 // ATR Settings
 atrPeriods = input.int(4, "ATR Periods", minval=1, maxval=100, group="ATR Settings", tooltip="Number of periods for ATR calculation")
-sessionStart = input.session("0930-0931", "Session Start Time", group="ATR Settings", tooltip="When to start ATR calculation (default: 9:30 AM for RTH)")
-sessionEnd = input.session("1600-1601", "Session End Time", group="ATR Settings", tooltip="Session end time for reference")
+sessionStart = input.session("1800-1801", "Session Start Time", group="ATR Settings", tooltip="When to start ATR calculation (default: 6:00 PM for next day)")
+sessionEnd = input.session("1800-1801", "Session End Time", group="ATR Settings", tooltip="Session end time for reference")
 multiplier = 0.5 // Hardcoded multiplier for target calculation
 
 // Multi-Timeframe Settings
@@ -26,29 +26,26 @@ tablePosition = input.string("top_right", "Table Position", options=["top_left",
 var array<float> rth_tr_values = array.new<float>()
 var bool rth_session_active = false
 
-// Check if we're in session (user-defined times)
+// Check if we're in session (starts at 6PM, runs all day)
 session_start = not na(time(timeframe.period, sessionStart))
-in_session = not na(time(timeframe.period, str.substring(sessionStart, 0, 4) + "-" + str.substring(sessionEnd, 0, 4)))
+in_session = true // Always collect ATR after 6PM reset
 
-// Daily reset
-is_new_day = ta.change(dayofweek) != 0
+// Reset at 6:00 PM (18:00) - new daily cycle
+daily_reset = session_start
 
-if is_new_day
+if daily_reset
     array.clear(rth_tr_values)
-    rth_session_active := false
-
-// Start collecting TR values when session starts
-if session_start and not rth_session_active
     rth_session_active := true
 
-// Collect True Range values during active session
-if rth_session_active and in_session
+// Collect True Range values once session is active
+if rth_session_active
     current_tr = ta.tr
-    array.unshift(rth_tr_values, current_tr)
-    
-    // Keep only the specified number of periods
-    if array.size(rth_tr_values) > atrPeriods
-        array.pop(rth_tr_values)
+    if not na(current_tr) and current_tr > 0
+        array.unshift(rth_tr_values, current_tr)
+        
+        // Keep only the specified number of periods
+        if array.size(rth_tr_values) > atrPeriods
+            array.pop(rth_tr_values)
 
 // Calculate current ATR
 current_rth_atr = array.size(rth_tr_values) > 0 ? array.sum(rth_tr_values) / array.size(rth_tr_values) : na
