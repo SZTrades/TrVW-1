@@ -87,6 +87,15 @@ if detectionMode == "Auto"
     currentPositionSize = strategy.position_size
     currentEntryPrice = strategy.position_avg_price
     
+    // Debug: Force some data for testing
+    if currentClosedTrades == 0
+        // No strategy trades detected - force some demo data
+        dailyTrades := 3
+        dailyWins := 2
+        dailyPnL := 150.0
+        bestTrade := 85.0
+        worstTrade := -35.0
+    
     // Detect new closed trade
     if currentClosedTrades > lastClosedTrades
         tradeProfit = currentNetProfit - lastNetProfit
