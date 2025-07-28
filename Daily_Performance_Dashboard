@@ -13,7 +13,7 @@ dailySummaryPosition = input.string("top_right", "Daily Summary Position", optio
 tradeAnalysisPosition = input.string("top_left", "Trade Analysis Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Table Position")
 
 // Detection Mode Settings
-detectionMode = input.string("Auto", "Detection Mode", options=["Auto", "Manual"], group="Detection Settings", tooltip="Auto: Detects strategy trades automatically. Manual: Input trades manually")
+detectionMode = input.string("Manual", "Detection Mode", options=["Auto", "Manual"], group="Detection Settings", tooltip="Auto: Detects strategy trades automatically. Manual: Input trades manually")
 
 // Manual Input Settings (only when Manual mode selected)
 tradeResult = input.string("None", "Trade Result", options=["None", "Win", "Loss"], group="Manual Input")
