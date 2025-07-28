@@ -87,14 +87,20 @@ if detectionMode == "Auto"
     currentPositionSize = strategy.position_size
     currentEntryPrice = strategy.position_avg_price
     
-    // Debug: Force some data for testing
+    // Debug: Today's manual trades (hardcoded)
     if currentClosedTrades == 0
-        // No strategy trades detected - force some demo data
+        // Your 3 manual trades from today
         dailyTrades := 3
-        dailyWins := 2
-        dailyPnL := 150.0
-        bestTrade := 85.0
-        worstTrade := -35.0
+        dailyWins := 2  // Adjust based on your results
+        dailyPnL := 150.0  // Your total P&L
+        dailyPeak := 200.0
+        maxDrawdown := 50.0
+        bestTrade := 100.0  // Your best trade
+        worstTrade := -50.0  // Your worst trade
+        totalWinAmount := 250.0
+        totalLossAmount := 50.0
+        winCount := 2
+        lossCount := 1
     
     // Detect new closed trade
     if currentClosedTrades > lastClosedTrades
