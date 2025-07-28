@@ -27,8 +27,8 @@ var array<float> rth_tr_values = array.new<float>()
 var bool rth_session_active = false
 
 // Check if we're in session (user-defined times)
-session_start = not na(time(timeframe.period, sessionStart, timezone.New_York))
-in_session = not na(time(timeframe.period, str.substring(sessionStart, 0, 4) + "-" + str.substring(sessionEnd, 0, 4), timezone.New_York))
+session_start = not na(time(timeframe.period, sessionStart))
+in_session = not na(time(timeframe.period, str.substring(sessionStart, 0, 4) + "-" + str.substring(sessionEnd, 0, 4)))
 
 // Daily reset
 is_new_day = ta.change(dayofweek) != 0
@@ -61,14 +61,14 @@ target_range = not na(current_rth_atr) ? current_rth_atr * multiplier : na
 // ====================================
 
 // Get timeframe data using request.security
-tf_4h_close = request.security(syminfo.tickerid, "240", close, timezone.New_York)
-tf_4h_open = request.security(syminfo.tickerid, "240", open, timezone.New_York)
-tf_1h_close = request.security(syminfo.tickerid, "60", close, timezone.New_York)
-tf_1h_open = request.security(syminfo.tickerid, "60", open, timezone.New_York)
-tf_30m_close = request.security(syminfo.tickerid, "30", close, timezone.New_York)
-tf_30m_open = request.security(syminfo.tickerid, "30", open, timezone.New_York)
-tf_15m_close = request.security(syminfo.tickerid, "15", close, timezone.New_York)
-tf_15m_open = request.security(syminfo.tickerid, "15", open, timezone.New_York)
+tf_4h_close = request.security(syminfo.tickerid, "240", close)
+tf_4h_open = request.security(syminfo.tickerid, "240", open)
+tf_1h_close = request.security(syminfo.tickerid, "60", close)
+tf_1h_open = request.security(syminfo.tickerid, "60", open)
+tf_30m_close = request.security(syminfo.tickerid, "30", close)
+tf_30m_open = request.security(syminfo.tickerid, "30", open)
+tf_15m_close = request.security(syminfo.tickerid, "15", close)
+tf_15m_open = request.security(syminfo.tickerid, "15", open)
 
 // Determine bull/bear for each timeframe
 tf_4h_bull = tf_4h_close > tf_4h_open
@@ -154,10 +154,11 @@ aligned_bear_count = (tf_4h_bull ? 0 : 1) + (tf_1h_bull ? 0 : 1) + (tf_30m_bull 
 
 // Strong alignment background (optional - can be toggled)
 showBackground = input.bool(false, "Show Alignment Background", group="Display")
-if showBackground
-    // Strong bullish alignment (3 or 4 green)
-    strong_bull = aligned_count >= 3
-    // Strong bearish alignment (3 or 4 red)  
-    strong_bear = aligned_bear_count >= 3
-    
-    bgcolor(strong_bull ? color.new(color.green, 95) : strong_bear ? color.new(color.red, 95) : na, title="Alignment Background")
+
+// Strong bullish alignment (3 or 4 green)
+strong_bull = aligned_count >= 3
+// Strong bearish alignment (3 or 4 red)  
+strong_bear = aligned_bear_count >= 3
+
+// Background color (moved outside conditional)
+bgcolor(showBackground and strong_bull ? color.new(color.green, 95) : showBackground and strong_bear ? color.new(color.red, 95) : na, title="Alignment Background")
