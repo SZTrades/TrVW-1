@@ -21,6 +21,8 @@ invertJmaSignals = input.bool(false, "Invert JMA Signals", group = "JMA")
 // Display
 longColor = input.color(#009988, "Long Color", group="Display")
 shortColor = input.color(#CC3311, "Short Color", group="Display")
+useBarColor = input.bool(true, "Color Bars When Aligned", group="Display")
+barTransp = input.int(70, "Bar Color Transparency", minval=0, maxval=100, group="Display")
 
 // ================================
 // ==== Kernel Regression (Lib) ===
@@ -68,18 +70,22 @@ jmaShort = invertJmaSignals ? longBase : shortBase
 alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 
-// Top-of-chart markers (use constant size to satisfy Pine type requirements)
-plotshape(alignLong, title='Align Long', style=shape.triangleup, location=location.top, color=longColor, size=size.small, text='LONG')
-plotshape(alignShort, title='Align Short', style=shape.triangledown, location=location.top, color=shortColor, size=size.small, text='SHORT')
+// Start-of-alignment only (non-repainting at bar close)
+alignLongStart = alignLong and not alignLong[1]
+alignShortStart = alignShort and not alignShort[1]
 
-// Optional: bar coloring when aligned
-barcolor(alignLong ? color.new(longColor, 70) : na)
-barcolor(alignShort ? color.new(shortColor, 70) : na)
+// Top-of-chart dots (no labels)
+plotshape(barstate.isconfirmed and alignLongStart, title='Align Long Start', style=shape.circle, location=location.top, color=longColor, size=size.small)
+plotshape(barstate.isconfirmed and alignShortStart, title='Align Short Start', style=shape.circle, location=location.top, color=shortColor, size=size.small)
+
+// Optional: bar coloring while aligned; clears on de-alignment
+barColorSeries = alignLong ? color.new(longColor, barTransp) : alignShort ? color.new(shortColor, barTransp) : na
+barcolor(useBarColor ? barColorSeries : na)
 
 // Heartbeats for adapters (data window)
 plot(alignLong ? 1 : 0, "Align Heartbeat Long", display = display.data_window)
 plot(alignShort ? -1 : 0, "Align Heartbeat Short", display = display.data_window)
 
 // Alerts
-alertcondition(alignLong, title='Kernel+JMA Align Long', message='SZT Align Long ▲ | {{ticker}}@{{close}} | ({{interval}})')
-alertcondition(alignShort, title='Kernel+JMA Align Short', message='SZT Align Short ▼ | {{ticker}}@{{close}} | ({{interval}})')
+alertcondition(alignLongStart, title='Kernel+JMA Align Long (Start)', message='SZT Align Long ▲ | {{ticker}}@{{close}} | ({{interval}})')
+alertcondition(alignShortStart, title='Kernel+JMA Align Short (Start)', message='SZT Align Short ▼ | {{ticker}}@{{close}} | ({{interval}})')
