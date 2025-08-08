@@ -17,10 +17,13 @@ jmaPhase = input.int(50, "JMA Phase", minval = -100, maxval = 100, group = "JMA"
 jmaPower = input.int(2, "JMA Power", minval = 1, group = "JMA")
 useJmaColorConfirm = input.bool(true, "Use JMA Color Confirmation", group = "JMA")
 invertJmaSignals = input.bool(false, "Invert JMA Signals", group = "JMA")
+showJmaLine = input.bool(true, "Show JMA Line", group = "JMA")
+jmaLineColor = input.color(color.rgb(109, 30, 127), "JMA Line Color", group = "JMA")
+jmaLineWidth = input.int(2, "JMA Line Width", minval = 1, maxval = 5, group = "JMA")
 
 // Display
-longColor = input.color(#009988, "Long Color", group="Display")
-shortColor = input.color(#CC3311, "Short Color", group="Display")
+longColor = input.color(#009988, "Bar Color Long", group="Display")
+shortColor = input.color(#CC3311, "Bar Color Short", group="Display")
 useBarColor = input.bool(true, "Color Bars When Aligned", group="Display")
 barTransp = input.int(70, "Bar Color Transparency", minval=0, maxval=100, group="Display")
 
@@ -56,6 +59,9 @@ e0 := (1 - alpha) * source + alpha * nz(e0[1])
 e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
 e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
 jma := e2 + nz(jma[1])
+
+// Optional JMA plot
+plot(showJmaLine ? jma : na, title = "JMA", color = jmaLineColor, linewidth = jmaLineWidth)
 
 isUp = jma > jma[1]
 isDown = jma < jma[1]
