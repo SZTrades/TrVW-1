@@ -19,7 +19,6 @@ useJmaColorConfirm = input.bool(true, "Use JMA Color Confirmation", group = "JMA
 invertJmaSignals = input.bool(false, "Invert JMA Signals", group = "JMA")
 
 // Display
-shapeSize = input.string("small", "Shape Size", options=["tiny","small","normal","large"], group="Display")
 longColor = input.color(#009988, "Long Color", group="Display")
 shortColor = input.color(#CC3311, "Short Color", group="Display")
 
@@ -69,10 +68,9 @@ jmaShort = invertJmaSignals ? longBase : shortBase
 alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 
-// Top-of-chart markers
-ss = shapeSize == "tiny" ? size.tiny : shapeSize == "small" ? size.small : shapeSize == "normal" ? size.normal : size.large
-plotshape(alignLong, title='Align Long', style=shape.triangleup, location=location.top, color=longColor, size=ss, text='LONG')
-plotshape(alignShort, title='Align Short', style=shape.triangledown, location=location.top, color=shortColor, size=ss, text='SHORT')
+// Top-of-chart markers (use constant size to satisfy Pine type requirements)
+plotshape(alignLong, title='Align Long', style=shape.triangleup, location=location.top, color=longColor, size=size.small, text='LONG')
+plotshape(alignShort, title='Align Short', style=shape.triangledown, location=location.top, color=shortColor, size=size.small, text='SHORT')
 
 // Optional: bar coloring when aligned
 barcolor(alignLong ? color.new(longColor, 70) : na)
