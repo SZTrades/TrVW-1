@@ -46,9 +46,8 @@ kernelBullish = useKernelSmoothing ? isBullishSmooth : isBullishRate
 kernelBearish = useKernelSmoothing ? isBearishSmooth : isBearishRate
 
 // Optional Kernel plot (two-color like kernel regression)
-if showKernelLine
-    kernelPlotColor = (useKernelSmoothing ? (yhat2 >= yhat1) : (yhat1 > yhat1[1])) ? color.new(#009988, 0) : color.new(#CC3311, 0)
-    plot(yhat1, title = "Kernel", color = kernelPlotColor, linewidth = kernelLineWidth)
+kernelPlotColor = (useKernelSmoothing ? (yhat2 >= yhat1) : (yhat1 > yhat1[1])) ? color.new(#009988, 0) : color.new(#CC3311, 0)
+plot(showKernelLine ? yhat1 : na, title = "Kernel", color = kernelPlotColor, linewidth = kernelLineWidth)
 
 // ===============
 // ====  JMA  ====
@@ -68,9 +67,8 @@ e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(al
 jma := e2 + nz(jma[1])
 
 // Optional JMA plot (two-color like kernel regression)
-if showJmaLine
-    jmaPlotColor = (jma > jma[1]) ? color.new(#009988, 0) : color.new(#CC3311, 0)
-    plot(jma, title = "JMA", color = jmaPlotColor, linewidth = jmaLineWidth)
+jmaPlotColor = (jma > jma[1]) ? color.new(#009988, 0) : color.new(#CC3311, 0)
+plot(showJmaLine ? jma : na, title = "JMA", color = jmaPlotColor, linewidth = jmaLineWidth)
 
 isUp = jma > jma[1]
 isDown = jma < jma[1]
