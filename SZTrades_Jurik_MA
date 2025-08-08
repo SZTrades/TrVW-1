@@ -1,0 +1,49 @@
+//@version=6
+indicator("SZTrades Jurik MA", "SZT JMA", overlay = true)
+
+// Inputs
+length = input.int(7, "Length", minval = 1, group = "JMA")
+phase = input.int(50, "Phase", minval = -100, maxval = 100, group = "JMA")
+power = input.int(2, "Power", minval = 1, group = "JMA")
+source = input.source(close, "Source", group = "JMA")
+
+useColorConfirmation = input.bool(true, "Use Color Confirmation", group = "Signals")
+invertSignals = input.bool(false, "Invert Signals", group = "Signals")
+highlightMovements = input.bool(true, "Highlight Movements", group = "Display")
+lineWidth = input.int(2, "Line Width", minval = 1, maxval = 5, group = "Display")
+
+// JMA core
+phaseRatio = phase < -100 ? 0.5 : phase > 100 ? 2.5 : phase / 100 + 1.5
+beta = 0.45 * (length - 1) / (0.45 * (length - 1) + 2)
+alpha = math.pow(beta, power)
+
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+
+// Signals
+isUp = jma > jma[1]
+isDown = jma < jma[1]
+longBase = useColorConfirmation ? (isUp and close > jma) : (close > jma)
+shortBase = useColorConfirmation ? (isDown and close < jma) : (close < jma)
+finalLong = invertSignals ? shortBase : longBase
+finalShort = invertSignals ? longBase : shortBase
+
+// Plot JMA
+baseColor = color.rgb(109, 30, 127)
+plotColor = highlightMovements ? (isUp ? color.new(#009988, 0) : color.new(#CC3311, 0)) : baseColor
+plot(jma, title = "JMA", color = plotColor, linewidth = lineWidth)
+
+// Heartbeat outputs (for data window / adapters)
+plot(finalLong ? 1 : 0, "Heartbeat Long", display = display.data_window)
+plot(finalShort ? -1 : 0, "Heartbeat Short", display = display.data_window)
+
+// Alerts
+alertcondition(finalLong, title = "JMA Long", message = "SZT JMA Long ▲ | {{ticker}}@{{close}} | ({{interval}})")
+alertcondition(finalShort, title = "JMA Short", message = "SZT JMA Short ▼ | {{ticker}}@{{close}} | ({{interval}})")
