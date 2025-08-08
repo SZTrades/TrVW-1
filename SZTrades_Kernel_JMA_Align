@@ -70,13 +70,17 @@ jmaShort = invertJmaSignals ? longBase : shortBase
 alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 
-// Start-of-alignment only (non-repainting at bar close)
-alignLongStart = alignLong and not alignLong[1]
-alignShortStart = alignShort and not alignShort[1]
+// Start-of-alignment only with cycle gating (non-repainting at bar close)
+var int cycleDir = 0  // 1 = long cycle active, -1 = short cycle active, 0 = none
+alignLongStart = barstate.isconfirmed and alignLong and not alignLong[1] and (cycleDir != 1)
+alignShortStart = barstate.isconfirmed and alignShort and not alignShort[1] and (cycleDir != -1)
+cycleDir := alignLongStart ? 1 : alignShortStart ? -1 : cycleDir
+// Reset cycle when opposite alignment becomes true
+cycleDir := (cycleDir == 1 and alignShort) ? 0 : (cycleDir == -1 and alignLong) ? 0 : cycleDir
 
 // Top-of-chart dots (no labels)
-plotshape(barstate.isconfirmed and alignLongStart, title='Align Long Start', style=shape.circle, location=location.top, color=longColor, size=size.small)
-plotshape(barstate.isconfirmed and alignShortStart, title='Align Short Start', style=shape.circle, location=location.top, color=shortColor, size=size.small)
+plotshape(alignLongStart, title='Align Long Start', style=shape.circle, location=location.top, color=longColor, size=size.small)
+plotshape(alignShortStart, title='Align Short Start', style=shape.circle, location=location.top, color=shortColor, size=size.small)
 
 // Optional: bar coloring while aligned; clears on de-alignment
 barColorSeries = alignLong ? color.new(longColor, barTransp) : alignShort ? color.new(shortColor, barTransp) : na
