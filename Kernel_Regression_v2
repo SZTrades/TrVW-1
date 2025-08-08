@@ -1,0 +1,69 @@
+//@version=6
+indicator("SZTrades Kernel Regression (Library v2)", "SZT Kernel v2", overlay = true)
+
+import jdehorty/KernelFunctions/2 as kernels
+
+// Kernel Settings
+useKernelFilter = input.bool(true, "Trade with Kernel", group="Kernel Settings")
+showKernelEstimate = input.bool(true, "Show Kernel Estimate", group="Kernel Settings")
+useKernelSmoothing = input.bool(false, "Enhance Kernel Smoothing", tooltip="Uses a crossover-based mechanism to smooth kernel color changes.", group='Kernel Settings')
+
+h = input.int(8, 'Lookback Window', minval=3, tooltip='Bars used for estimation. Recommended: 3-50', group="Kernel Settings")
+r = input.float(8., 'Relative Weighting', step=0.25, tooltip='Relative weighting of time frames. Recommended: 0.25-25', group="Kernel Settings")
+x = input.int(25, "Regression Level", tooltip='Starting bar index for regression. Smaller = tighter fit. Recommended: 2-25', group="Kernel Settings")
+lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Recommended: 1-2", group='Kernel Settings')
+
+// Display Settings
+LineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Display Settings")
+ShowBackground = input.bool(false, "Show Background Color", group="Display Settings")
+BgTransparency = input.int(95, "Background Transparency", minval=80, maxval=99, group="Display Settings")
+
+// Colors
+BullishColor = input.color(#009988, "Bullish Color", group="Colors")
+BearishColor = input.color(#CC3311, "Bearish Color", group="Colors")
+Transparency = input.int(20, "Line Transparency", minval=0, maxval=100, group="Colors")
+
+// Source
+source = input.source(close, "Source", group="Kernel Settings")
+
+// ================================
+// ==== Kernel Regression (Lib) ===
+// ================================
+// Library-based kernels to match external behavior
+// yhat1: Rational Quadratic; yhat2: Gaussian (shortened lookback by lag)
+yhat1 = kernels.rationalQuadratic(source, h, r, x)
+yhat2 = kernels.gaussian(source, h - lag, x)
+kernelEstimate = yhat1
+
+// Kernel Rate of Change Detection
+wasBearishRate = yhat1[2] > yhat1[1]
+wasBullishRate = yhat1[2] < yhat1[1]
+isBearishRate = yhat1[1] > yhat1
+isBullishRate = yhat1[1] < yhat1
+isBearishChange = isBearishRate and wasBullishRate
+isBullishChange = isBullishRate and wasBearishRate
+
+// Kernel Crossovers
+isBullishCrossAlert = ta.crossover(yhat2, yhat1)
+isBearishCrossAlert = ta.crossunder(yhat2, yhat1)
+isBullishSmooth = yhat2 >= yhat1
+isBearishSmooth = yhat2 <= yhat1
+
+// Color Logic
+bullishColorWithTransp = color.new(BullishColor, Transparency)
+bearishColorWithTransp = color.new(BearishColor, Transparency)
+colorByCross = isBullishSmooth ? bullishColorWithTransp : bearishColorWithTransp
+colorByRate = isBullishRate ? bullishColorWithTransp : bearishColorWithTransp
+plotColor = showKernelEstimate ? (useKernelSmoothing ? colorByCross : colorByRate) : na
+
+// Plot
+plot(showKernelEstimate ? kernelEstimate : na, color=plotColor, linewidth=LineWidth, title="Kernel Regression")
+
+// Background
+bgcolor(ShowBackground ? (useKernelSmoothing ? (isBullishSmooth ? color.new(BullishColor, BgTransparency) : color.new(BearishColor, BgTransparency)) : (isBullishRate ? color.new(BullishColor, BgTransparency) : color.new(BearishColor, BgTransparency))) : na)
+
+// Alerts
+alertBullish = useKernelSmoothing ? isBullishCrossAlert : isBullishChange
+alertBearish = useKernelSmoothing ? isBearishCrossAlert : isBearishChange
+alertcondition(alertBullish, title='Kernel Bullish Signal', message='Kernel Bullish ▲')
+alertcondition(alertBearish, title='Kernel Bearish Signal', message='Kernel Bearish ▼')
