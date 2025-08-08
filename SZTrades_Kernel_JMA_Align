@@ -1,0 +1,87 @@
+//@version=6
+indicator("SZTrades Kernel + JMA Alignment", "SZT Align", overlay = true)
+
+import jdehorty/KernelFunctions/2 as kernels
+
+// Kernel Settings
+useKernelSmoothing = input.bool(false, "Enhance Kernel Smoothing", tooltip="If enabled, alignment uses kernel cross (yhat2 vs yhat1). If disabled, uses kernel rate of change.", group='Kernel Settings')
+h = input.int(8, 'Lookback Window', minval=3, tooltip='Bars used for estimation. Recommended: 3-50', group="Kernel Settings")
+r = input.float(8., 'Relative Weighting', step=0.25, tooltip='Relative weighting of time frames. Recommended: 0.25-25', group="Kernel Settings")
+x = input.int(25, "Regression Level", tooltip='Starting bar index for regression. Smaller = tighter fit. Recommended: 2-25', group="Kernel Settings")
+lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Recommended: 1-2", group='Kernel Settings')
+source = input.source(close, "Source", group="Kernel Settings")
+
+// JMA Settings
+jmaLength = input.int(7, "JMA Length", minval = 1, group = "JMA")
+jmaPhase = input.int(50, "JMA Phase", minval = -100, maxval = 100, group = "JMA")
+jmaPower = input.int(2, "JMA Power", minval = 1, group = "JMA")
+useJmaColorConfirm = input.bool(true, "Use JMA Color Confirmation", group = "JMA")
+invertJmaSignals = input.bool(false, "Invert JMA Signals", group = "JMA")
+
+// Display
+shapeSize = input.string("small", "Shape Size", options=["tiny","small","normal","large"], group="Display")
+longColor = input.color(#009988, "Long Color", group="Display")
+shortColor = input.color(#CC3311, "Short Color", group="Display")
+
+// ================================
+// ==== Kernel Regression (Lib) ===
+// ================================
+yhat1 = kernels.rationalQuadratic(source, h, r, x)
+yhat2 = kernels.gaussian(source, h - lag, x)
+
+wasBearishRate = yhat1[2] > yhat1[1]
+wasBullishRate = yhat1[2] < yhat1[1]
+isBearishRate = yhat1[1] > yhat1
+isBullishRate = yhat1[1] < yhat1
+isBullishSmooth = yhat2 >= yhat1
+isBearishSmooth = yhat2 <= yhat1
+
+kernelBullish = useKernelSmoothing ? isBullishSmooth : isBullishRate
+kernelBearish = useKernelSmoothing ? isBearishSmooth : isBearishRate
+
+// ===============
+// ====  JMA  ====
+// ===============
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+
+isUp = jma > jma[1]
+isDown = jma < jma[1]
+longBase = useJmaColorConfirm ? (isUp and close > jma) : (close > jma)
+shortBase = useJmaColorConfirm ? (isDown and close < jma) : (close < jma)
+jmaLong = invertJmaSignals ? shortBase : longBase
+jmaShort = invertJmaSignals ? longBase : shortBase
+
+// ======================
+// ==== Alignment I/O ===
+// ======================
+alignLong = jmaLong and kernelBullish
+alignShort = jmaShort and kernelBearish
+
+// Top-of-chart markers
+ss = shapeSize == "tiny" ? size.tiny : shapeSize == "small" ? size.small : shapeSize == "normal" ? size.normal : size.large
+plotshape(alignLong, title='Align Long', style=shape.triangleup, location=location.top, color=longColor, size=ss, text='LONG')
+plotshape(alignShort, title='Align Short', style=shape.triangledown, location=location.top, color=shortColor, size=ss, text='SHORT')
+
+// Optional: bar coloring when aligned
+barcolor(alignLong ? color.new(longColor, 70) : na)
+barcolor(alignShort ? color.new(shortColor, 70) : na)
+
+// Heartbeats for adapters (data window)
+plot(alignLong ? 1 : 0, "Align Heartbeat Long", display = display.data_window)
+plot(alignShort ? -1 : 0, "Align Heartbeat Short", display = display.data_window)
+
+// Alerts
+alertcondition(alignLong, title='Kernel+JMA Align Long', message='SZT Align Long ▲ | {{ticker}}@{{close}} | ({{interval}})')
+alertcondition(alignShort, title='Kernel+JMA Align Short', message='SZT Align Short ▼ | {{ticker}}@{{close}} | ({{interval}})')
