@@ -106,3 +106,40 @@ plot(alignShort ? -1 : 0, "Align Heartbeat Short", display = display.data_window
 // Alerts
 alertcondition(alignLongStart, title='Kernel+JMA Align Long (Start)', message='SZT Align Long ▲ | {{ticker}}@{{close}} | ({{interval}})')
 alertcondition(alignShortStart, title='Kernel+JMA Align Short (Start)', message='SZT Align Short ▼ | {{ticker}}@{{close}} | ({{interval}})')
+
+// ============================
+// ==== Volatility Stop (SL) ===
+// ============================
+useVolStop   = input.bool(true,  "Use Volatility Stop", group="Volatility Stop")
+vsLength     = input.int(20,     "Length", minval=2, group="Volatility Stop")
+vsFactor     = input.float(2.0,  "Multiplier", minval=0.25, step=0.25, group="Volatility Stop")
+vsSource     = input.source(close, "Source", group="Volatility Stop")
+vsShowLine   = input.bool(true,  "Show Stop Line", group="Volatility Stop")
+vsShowDots   = input.bool(true,  "Show Stop Dots", group="Volatility Stop")
+vsLineWidth  = input.int(1,      "Stop Line Width", minval=1, maxval=5, group="Volatility Stop")
+
+volStop(src, atrlen, atrmult) =>
+    if not na(src)
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool  uptrend   = true
+        var float stop      = na
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = (bar_index > 0) ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+[vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
+vsColor = vsUp ? color.new(#009688, 0) : color.new(#F44336, 0)
+plot(useVolStop and vsShowLine ? vsStop : na, title="Volatility Stop", color=vsColor, linewidth=vsLineWidth)
+plot(useVolStop and vsShowDots ? vsStop : na, title="Volatility Stop Dots", style=plot.style_circles, color=vsColor)
+
+// Data-window output for SL reference
+plot(useVolStop ? vsStop : na, title="SL Level (VolStop)", display=display.data_window)
