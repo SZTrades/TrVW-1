@@ -1,5 +1,5 @@
 //@version=6
-indicator("SZTrades Jurik Volatility Bands", "SZT JVB", overlay=true)
+indicator("SZTrades Jurik Volatility Bands", "SZT JVB", overlay=false)
 
 // Inputs
 useJurik = input.bool(true, "Use Jurik Bands", group="Core")
