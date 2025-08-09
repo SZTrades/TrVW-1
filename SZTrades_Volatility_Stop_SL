@@ -25,7 +25,7 @@ volStop(src, atrlen, atrfactor) =>
         stop  := nz(uptrend ? math.max(stop, max - atrM) : math.min(stop, min + atrM), src)
         // Regime check
         uptrend := src - stop >= 0.0
-        prevUp = na(uptrend[1]) ? true : uptrend[1]
+        prevUp = (bar_index > 0) ? uptrend[1] : true
         if uptrend != prevUp
             max  := src
             min  := src
