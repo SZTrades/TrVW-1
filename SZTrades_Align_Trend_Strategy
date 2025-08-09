@@ -24,10 +24,10 @@ useADConfirm = input.bool(true, 'Use AD EMA Confirmation', group='AD Confirm')
 adEmaLen = input.int(50, 'AD EMA Length', minval=1, group='AD Confirm')
 
 // Time Filter
-startHour = input.int(5, 'Start Hour (chart tz)', minval=0, maxval=23, group='Session')
+startHour = input.int(1, 'Start Hour (chart tz)', minval=0, maxval=23, group='Session')
 enterOnStartBar = input.bool(false, 'Enter On Align Start Bar', group='Session')
 debugMode = input.bool(true, 'Debug: Show Condition Flags', group='Session')
-sessionFilter = input.session("0500-2359", "Allowed Session (exchange tz)", group='Session')
+sessionFilter = input.session("0600-1700", "Allowed Session (exchange tz)", group='Session')
 
 
 // Volatility Stop (for close-only trailing)
