@@ -1,116 +1,82 @@
-//@version=6
-indicator("SZTrades Jurik Volatility Bands", "SZT JVB", overlay=false)
+//@version=5
+indicator('SZTrades Jurik Volatility Bands', shorttitle='SZT JVB', overlay=false)
 
-// Inputs
-useJurik = input.bool(true, "Use Jurik Bands", group="Core")
-length = input.int(14, "Extremes Length", minval=1, group="Core")
-smoothLen = input.int(2, "Smoothing Length", minval=1, group="Smoothing")
-smoothMode = input.string("wma", "Smoothing Mode", options=["ema","wma","swma","vwma","hull","tema"], group="Smoothing")
+// Settings (preserve original behavior; add smoothing mode)
+useJurik      = input.bool(true, title='use Jurik?')
+inverseJurik  = input.bool(false, title='Inverse Jurik?')
+lengthJurik   = input.int(14, minval=1, title='length - Jurik')
+smoothJurik   = input.int(2,  minval=1, title='smooth - Jurik')
+colorPriceJurik = input.color(color.aqua, title='Color - Jurik')
+// New: configurable smoothing source
+smoothingMode = input.string('wma', 'Smoothing Mode', options=['ema','wma','swma','vwma','hull','tema'])
 
-// LH Detection
-detectLH = input.bool(true, "Detect Lower Highs", group="LH Detection")
-pivotLeft = input.int(3, "Pivot Left", minval=1, group="LH Detection")
-pivotRight = input.int(3, "Pivot Right", minval=1, group="LH Detection")
-
-// Colors/Styles
-bandUpColor = input.color(color.new(color.green, 0), "Upper Band Color", group="Display")
-bandDnColor = input.color(color.new(color.red, 0), "Lower Band Color", group="Display")
-centerColor = input.color(color.new(color.gray, 50), "Center Line Color", group="Display")
-priceLineColor = input.color(color.aqua, "Price (Centered) Color", group="Display")
-showCenter = input.bool(false, "Show Center Line", group="Display")
-showPriceCentered = input.bool(false, "Show Price Centered", group="Display")
-
-// ---- Helper MAs ----
+// Helper MAs (for smoothing mode)
 tema(src, len) =>
     ema1 = ta.ema(src, len)
     ema2 = ta.ema(ema1, len)
     ema3 = ta.ema(ema2, len)
-    3.0 * ema1 - 3.0 * ema2 + ema3
+    3 * ema1 - 3 * ema2 + ema3
 
 maGeneric(mode, src, len) =>
-    if mode == "ema"
-        ta.ema(src, len)
-    else if mode == "wma"
-        ta.wma(src, len)
-    else if mode == "swma"
-        ta.swma(src)
-    else if mode == "vwma"
-        ta.vwma(src, len)
-    else if mode == "hull"
-        ta.wma(2.0 * ta.wma(src, math.max(1, len / 2)) - ta.wma(src, len), math.max(1, math.round(math.sqrt(len))))
-    else if mode == "tema"
-        tema(src, len)
-    else
-        ta.sma(src, len)
+    mode == 'ema'  ? ta.ema(src, len) :
+    mode == 'wma'  ? ta.wma(src, len) :
+    mode == 'swma' ? ta.swma(src) :
+    mode == 'vwma' ? ta.vwma(src, len) :
+    mode == 'hull' ? ta.wma(2 * ta.wma(src, len / 2) - ta.wma(src, len), math.round(math.sqrt(len))) :
+    mode == 'tema' ? tema(src, len) : ta.wma(src, len)
 
-// ---- Core Jurik-like Bands (reproduces original logic with stable init) ----
-vprice = close
-cprice = close
+// --- original logic ---
+vpriceJurik = float(na)
+cpriceJurik = float(na)
+vpriceJurik := ta.sma(close, 1)
+cpriceJurik := ta.sma(close, 1)
 
-hprice = ta.highest(vprice, length)
-lprice = ta.lowest(vprice, length)
+hpriceJurik = ta.highest(vpriceJurik, lengthJurik)
+lpriceJurik = ta.lowest(vpriceJurik, lengthJurik)
 
-var float bsMax = na
-var float bsMin = na
-bsMax := na(bsMax[1]) ? hprice : bsMax[1]
-bsMin := na(bsMin[1]) ? lprice : bsMin[1]
+bsJurikmax = float(na)
+bsJurikmin = float(na)
+bsJurikmax := na(bsJurikmax[1]) ? nz(na) : nz(bsJurikmax[1])
+bsJurikmin := na(bsJurikmin[1]) ? nz(na) : nz(bsJurikmin[1])
 
-del1 = hprice - nz(bsMax[1])
-del2 = lprice - nz(bsMin[1])
+delJurik1 = hpriceJurik - nz(bsJurikmax[1])
+delJurik2 = lpriceJurik - nz(bsJurikmin[1])
 
-lenEff = math.sqrt(0.5 * math.max(1, length - 1))
-k = math.exp(math.log(lenEff / (lenEff + 1.0)))
+lenJurik = math.sqrt(0.5 * (lengthJurik - 1)) * 1
+k = math.exp(math.sqrt(1) * math.log(lenJurik / (lenJurik + 1)))
 
-if del1 > 0
-    bsMax := hprice
+if delJurik1 > 0
+    bsJurikmax := hpriceJurik
 else
-    bsMax := hprice - k * del1
+    bsJurikmax := hpriceJurik - k * delJurik1
 
-if del2 < 0
-    bsMin := lprice
+if delJurik2 < 0
+    bsJurikmin := lpriceJurik
 else
-    bsMin := lprice - k * del2
+    bsJurikmin := lpriceJurik - k * delJurik2
 
-// Raw bands and center
-upRaw = bsMax
-dnRaw = bsMin
-center = (upRaw + dnRaw) / 2.0
+// Bands and centered price (original)
+dnValueJurik = bsJurikmin
+upValueJurik = bsJurikmax
+miValueJurik = (upValueJurik + dnValueJurik) / 2.0
 
-// Normalized deltas (around center)
-upDelta = upRaw - center
-dnDelta = dnRaw - center
-priceDelta = cprice - center
+// Apply configurable smoothing in place of fixed WMA
+len2 = smoothJurik <= 1 ? smoothJurik : smoothJurik / 2
+len2i = math.max(1, math.round(len2))
+upValueJuriks = maGeneric(smoothingMode, (upValueJurik - miValueJurik), len2i)
+dnValueJuriks = maGeneric(smoothingMode, (dnValueJurik - miValueJurik), len2i)
+priceJurik    = maGeneric(smoothingMode, (cpriceJurik - miValueJurik), smoothJurik)
 
-// Smoothed deltas
-upDeltaS = maGeneric(smoothMode, upDelta, smoothLen <= 1 ? 1 : (smoothMode == "hull" or smoothMode == "tema" ? smoothLen : smoothLen))
-dnDeltaS = maGeneric(smoothMode, dnDelta, smoothLen <= 1 ? 1 : (smoothMode == "hull" or smoothMode == "tema" ? smoothLen : smoothLen))
-priceDeltaS = maGeneric(smoothMode, priceDelta, smoothLen <= 1 ? 1 : (smoothMode == "hull" or smoothMode == "tema" ? smoothLen : smoothLen))
+signalLongJurik  = useJurik ? priceJurik > 0 : true
+signalShortJurik = useJurik ? priceJurik < 0 : true
 
-// Actual plotted bands around price
-upperBand = center + upDeltaS
-lowerBand = center + dnDeltaS
+signalLongJurikFinal  = inverseJurik ? signalShortJurik : signalLongJurik
+signalShortJurikFinal = inverseJurik ? signalLongJurik : signalShortJurik
 
-// Signals (optional heartbeats)
-longSignal = useJurik ? priceDeltaS > 0 : true
-shortSignal = useJurik ? priceDeltaS < 0 : true
+plot(signalLongJurikFinal  ? 1 : 0, 'Heartbeat Long',  display=display.data_window)
+plot(signalShortJurikFinal ? -1: 0, 'Heartbeat Short', display=display.data_window)
 
-plot(longSignal ? 1 : 0, "Heartbeat Long", display=display.data_window)
-plot(shortSignal ? -1 : 0, "Heartbeat Short", display=display.data_window)
-
-// Plots
-plot(upperBand, "Upper Band", color=bandUpColor)
-plot(lowerBand, "Lower Band", color=bandDnColor)
-plot(showCenter ? center : na, "Center", color=centerColor)
-plot(showPriceCentered ? priceDeltaS : na, "Price Centered", color=priceLineColor)
-
-// ---- Lower High (LH) detection via pivots ----
-var float lastPivotHigh = na
-var float prevPivotHigh = na
-ph = ta.pivothigh(high, pivotLeft, pivotRight)
-newPivotHigh = not na(ph)
-if newPivotHigh
-    prevPivotHigh := lastPivotHigh
-    lastPivotHigh := ph
-
-isLH = detectLH and newPivotHigh and not na(prevPivotHigh) and ph < prevPivotHigh and (upperBand < upperBand[pivotRight])
-plotshape(isLH, title='Lower High', style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny, offset=-pivotRight)
+plot(upValueJuriks, title='Upper Band', color=color.green)
+plot(dnValueJuriks, title='Lower Band', color=color.red)
+plot(priceJurik,    title='Price',      color=(colorPriceJurik))
+hline(0)
