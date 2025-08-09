@@ -1,5 +1,5 @@
 //@version=6
-strategy("SZTrades Align Trend Strategy", overlay=true, process_orders_on_close=false, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.01, slippage=1)
+strategy("SZTrades Align Trend Strategy", overlay=true, process_orders_on_close=false, calc_on_every_tick=true, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.01, slippage=1)
 
 import jdehorty/KernelFunctions/2 as kernels
 
@@ -140,15 +140,12 @@ canTradeToday = na(tradedDay) or (tradedDay != curDay)
 vsLongOK = up
 vsShortOK = not up
 
-// Strict rule: enter only if previous bar had start and current bar maintains align
-longEntrySignal  = afterStart and canTradeToday and vsLongOK and alignLong and alignLongStart[1] and (not useADConfirm or adLongOK)
-shortEntrySignal = afterStart and canTradeToday and vsShortOK and alignShort and alignShortStart[1] and (not useADConfirm or adShortOK)
-
-if strategy.position_size == 0
-    if longEntrySignal
+// Submit entries on first tick of current bar, based on prev-bar start and current align
+if strategy.position_size == 0 and barstate.isnew
+    if afterStart and canTradeToday and vsLongOK and alignLong and alignLongStart[1] and (not useADConfirm or adLongOK)
         strategy.entry("L", strategy.long)
         tradedDay := curDay
-    else if shortEntrySignal
+    else if afterStart and canTradeToday and vsShortOK and alignShort and alignShortStart[1] and (not useADConfirm or adShortOK)
         strategy.entry("S", strategy.short)
         tradedDay := curDay
 
