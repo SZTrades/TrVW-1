@@ -1,5 +1,5 @@
 //@version=6
-strategy("SZTrades Align Trend Strategy", overlay=true, process_orders_on_close=true, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.01, slippage=1)
+strategy("SZTrades Align Trend Strategy", overlay=true, process_orders_on_close=false, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.01, slippage=1)
 
 import jdehorty/KernelFunctions/2 as kernels
 
