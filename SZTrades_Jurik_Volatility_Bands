@@ -18,12 +18,20 @@ tema(src, len) =>
     3 * ema1 - 3 * ema2 + ema3
 
 maGeneric(mode, src, len) =>
-    mode == 'ema'  ? ta.ema(src, len) :
-    mode == 'wma'  ? ta.wma(src, len) :
-    mode == 'swma' ? ta.swma(src) :
-    mode == 'vwma' ? ta.vwma(src, len) :
-    mode == 'hull' ? ta.wma(2 * ta.wma(src, math.max(1, len / 2)) - ta.wma(src, len), math.max(1, math.round(math.sqrt(len)))) :
-    mode == 'tema' ? tema(src, len) : ta.wma(src, len)
+    if mode == 'ema'
+        ta.ema(src, len)
+    else if mode == 'wma'
+        ta.wma(src, len)
+    else if mode == 'swma'
+        ta.swma(src)
+    else if mode == 'vwma'
+        ta.vwma(src, len)
+    else if mode == 'hull'
+        ta.wma(2 * ta.wma(src, math.max(1, len / 2)) - ta.wma(src, len), math.max(1, math.round(math.sqrt(len))))
+    else if mode == 'tema'
+        tema(src, len)
+    else
+        ta.wma(src, len)
 
 // --- original logic ---
 vpriceJurik = float(na)
