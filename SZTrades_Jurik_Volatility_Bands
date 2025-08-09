@@ -1,0 +1,108 @@
+//@version=6
+indicator("SZTrades Jurik Volatility Bands", "SZT JVB", overlay=true)
+
+// Inputs
+useJurik = input.bool(true, "Use Jurik Bands", group="Core")
+length = input.int(14, "Extremes Length", minval=1, group="Core")
+smoothLen = input.int(2, "Smoothing Length", minval=1, group="Smoothing")
+smoothMode = input.string("wma", "Smoothing Mode", options=["ema","wma","swma","vwma","hull","tema"], group="Smoothing")
+
+// LH Detection
+detectLH = input.bool(true, "Detect Lower Highs", group="LH Detection")
+pivotLeft = input.int(3, "Pivot Left", minval=1, group="LH Detection")
+pivotRight = input.int(3, "Pivot Right", minval=1, group="LH Detection")
+
+// Colors/Styles
+bandUpColor = input.color(color.new(color.green, 0), "Upper Band Color", group="Display")
+bandDnColor = input.color(color.new(color.red, 0), "Lower Band Color", group="Display")
+centerColor = input.color(color.new(color.gray, 50), "Center Line Color", group="Display")
+priceLineColor = input.color(color.aqua, "Price (Centered) Color", group="Display")
+showCenter = input.bool(false, "Show Center Line", group="Display")
+showPriceCentered = input.bool(false, "Show Price Centered", group="Display")
+
+// ---- Helper MAs ----
+tema(src, len) =>
+    ema1 = ta.ema(src, len)
+    ema2 = ta.ema(ema1, len)
+    ema3 = ta.ema(ema2, len)
+    3.0 * ema1 - 3.0 * ema2 + ema3
+
+maGeneric(mode, src, len) =>
+    mode == "ema"  ? ta.ema(src, len) :
+    mode == "wma"  ? ta.wma(src, len) :
+    mode == "swma" ? ta.swma(src) :
+    mode == "vwma" ? ta.vwma(src, len) :
+    mode == "hull" ? ta.wma(2.0 * ta.wma(src, math.max(1, len / 2)) - ta.wma(src, len), math.max(1, math.round(math.sqrt(len)))) :
+    mode == "tema" ? tema(src, len) : ta.sma(src, len)
+
+// ---- Core Jurik-like Bands (reproduces original logic with stable init) ----
+vprice = close
+cprice = close
+
+hprice = ta.highest(vprice, length)
+lprice = ta.lowest(vprice, length)
+
+var float bsMax = na
+var float bsMin = na
+bsMax := na(bsMax[1]) ? hprice : bsMax[1]
+bsMin := na(bsMin[1]) ? lprice : bsMin[1]
+
+del1 = hprice - nz(bsMax[1])
+del2 = lprice - nz(bsMin[1])
+
+lenEff = math.sqrt(0.5 * math.max(1, length - 1))
+k = math.exp(math.log(lenEff / (lenEff + 1.0)))
+
+if del1 > 0
+    bsMax := hprice
+else
+    bsMax := hprice - k * del1
+
+if del2 < 0
+    bsMin := lprice
+else
+    bsMin := lprice - k * del2
+
+// Raw bands and center
+upRaw = bsMax
+dnRaw = bsMin
+center = (upRaw + dnRaw) / 2.0
+
+// Normalized deltas (around center)
+upDelta = upRaw - center
+dnDelta = dnRaw - center
+priceDelta = cprice - center
+
+// Smoothed deltas
+upDeltaS = maGeneric(smoothMode, upDelta, smoothLen <= 1 ? 1 : (smoothMode == "hull" or smoothMode == "tema" ? smoothLen : smoothLen))
+dnDeltaS = maGeneric(smoothMode, dnDelta, smoothLen <= 1 ? 1 : (smoothMode == "hull" or smoothMode == "tema" ? smoothLen : smoothLen))
+priceDeltaS = maGeneric(smoothMode, priceDelta, smoothLen <= 1 ? 1 : (smoothMode == "hull" or smoothMode == "tema" ? smoothLen : smoothLen))
+
+// Actual plotted bands around price
+upperBand = center + upDeltaS
+lowerBand = center + dnDeltaS
+
+// Signals (optional heartbeats)
+longSignal = useJurik ? priceDeltaS > 0 : true
+shortSignal = useJurik ? priceDeltaS < 0 : true
+
+plot(longSignal ? 1 : 0, "Heartbeat Long", display=display.data_window)
+plot(shortSignal ? -1 : 0, "Heartbeat Short", display=display.data_window)
+
+// Plots
+plot(upperBand, "Upper Band", color=bandUpColor)
+plot(lowerBand, "Lower Band", color=bandDnColor)
+plot(showCenter ? center : na, "Center", color=centerColor)
+plot(showPriceCentered ? priceDeltaS : na, "Price Centered", color=priceLineColor)
+
+// ---- Lower High (LH) detection via pivots ----
+var float lastPivotHigh = na
+var float prevPivotHigh = na
+ph = ta.pivothigh(high, pivotLeft, pivotRight)
+newPivotHigh = not na(ph)
+if newPivotHigh
+    prevPivotHigh := lastPivotHigh
+    lastPivotHigh := ph
+
+isLH = detectLH and newPivotHigh and not na(prevPivotHigh) and ph < prevPivotHigh and (upperBand < upperBand[pivotRight])
+plotshape(isLH, title='Lower High', style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny, offset=-pivotRight)
