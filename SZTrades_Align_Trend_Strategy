@@ -1,0 +1,156 @@
+//@version=6
+strategy("SZTrades Align Trend Strategy", overlay=true, process_orders_on_close=true, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.01, slippage=1)
+
+import jdehorty/KernelFunctions/2 as kernels
+
+// ========================
+// ==== User Parameters ===
+// ========================
+// Kernel
+useKernelSmoothing = input.bool(false, "Kernel: Enhance Smoothing", group='Kernel')
+h = input.int(8, 'Kernel: Lookback Window', minval=3, group='Kernel')
+r = input.float(8., 'Kernel: Relative Weighting', step=0.25, group='Kernel')
+x = input.int(25, 'Kernel: Regression Level', group='Kernel')
+lag = input.int(2, 'Kernel: Lag', group='Kernel')
+source = input.source(close, 'Kernel/JMA Source', group='Kernel')
+
+// JMA (length hard-coded 20 as per align indicator)
+jmaPhase = input.int(50, 'JMA Phase', minval=-100, maxval=100, group='JMA')
+jmaPower = input.int(2, 'JMA Power', minval=1, group='JMA')
+useJmaColorConfirm = input.bool(true, 'JMA: Use Color Confirmation', group='JMA')
+
+// AD Confirmation
+useADConfirm = input.bool(true, 'Use AD EMA Confirmation', group='AD Confirm')
+adEmaLen = input.int(50, 'AD EMA Length', minval=1, group='AD Confirm')
+
+// Time Filter
+startHour = input.int(5, 'Start Hour (chart tz)', minval=0, maxval=23, group='Session')
+
+// Volatility Stop (for close-only trailing)
+vsLength = input.int(20, 'VolStop Length', minval=2, group='VolStop')
+vsFactor = input.float(2.0, 'VolStop Multiplier', minval=0.25, step=0.25, group='VolStop')
+
+// ==========================
+// ==== Kernel + JMA Align ===
+// ==========================
+// Kernel estimates (library)
+yhat1 = kernels.rationalQuadratic(source, h, r, x)
+yhat2 = kernels.gaussian(source, h - lag, x)
+
+isBullishRate = yhat1[1] < yhat1
+isBearishRate = yhat1[1] > yhat1
+isBullishSmooth = yhat2 >= yhat1
+isBearishSmooth = yhat2 <= yhat1
+kernelBullish = useKernelSmoothing ? isBullishSmooth : isBullishRate
+kernelBearish = useKernelSmoothing ? isBearishSmooth : isBearishRate
+
+// JMA core (length=20)
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (20 - 1) / (0.45 * (20 - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+
+jmaUp = jma > jma[1]
+jmaDown = jma < jma[1]
+longBase = useJmaColorConfirm ? (jmaUp and close > jma) : (close > jma)
+shortBase = useJmaColorConfirm ? (jmaDown and close < jma) : (close < jma)
+
+alignLong = longBase and kernelBullish
+alignShort = shortBase and kernelBearish
+alignLongStart = alignLong and not alignLong[1]
+alignShortStart = alignShort and not alignShort[1]
+
+// ======================
+// ==== AD Confirm =======
+// ======================
+ad = ta.ad()
+adEma = ta.ema(ad, adEmaLen)
+adLongOK = ad > adEma
+adShortOK = ad < adEma
+
+// ======================
+// ==== Time Filter ======
+// ======================
+barHour = hour(time)
+afterStart = barHour > startHour or (barHour == startHour and minute(time) >= 0)
+
+// ======================
+// ==== VolStop (SL) =====
+// ======================
+volStop(src, atrlen, atrmult) =>
+    if not na(src)
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool  uptrend   = true
+        var float stop      = na
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = (bar_index > 0) ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+[stp, up] = volStop(close, vsLength, vsFactor)
+
+// Previous bar stop (close-only trailing)
+stpPrev = stp[1]
+
+// ============================
+// ==== One trade per day =====
+// ============================
+var int tradedDay = na
+newDay = ta.change(dayofyear(time))
+if newDay
+    tradedDay := na
+
+canTradeToday = tradedDay != dayofyear(time)
+
+// ======================
+// ==== Entries =========
+// ======================
+longEntrySignal = afterStart and canTradeToday and alignLong[0] and alignLongStart[1] and (not useADConfirm or adLongOK)
+shortEntrySignal = afterStart and canTradeToday and alignShort[0] and alignShortStart[1] and (not useADConfirm or adShortOK)
+
+if strategy.position_size == 0
+    if longEntrySignal
+        strategy.entry("L", strategy.long)
+        tradedDay := dayofyear(time)
+    else if shortEntrySignal
+        strategy.entry("S", strategy.short)
+        tradedDay := dayofyear(time)
+
+// ======================
+// ==== Exits ===========
+// ======================
+// Close-only exit on stop or on de-alignment (at close)
+if strategy.position_size > 0
+    // Exit if close <= stop (not wick)
+    if not na(stpPrev) and close <= stpPrev
+        strategy.close("L", comment="L SL Close")
+    // Exit if de-aligned at close
+    else if not alignLong
+        strategy.close("L", comment="L Dealign")
+
+if strategy.position_size < 0
+    if not na(stpPrev) and close >= stpPrev
+        strategy.close("S", comment="S SL Close")
+    else if not alignShort
+        strategy.close("S", comment="S Dealign")
+
+// Optional visuals (minimal)
+plot(stp, "VolStop", color=up ? color.new(#009688,0) : color.new(#F44336,0))
+plotshape(alignLongStart, title='Align Long Start', style=shape.labelup, location=location.belowbar, color=color.new(#009988, 0), size=size.tiny, text="")
+plotshape(alignShortStart, title='Align Short Start', style=shape.labeldown, location=location.abovebar, color=color.new(#CC3311, 0), size=size.tiny, text="")
