@@ -25,6 +25,8 @@ adEmaLen = input.int(50, 'AD EMA Length', minval=1, group='AD Confirm')
 
 // Time Filter
 startHour = input.int(5, 'Start Hour (chart tz)', minval=0, maxval=23, group='Session')
+enterOnStartBar = input.bool(true, 'Enter On Start Bar (instead of next bar align)', group='Session')
+debugMode = input.bool(false, 'Debug: Show Condition Flags', group='Session')
 
 // Volatility Stop (for close-only trailing)
 vsLength = input.int(20, 'VolStop Length', minval=2, group='VolStop')
@@ -126,8 +128,8 @@ canTradeToday = tradedDay != curDay
 // ======================
 // ==== Entries =========
 // ======================
-longEntrySignal = afterStart and canTradeToday and alignLong[0] and alignLongStart[1] and (not useADConfirm or adLongOK)
-shortEntrySignal = afterStart and canTradeToday and alignShort[0] and alignShortStart[1] and (not useADConfirm or adShortOK)
+longEntrySignal  = afterStart and canTradeToday and ((enterOnStartBar and alignLongStart) or (not enterOnStartBar and alignLong and alignLongStart[1])) and (not useADConfirm or adLongOK)
+shortEntrySignal = afterStart and canTradeToday and ((enterOnStartBar and alignShortStart) or (not enterOnStartBar and alignShort and alignShortStart[1])) and (not useADConfirm or adShortOK)
 
 if strategy.position_size == 0
     if longEntrySignal
@@ -159,3 +161,13 @@ if strategy.position_size < 0
 plot(stp, "VolStop", color=up ? color.new(#009688,0) : color.new(#F44336,0))
 plotshape(alignLongStart, title='Align Long Start', style=shape.labelup, location=location.belowbar, color=color.new(#009988, 0), size=size.tiny, text="")
 plotshape(alignShortStart, title='Align Short Start', style=shape.labeldown, location=location.abovebar, color=color.new(#CC3311, 0), size=size.tiny, text="")
+
+// Debug flags
+plotchar(debugMode and afterStart, title='DBG afterStart', char='A', location=location.top, color=color.gray)
+plotchar(debugMode and canTradeToday, title='DBG canTrade', char='D', location=location.top, color=color.gray)
+plotchar(debugMode and alignLongStart, title='DBG Lstart', char='L', location=location.top, color=color.new(#009988,0))
+plotchar(debugMode and alignShortStart, title='DBG Sstart', char='S', location=location.top, color=color.new(#CC3311,0))
+plotchar(debugMode and alignLong, title='DBG Lalign', char='l', location=location.top, color=color.new(#009988,50))
+plotchar(debugMode and alignShort, title='DBG Salign', char='s', location=location.top, color=color.new(#CC3311,50))
+plotchar(debugMode and adLongOK, title='DBG ADlong', char='+', location=location.top, color=color.new(#009988,0))
+plotchar(debugMode and adShortOK, title='DBG ADshort', char='-', location=location.top, color=color.new(#CC3311,0))
