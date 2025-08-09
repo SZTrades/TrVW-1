@@ -27,6 +27,7 @@ adEmaLen = input.int(50, 'AD EMA Length', minval=1, group='AD Confirm')
 startHour = input.int(5, 'Start Hour (chart tz)', minval=0, maxval=23, group='Session')
 enterOnStartBar = input.bool(true, 'Enter On Align Start Bar', group='Session')
 debugMode = input.bool(true, 'Debug: Show Condition Flags', group='Session')
+sessionFilter = input.session("0500-2359", "Allowed Session (exchange tz)", group='Session')
 
 // Volatility Stop (for close-only trailing)
 vsLength = input.int(20, 'VolStop Length', minval=2, group='VolStop')
@@ -86,7 +87,8 @@ adShortOK = ad < adEma
 // ==== Time Filter ======
 // ======================
 barHour = hour(time)
-afterStart = barHour > startHour or (barHour == startHour and minute(time) >= 0)
+allowedSession = not na(time(timeframe.period, sessionFilter))
+afterStart = allowedSession // replaces simple hour filter
 
 // ======================
 // ==== VolStop (SL) =====
