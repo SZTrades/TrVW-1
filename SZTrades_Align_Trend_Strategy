@@ -71,7 +71,10 @@ alignShortStart = alignShort and not alignShort[1]
 // ======================
 // ==== AD Confirm =======
 // ======================
-ad = ta.ad()
+// Manual Chaikin A/D
+mfm = (high != low) ? ((close - low) - (high - close)) / (high - low) : 0.0
+mfv = mfm * volume
+ad = nz(ad[1]) + mfv
 adEma = ta.ema(ad, adEmaLen)
 adLongOK = ad > adEma
 adShortOK = ad < adEma
@@ -112,11 +115,12 @@ stpPrev = stp[1]
 // ==== One trade per day =====
 // ============================
 var int tradedDay = na
-newDay = ta.change(dayofyear(time))
+curDay = int(time("D"))
+newDay = ta.change(curDay)
 if newDay
     tradedDay := na
 
-canTradeToday = tradedDay != dayofyear(time)
+canTradeToday = tradedDay != curDay
 
 // ======================
 // ==== Entries =========
@@ -127,10 +131,10 @@ shortEntrySignal = afterStart and canTradeToday and alignShort[0] and alignShort
 if strategy.position_size == 0
     if longEntrySignal
         strategy.entry("L", strategy.long)
-        tradedDay := dayofyear(time)
+        tradedDay := curDay
     else if shortEntrySignal
         strategy.entry("S", strategy.short)
-        tradedDay := dayofyear(time)
+        tradedDay := curDay
 
 // ======================
 // ==== Exits ===========
