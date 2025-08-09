@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 indicator('SZTrades Jurik Volatility Bands', shorttitle='SZT JVB', overlay=false)
 
 // Settings (preserve original behavior; add smoothing mode)
@@ -22,7 +22,7 @@ maGeneric(mode, src, len) =>
     mode == 'wma'  ? ta.wma(src, len) :
     mode == 'swma' ? ta.swma(src) :
     mode == 'vwma' ? ta.vwma(src, len) :
-    mode == 'hull' ? ta.wma(2 * ta.wma(src, len / 2) - ta.wma(src, len), math.round(math.sqrt(len))) :
+    mode == 'hull' ? ta.wma(2 * ta.wma(src, math.max(1, len / 2)) - ta.wma(src, len), math.max(1, math.round(math.sqrt(len)))) :
     mode == 'tema' ? tema(src, len) : ta.wma(src, len)
 
 // --- original logic ---
