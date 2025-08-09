@@ -74,7 +74,8 @@ alignShortStart = alignShort and not alignShort[1]
 // Manual Chaikin A/D
 mfm = (high != low) ? ((close - low) - (high - close)) / (high - low) : 0.0
 mfv = mfm * volume
-ad = nz(ad[1]) + mfv
+var float ad = na
+ad := nz(ad[1]) + mfv
 adEma = ta.ema(ad, adEmaLen)
 adLongOK = ad > adEma
 adShortOK = ad < adEma
@@ -116,7 +117,7 @@ stpPrev = stp[1]
 // ============================
 var int tradedDay = na
 curDay = int(time("D"))
-newDay = ta.change(curDay)
+newDay = ta.change(curDay) != 0
 if newDay
     tradedDay := na
 
