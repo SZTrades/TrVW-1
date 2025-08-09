@@ -25,7 +25,7 @@ adEmaLen = input.int(50, 'AD EMA Length', minval=1, group='AD Confirm')
 
 // Time Filter
 startHour = input.int(5, 'Start Hour (chart tz)', minval=0, maxval=23, group='Session')
-enterOnStartBar = input.bool(true, 'Enter On Align Start Bar', group='Session')
+enterOnStartBar = input.bool(false, 'Enter On Align Start Bar', group='Session')
 debugMode = input.bool(true, 'Debug: Show Condition Flags', group='Session')
 sessionFilter = input.session("0500-2359", "Allowed Session (exchange tz)", group='Session')
 
@@ -69,8 +69,12 @@ shortBase = useJmaColorConfirm ? (jmaDown and close < jma) : (close < jma)
 
 alignLong = longBase and kernelBullish
 alignShort = shortBase and kernelBearish
-alignLongStart = alignLong and not alignLong[1]
-alignShortStart = alignShort and not alignShort[1]
+// Use same start logic as SZT Align (cycle gating + bar close confirmation)
+var int cycleDir = 0
+alignLongStart = barstate.isconfirmed and alignLong and not alignLong[1] and (cycleDir != 1)
+alignShortStart = barstate.isconfirmed and alignShort and not alignShort[1] and (cycleDir != -1)
+cycleDir := alignLongStart ? 1 : alignShortStart ? -1 : cycleDir
+cycleDir := (cycleDir == 1 and alignShort) ? 0 : (cycleDir == -1 and alignLong) ? 0 : cycleDir
 
 // ======================
 // ==== AD Confirm =======
@@ -136,8 +140,9 @@ canTradeToday = na(tradedDay) or (tradedDay != curDay)
 vsLongOK = up
 vsShortOK = not up
 
-longEntrySignal  = afterStart and canTradeToday and vsLongOK and ((enterOnStartBar and alignLongStart) or (not enterOnStartBar and alignLong and alignLongStart[1])) and (not useADConfirm or adLongOK)
-shortEntrySignal = afterStart and canTradeToday and vsShortOK and ((enterOnStartBar and alignShortStart) or (not enterOnStartBar and alignShort and alignShortStart[1])) and (not useADConfirm or adShortOK)
+// Strict rule: enter only if previous bar had start and current bar maintains align
+longEntrySignal  = afterStart and canTradeToday and vsLongOK and alignLong and alignLongStart[1] and (not useADConfirm or adLongOK)
+shortEntrySignal = afterStart and canTradeToday and vsShortOK and alignShort and alignShortStart[1] and (not useADConfirm or adShortOK)
 
 if strategy.position_size == 0
     if longEntrySignal
