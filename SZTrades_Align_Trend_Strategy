@@ -25,8 +25,8 @@ adEmaLen = input.int(50, 'AD EMA Length', minval=1, group='AD Confirm')
 
 // Time Filter
 startHour = input.int(5, 'Start Hour (chart tz)', minval=0, maxval=23, group='Session')
-enterOnStartBar = input.bool(true, 'Enter On Start Bar (instead of next bar align)', group='Session')
-debugMode = input.bool(false, 'Debug: Show Condition Flags', group='Session')
+enterOnStartBar = input.bool(true, 'Enter On Align Start Bar', group='Session')
+debugMode = input.bool(true, 'Debug: Show Condition Flags', group='Session')
 
 // Volatility Stop (for close-only trailing)
 vsLength = input.int(20, 'VolStop Length', minval=2, group='VolStop')
@@ -123,7 +123,7 @@ newDay = ta.change(curDay) != 0
 if newDay
     tradedDay := na
 
-canTradeToday = tradedDay != curDay
+canTradeToday = na(tradedDay) or (tradedDay != curDay)
 
 // ======================
 // ==== Entries =========
