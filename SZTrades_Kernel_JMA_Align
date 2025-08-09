@@ -137,7 +137,7 @@ volStop(src, atrlen, atrmult) =>
 [vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
 vsColor = vsUp ? color.new(#009688, 0) : color.new(#F44336, 0)
 plot(useVolStop and vsShowLine ? vsStop : na, title="Volatility Stop", color=vsColor, linewidth=vsLineWidth)
-plot(useVolStop and vsShowDots ? vsStop : na, title="Volatility Stop Dots", style=plot.style_circles, color=vsColor, linewidth=1)
+plot(useVolStop and vsShowDots ? vsStop : na, title="Volatility Stop Dots", style=plot.style_cross, color=vsColor, linewidth=1)
 
 // Data-window output for SL reference
 plot(useVolStop ? vsStop : na, title="SL Level (VolStop)", display=display.data_window)
