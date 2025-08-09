@@ -1,5 +1,5 @@
 //@version=6
-indicator("SZTrades Volatility Stop (SL Points)", "SZT VolStop SL", overlay = true)
+indicator("SZTrades Volatility Stop (SL Points)", "SZT VSL", overlay = true)
 
 // Inputs
 length = input.int(20, "Volatility Stop Length", minval = 2)
@@ -36,7 +36,8 @@ volStop(src, atrlen, atrfactor) =>
 // Plots
 stopColor = up ? color.new(#009688, 0) : color.new(#F44336, 0)
 plot(showLine ? stp : na, "Volatility Stop", color=stopColor, linewidth=lineWidth)
-plotshape(showDots and barstate.isconfirmed, title="VolStop Dot", location=location.absolute, style=shape.cross, color=stopColor, size=size.tiny, offset=0, y=stp)
+plotshape(showDots and barstate.isconfirmed, title="VolStop Dot", location=location.absolute, style=shape.cross, color=stopColor, size=size.tiny, offset=0)
+plot(showDots ? stp : na, title="VolStop Dot Anchor", style=plot.style_circles, color=color.new(stopColor, 0))
 
 // Data-window outputs for Strategy usage/reference
 plot(stp, "SL Level (VolStop)", display=display.data_window)
