@@ -37,8 +37,7 @@ volStop(src, atrlen, atrfactor) =>
 // Plots
 stopColor = up ? color.new(#009688, 0) : color.new(#F44336, 0)
 plot(showLine ? stp : na, "Volatility Stop", color=stopColor, linewidth=lineWidth)
-plotshape(showDots and barstate.isconfirmed, title="VolStop Dot", location=location.absolute, style=shape.cross, color=stopColor, size=size.tiny, offset=0)
-plot(showDots ? stp : na, title="VolStop Dot Anchor", style=plot.style_circles, color=color.new(stopColor, 0))
+plot(showDots ? stp : na, title="VolStop Dots", style=plot.style_circles, color=stopColor)
 
 // Data-window outputs for Strategy usage/reference
 plot(stp, "SL Level (VolStop)", display=display.data_window)
