@@ -1,0 +1,43 @@
+//@version=6
+indicator("SZTrades Volatility Stop (SL Points)", "SZT VolStop SL", overlay = true)
+
+// Inputs
+length = input.int(20, "Volatility Stop Length", minval = 2)
+src    = input.source(close, "Volatility Stop Source")
+factor = input.float(2.0, "Volatility Stop Multiplier", minval = 0.25, step = 0.25)
+
+showLine = input.bool(true,  "Show Stop Line", group="Display")
+showDots = input.bool(true,  "Show Stop Dots", group="Display")
+lineWidth = input.int(1, "Line Width", minval=1, maxval=5, group="Display")
+
+// Volatility Stop (replicates the provided logic)
+volStop(src, atrlen, atrfactor) =>
+    if not na(src)
+        var float max     = src
+        var float min     = src
+        var bool  uptrend = true
+        var float stop    = na
+        atrM = ta.atr(atrlen) * atrfactor
+        // Update regime extremes
+        max   := math.max(max, src)
+        min   := math.min(min, src)
+        // Trailing stop based on regime
+        stop  := nz(uptrend ? math.max(stop, max - atrM) : math.min(stop, min + atrM), src)
+        // Regime check
+        uptrend := src - stop >= 0.0
+        if uptrend != nz(uptrend[1], true)
+            max  := src
+            min  := src
+            stop := uptrend ? max - atrM : min + atrM
+        [stop, uptrend]
+
+[stp, up] = volStop(src, length, factor)
+
+// Plots
+stopColor = up ? color.new(#009688, 0) : color.new(#F44336, 0)
+plot(showLine ? stp : na, "Volatility Stop", color=stopColor, linewidth=lineWidth)
+plotshape(showDots and barstate.isconfirmed, title="VolStop Dot", location=location.absolute, style=shape.cross, color=stopColor, size=size.tiny, offset=0, y=stp)
+
+// Data-window outputs for Strategy usage/reference
+plot(stp, "SL Level (VolStop)", display=display.data_window)
+plot(up ? 1 : -1, "Trend Heartbeat (1 long, -1 short)", display=display.data_window)
