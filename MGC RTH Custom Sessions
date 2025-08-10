@@ -2,7 +2,7 @@
 // © krollo041 - Kevin Rollo - Modified for MGC RTH Custom Sessions
 
 //@version=6
-indicator(title = 'MGC RTH Custom Sessions', shorttitle = 'MGC RTH', overlay = true, max_boxes_count = 500, max_lines_count = 250, max_labels_count = 250)
+indicator(title = 'Custom Sessions', shorttitle = 'Custom Sessions', overlay = true, max_boxes_count = 500, max_lines_count = 250, max_labels_count = 250)
 
 // MGC RTH Custom Sessions: 10:00-14:00 (4h) and 14:00-17:00 (3h)
 // Hardcoded sessions to work with RTH instead of generic timeframes
@@ -31,24 +31,24 @@ MidLineStyle = input.bool(true, '---', inline = '12') ? line.style_dashed : line
 BgLong = input.color(color.new(#66bb6a, 80), 'Long Boxes', inline = '103')
 BgShort = input.color(color.new(#f7525f, 80), 'Short Boxes', inline = '103')
 
-// Session Settings (customizable)
-s1Enabled = input.bool(true, 'Enable Session 1', group='Sessions')
-s1StartH  = input.int(10, 'S1 Start Hour', minval=0, maxval=23, group='Sessions', inline='S1a')
-s1StartM  = input.int(0,  'S1 Start Min',  minval=0, maxval=59, group='Sessions', inline='S1a')
-s1EndH    = input.int(14, 'S1 End Hour',   minval=0, maxval=23, group='Sessions', inline='S1b')
-s1EndM    = input.int(0,  'S1 End Min',    minval=0, maxval=59, group='Sessions', inline='S1b')
+// Session Settings (hardcoded)
+s1Enabled = true
+s1StartH  = 10
+s1StartM  = 0
+s1EndH    = 14
+s1EndM    = 0
 
-s2Enabled = input.bool(true, 'Enable Session 2', group='Sessions')
-s2StartH  = input.int(14, 'S2 Start Hour', minval=0, maxval=23, group='Sessions', inline='S2a')
-s2StartM  = input.int(0,  'S2 Start Min',  minval=0, maxval=59, group='Sessions', inline='S2a')
-s2EndH    = input.int(17, 'S2 End Hour',   minval=0, maxval=23, group='Sessions', inline='S2b')
-s2EndM    = input.int(0,  'S2 End Min',    minval=0, maxval=59, group='Sessions', inline='S2b')
+s2Enabled = true
+s2StartH  = 14
+s2StartM  = 0
+s2EndH    = 17
+s2EndM    = 0
 
-s3Enabled = input.bool(false, 'Enable Session 3', group='Sessions')
-s3StartH  = input.int(0,  'S3 Start Hour', minval=0, maxval=23, group='Sessions', inline='S3a')
-s3StartM  = input.int(0,  'S3 Start Min',  minval=0, maxval=59, group='Sessions', inline='S3a')
-s3EndH    = input.int(0,  'S3 End Hour',   minval=0, maxval=23, group='Sessions', inline='S3b')
-s3EndM    = input.int(0,  'S3 End Min',    minval=0, maxval=59, group='Sessions', inline='S3b')
+s3Enabled = false
+s3StartH  = 0
+s3StartM  = 0
+s3EndH    = 0
+s3EndM    = 0
 
 // Session variables
 var float htfHigh = na
