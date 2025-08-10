@@ -1,0 +1,317 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SZTrades - Custom RTH Sessions Indicator
+
+//@version=6
+indicator(title = 'SZTrades Custom Sessions', shorttitle = 'Custom Sessions', overlay = true, max_boxes_count = 500, max_lines_count = 250, max_labels_count = 250)
+
+// 🏆 SZTrades Custom Sessions - Professional RTH Trading Tool
+// 
+// 📈 FEATURES:
+// • Fully configurable session times (up to 3 sessions)
+// • Works with ANY instrument (MGC, MES, ES, NQ, AAPL, etc.)
+// • Real-time session boxes with live updates
+// • Customizable bullish/bearish colors
+// • Range calculations in pips/points
+// • Midline support levels
+// • Professional RTH session tracking
+//
+// ⚡ USAGE:
+// 1. Enable/disable sessions as needed
+// 2. Set custom times using format "HHMM-HHMM" (e.g., "1000-1400")
+// 3. Choose bullish/bearish colors (applies to all sessions)
+// 4. Toggle range labels and midlines
+
+// === GLOBAL COLORS (Bullish/Bearish) ===
+bullColor = input.color(color.new(#66bb6a, 80), 'Bullish Color', group = 'Colors')
+bearColor = input.color(color.new(#f7525f, 80), 'Bearish Color', group = 'Colors')
+
+// === SESSION 1 CONFIGURATION ===
+session1_enabled = input.bool(true, 'Enable Session 1', group = 'Session 1')
+session1_start = input.session('1000-1400', 'Session 1 Time', group = 'Session 1')
+
+// === SESSION 2 CONFIGURATION ===
+session2_enabled = input.bool(true, 'Enable Session 2', group = 'Session 2')
+session2_start = input.session('1400-1700', 'Session 2 Time', group = 'Session 2')
+
+// === SESSION 3 CONFIGURATION ===
+session3_enabled = input.bool(false, 'Enable Session 3', group = 'Session 3')
+session3_start = input.session('1800-2100', 'Session 3 Time', group = 'Session 3')
+
+// === DISPLAY OPTIONS ===
+BoxRangePips = input.bool(false, 'Show H/L Range Pips', inline = '02', group = 'Display')
+BoxRangePercentage = input.bool(false, 'Show O/C Pips', inline = '02', group = 'Display')
+BoxRangeTC = input.color(color.black, '', inline = '02', group = 'Display')
+
+BoxShow = input.bool(true, 'Candle Boxes', inline = '10', group = 'Display')
+BoxColor = input.color(color.new(#9598a1, 50), '', inline = '10', group = 'Display')
+BoxWidth = input.int(1, '', minval = 0, inline = '10', display = display.none, group = 'Display')
+BoxLineStyle = input.bool(false, '---', inline = '10', group = 'Display') ? line.style_dashed : line.style_solid
+
+BodyShow = input.bool(true, 'Include Body', inline = '11', group = 'Display')
+BodyColor = input.color(color.new(#9598a1, 50), '', inline = '11', group = 'Display')
+BodyWidth = input.int(1, '', minval = 0, inline = '11', display = display.none, group = 'Display')
+BodyLineStyle = input.bool(false, '---', inline = '11', group = 'Display') ? line.style_dashed : line.style_solid
+
+MidLineShow = input.bool(false, 'Show MidLine', inline = '12', group = 'Display')
+MidLineColor = input.color(color.new(#9598a1, 50), '', inline = '12', group = 'Display')
+MidLineWidth = input.int(1, '', minval = 0, inline = '12', display = display.none, group = 'Display')
+MidLineStyle = input.bool(true, '---', inline = '12', group = 'Display') ? line.style_dashed : line.style_solid
+
+// === SESSION TRACKING VARIABLES ===
+var float s1_high = na
+var float s1_low = na
+var float s1_open = na
+var int s1_start_bar = na
+var bool s1_active = false
+
+var float s2_high = na
+var float s2_low = na
+var float s2_open = na
+var int s2_start_bar = na
+var bool s2_active = false
+
+var float s3_high = na
+var float s3_low = na
+var float s3_open = na
+var int s3_start_bar = na
+var bool s3_active = false
+
+var box s1_current_box = na
+var box s1_current_body = na
+var box s2_current_box = na
+var box s2_current_body = na
+var box s3_current_box = na
+var box s3_current_body = na
+
+var float div = 1
+
+// Initialize
+if bar_index == 1 and syminfo.type == 'forex'
+    div := 0.1 / syminfo.mintick
+
+// Session detection using Pine Script's built-in session functionality
+s1_in_session = not na(time(timeframe.period, session1_start))
+s2_in_session = not na(time(timeframe.period, session2_start))
+s3_in_session = not na(time(timeframe.period, session3_start))
+
+s1_session_start = s1_in_session and na(time(timeframe.period, session1_start)[1])
+s2_session_start = s2_in_session and na(time(timeframe.period, session2_start)[1])
+s3_session_start = s3_in_session and na(time(timeframe.period, session3_start)[1])
+
+s1_session_end = not s1_in_session and not na(time(timeframe.period, session1_start)[1])
+s2_session_end = not s2_in_session and not na(time(timeframe.period, session2_start)[1])
+s3_session_end = not s3_in_session and not na(time(timeframe.period, session3_start)[1])
+
+// === SESSION 1 LOGIC ===
+if session1_enabled
+    if s1_session_start and not s1_active
+        s1_active := true
+        s1_open := open
+        s1_high := high
+        s1_low := low
+        s1_start_bar := bar_index
+    
+    if s1_active and s1_in_session
+        if high > s1_high
+            s1_high := high
+        if low < s1_low
+            s1_low := low
+    
+    if s1_active and s1_session_end
+        bar_close = close[1]
+        bar_index_end = bar_index - 1
+        candle_long = bar_close > s1_open
+        fillColor = candle_long ? bullColor : bearColor
+        
+        if BoxShow
+            box.new(left = s1_start_bar, top = s1_high, right = bar_index_end, bottom = s1_low, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : fillColor)
+        
+        if BodyShow
+            if candle_long
+                box.new(left = s1_start_bar, top = bar_close, right = bar_index_end, bottom = s1_open, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+            else
+                box.new(left = s1_start_bar, top = s1_open, right = bar_index_end, bottom = bar_close, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+        
+        if BoxRangePips
+            r1 = math.abs(s1_high - s1_low) * div
+            r2 = math.abs(s1_open - bar_close) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            label_text = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            label.new(s1_start_bar + (bar_index_end - s1_start_bar) / 2, s1_high + syminfo.mintick * 30, label_text, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+        
+        if MidLineShow
+            midpoint = math.avg(s1_low, s1_high)
+            line.new(s1_start_bar, midpoint, bar_index_end, midpoint, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
+        
+        s1_active := false
+
+// === SESSION 2 LOGIC ===
+if session2_enabled
+    if s2_session_start and not s2_active
+        s2_active := true
+        s2_open := open
+        s2_high := high
+        s2_low := low
+        s2_start_bar := bar_index
+    
+    if s2_active and s2_in_session
+        if high > s2_high
+            s2_high := high
+        if low < s2_low
+            s2_low := low
+    
+    if s2_active and s2_session_end
+        bar_close = close[1]
+        bar_index_end = bar_index - 1
+        candle_long = bar_close > s2_open
+        fillColor = candle_long ? bullColor : bearColor
+        
+        if BoxShow
+            box.new(left = s2_start_bar, top = s2_high, right = bar_index_end, bottom = s2_low, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : fillColor)
+        
+        if BodyShow
+            if candle_long
+                box.new(left = s2_start_bar, top = bar_close, right = bar_index_end, bottom = s2_open, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+            else
+                box.new(left = s2_start_bar, top = s2_open, right = bar_index_end, bottom = bar_close, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+        
+        if BoxRangePips
+            r1 = math.abs(s2_high - s2_low) * div
+            r2 = math.abs(s2_open - bar_close) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            label_text = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            label.new(s2_start_bar + (bar_index_end - s2_start_bar) / 2, s2_high + syminfo.mintick * 30, label_text, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+        
+        if MidLineShow
+            midpoint = math.avg(s2_low, s2_high)
+            line.new(s2_start_bar, midpoint, bar_index_end, midpoint, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
+        
+        s2_active := false
+
+// === SESSION 3 LOGIC ===
+if session3_enabled
+    if s3_session_start and not s3_active
+        s3_active := true
+        s3_open := open
+        s3_high := high
+        s3_low := low
+        s3_start_bar := bar_index
+    
+    if s3_active and s3_in_session
+        if high > s3_high
+            s3_high := high
+        if low < s3_low
+            s3_low := low
+    
+    if s3_active and s3_session_end
+        bar_close = close[1]
+        bar_index_end = bar_index - 1
+        candle_long = bar_close > s3_open
+        fillColor = candle_long ? bullColor : bearColor
+        
+        if BoxShow
+            box.new(left = s3_start_bar, top = s3_high, right = bar_index_end, bottom = s3_low, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : fillColor)
+        
+        if BodyShow
+            if candle_long
+                box.new(left = s3_start_bar, top = bar_close, right = bar_index_end, bottom = s3_open, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+            else
+                box.new(left = s3_start_bar, top = s3_open, right = bar_index_end, bottom = bar_close, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+        
+        if BoxRangePips
+            r1 = math.abs(s3_high - s3_low) * div
+            r2 = math.abs(s3_open - bar_close) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            label_text = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            label.new(s3_start_bar + (bar_index_end - s3_start_bar) / 2, s3_high + syminfo.mintick * 30, label_text, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+        
+            if MidLineShow
+                midpoint = math.avg(s3_low, s3_high)
+                line.new(s3_start_bar, midpoint, bar_index_end, midpoint, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
+        
+        s3_active := false
+
+// === REAL-TIME UPDATES ===
+if barstate.islast
+    if s1_active and session1_enabled and s1_in_session
+        box.delete(s1_current_box)
+        box.delete(s1_current_body)
+        
+        candle_long = close > s1_open
+        fillColor = candle_long ? bullColor : bearColor
+        
+        if BoxShow
+            s1_current_box := box.new(left = s1_start_bar, top = s1_high, right = bar_index, bottom = s1_low, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : fillColor)
+        
+        if BodyShow
+            if candle_long
+                s1_current_body := box.new(left = s1_start_bar, top = close, right = bar_index, bottom = s1_open, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+            else
+                s1_current_body := box.new(left = s1_start_bar, top = s1_open, right = bar_index, bottom = close, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+        
+        if BoxRangePips
+            r1 = math.abs(s1_high - s1_low) * div
+            r2 = math.abs(s1_open - close) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            label_text = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            label.new(s1_start_bar + (bar_index - s1_start_bar) / 2, s1_high + syminfo.mintick * 30, label_text, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+        
+        if MidLineShow
+            midpoint = math.avg(s1_low, s1_high)
+            line.new(s1_start_bar, midpoint, bar_index, midpoint, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
+    
+    if s2_active and session2_enabled and s2_in_session
+        box.delete(s2_current_box)
+        box.delete(s2_current_body)
+        
+        candle_long = close > s2_open
+        fillColor = candle_long ? bullColor : bearColor
+        
+        if BoxShow
+            s2_current_box := box.new(left = s2_start_bar, top = s2_high, right = bar_index, bottom = s2_low, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : fillColor)
+        
+        if BodyShow
+            if candle_long
+                s2_current_body := box.new(left = s2_start_bar, top = close, right = bar_index, bottom = s2_open, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+            else
+                s2_current_body := box.new(left = s2_start_bar, top = s2_open, right = bar_index, bottom = close, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+        
+        if BoxRangePips
+            r1 = math.abs(s2_high - s2_low) * div
+            r2 = math.abs(s2_open - close) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            label_text = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            label.new(s2_start_bar + (bar_index - s2_start_bar) / 2, s2_high + syminfo.mintick * 30, label_text, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+        
+        if MidLineShow
+            midpoint = math.avg(s2_low, s2_high)
+            line.new(s2_start_bar, midpoint, bar_index, midpoint, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
+    
+    if s3_active and session3_enabled and s3_in_session
+        box.delete(s3_current_box)
+        box.delete(s3_current_body)
+        
+        candle_long = close > s3_open
+        fillColor = candle_long ? bullColor : bearColor
+        
+        if BoxShow
+            s3_current_box := box.new(left = s3_start_bar, top = s3_high, right = bar_index, bottom = s3_low, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : fillColor)
+        
+        if BodyShow
+            if candle_long
+                s3_current_body := box.new(left = s3_start_bar, top = close, right = bar_index, bottom = s3_open, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+            else
+                s3_current_body := box.new(left = s3_start_bar, top = s3_open, right = bar_index, bottom = close, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = fillColor)
+        
+        if BoxRangePips
+            r1 = math.abs(s3_high - s3_low) * div
+            r2 = math.abs(s3_open - close) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            label_text = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            label.new(s3_start_bar + (bar_index - s3_start_bar) / 2, s3_high + syminfo.mintick * 30, label_text, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+        
+        if MidLineShow
+            midpoint = math.avg(s3_low, s3_high)
+            line.new(s3_start_bar, midpoint, bar_index, midpoint, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
+
+// end
