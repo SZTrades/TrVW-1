@@ -1,0 +1,172 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © krollo041 - Kevin Rollo - Modified for MGC RTH Custom Sessions
+
+//@version=6
+indicator(title = 'MGC RTH Custom Sessions', shorttitle = 'MGC RTH', overlay = true, max_boxes_count = 500, max_lines_count = 250, max_labels_count = 250)
+
+// MGC RTH Custom Sessions: 10:00-14:00 (4h) and 14:00-17:00 (3h)
+// Hardcoded sessions to work with RTH instead of generic timeframes
+
+// User Inputs
+BoxRangePips = input.bool(false, 'Show H/L Range Pips', inline = '02')
+BoxRangePercentage = input.bool(false, 'Show O/C Pips', inline = '02')
+BoxRangeTC = input.color(color.black, '', inline = '02')
+
+BoxShow = input.bool(true, 'Candle Boxes', inline = '10')
+BoxColor = input.color(color.new(#9598a1, 50), '', inline = '10')
+BoxWidth = input.int(1, '', minval = 0, inline = '10', display = display.none)
+BoxLineStyle = input.bool(false, '---', inline = '10') ? line.style_dashed : line.style_solid
+
+BodyShow = input.bool(true, 'Include Body', inline = '11')
+BodyColor = input.color(color.new(#9598a1, 50), '', inline = '11')
+BodyWidth = input.int(1, '', minval = 0, inline = '11', display = display.none)
+BodyLineStyle = input.bool(false, '---', inline = '11') ? line.style_dashed : line.style_solid
+
+MidLineShow = input.bool(false, 'Show MidLine', inline = '12')
+MidLineColor = input.color(color.new(#9598a1, 50), '', inline = '12')
+MidLineWidth = input.int(1, '', minval = 0, inline = '12', display = display.none)
+MidLineStyle = input.bool(true, '---', inline = '12') ? line.style_dashed : line.style_solid
+
+// Colour Selection
+BgLong = input.color(color.new(#66bb6a, 80), 'Long Boxes', inline = '103')
+BgShort = input.color(color.new(#f7525f, 80), 'Short Boxes', inline = '103')
+
+// Session Settings (customizable)
+s1Enabled = input.bool(true, 'Enable Session 1', group='Sessions')
+s1StartH  = input.int(10, 'S1 Start Hour', minval=0, maxval=23, group='Sessions', inline='S1a')
+s1StartM  = input.int(0,  'S1 Start Min',  minval=0, maxval=59, group='Sessions', inline='S1a')
+s1EndH    = input.int(14, 'S1 End Hour',   minval=0, maxval=23, group='Sessions', inline='S1b')
+s1EndM    = input.int(0,  'S1 End Min',    minval=0, maxval=59, group='Sessions', inline='S1b')
+
+s2Enabled = input.bool(true, 'Enable Session 2', group='Sessions')
+s2StartH  = input.int(14, 'S2 Start Hour', minval=0, maxval=23, group='Sessions', inline='S2a')
+s2StartM  = input.int(0,  'S2 Start Min',  minval=0, maxval=59, group='Sessions', inline='S2a')
+s2EndH    = input.int(17, 'S2 End Hour',   minval=0, maxval=23, group='Sessions', inline='S2b')
+s2EndM    = input.int(0,  'S2 End Min',    minval=0, maxval=59, group='Sessions', inline='S2b')
+
+s3Enabled = input.bool(false, 'Enable Session 3', group='Sessions')
+s3StartH  = input.int(0,  'S3 Start Hour', minval=0, maxval=23, group='Sessions', inline='S3a')
+s3StartM  = input.int(0,  'S3 Start Min',  minval=0, maxval=59, group='Sessions', inline='S3a')
+s3EndH    = input.int(0,  'S3 End Hour',   minval=0, maxval=23, group='Sessions', inline='S3b')
+s3EndM    = input.int(0,  'S3 End Min',    minval=0, maxval=59, group='Sessions', inline='S3b')
+
+// Session variables
+var float htfHigh = na
+var float htfLow = na
+var float htfOpen = na
+var int htfBarIndex = na
+var float div = 1
+var bool inSession = false
+var int currentSessionType = 0  // 1, 2, or 3
+
+var box currentBox1 = na
+var box currentBox2 = na
+var label currentLabel = na
+var line currentLine = na
+
+// First Bar Checks
+if bar_index == 1
+    if syminfo.type == 'forex'
+        div := 0.1 / syminfo.mintick
+
+// Helper: minutes from midnight
+getMin(h, m) => h * 60 + m
+nowMin = hour * 60 + minute
+
+s1StartMin = getMin(s1StartH, s1StartM)
+s1EndMin   = getMin(s1EndH, s1EndM)
+s2StartMin = getMin(s2StartH, s2StartM)
+s2EndMin   = getMin(s2EndH, s2EndM)
+s3StartMin = getMin(s3StartH, s3StartM)
+s3EndMin   = getMin(s3EndH, s3EndM)
+
+inRange(minNow, startMin, endMin) => minNow >= startMin and minNow < endMin
+
+s1ActiveNow = s1Enabled and inRange(nowMin, s1StartMin, s1EndMin)
+s2ActiveNow = s2Enabled and inRange(nowMin, s2StartMin, s2EndMin)
+s3ActiveNow = s3Enabled and inRange(nowMin, s3StartMin, s3EndMin)
+
+// Determine session index now (priority: 1 then 2 then 3 if overlaps)
+sessionNow = s1ActiveNow ? 1 : s2ActiveNow ? 2 : s3ActiveNow ? 3 : 0
+
+// Transition handling: end previous session if different
+didChange = sessionNow != currentSessionType
+if didChange
+    if inSession and currentSessionType != 0
+        // Complete previous session
+        barClose = barstate.islast ? close : close[1]
+        barIndex = barstate.islast ? bar_index : bar_index - 1
+        candleLong = barClose > htfOpen
+        BGColor = candleLong ? BgLong : BgShort
+
+        if BoxShow
+            box.new(left = htfBarIndex, top = htfHigh, right = barIndex, bottom = htfLow, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : BGColor)
+
+        if BodyShow
+            if candleLong
+                box.new(left = htfBarIndex, top = barClose, right = barIndex, bottom = htfOpen, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = BGColor)
+            else
+                box.new(left = htfBarIndex, top = htfOpen, right = barIndex, bottom = barClose, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = BGColor)
+
+        if BoxRangePips
+            r1 = math.abs(htfHigh - htfLow) * div
+            r2 = math.abs(htfOpen - barClose) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            lableText = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            label.new(htfBarIndex + (barIndex - htfBarIndex) / 2, htfHigh + syminfo.mintick * 30, lableText, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+
+        if MidLineShow
+            mp = math.avg(htfLow, htfHigh)
+            line.new(htfBarIndex, mp, barIndex, mp, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
+
+    // Start new session if applicable
+    inSession := sessionNow != 0
+    currentSessionType := sessionNow
+    if inSession
+        htfOpen := open
+        htfBarIndex := bar_index
+        htfHigh := high
+        htfLow := low
+
+// Update high/low during active session
+if inSession
+    isInCorrectHours = (currentSessionType == 1 and s1ActiveNow) or (currentSessionType == 2 and s2ActiveNow) or (currentSessionType == 3 and s3ActiveNow)
+    if isInCorrectHours
+        if high > htfHigh
+            htfHigh := high
+        if low < htfLow
+            htfLow := low
+
+// Handle last bar updates (real-time)
+if barstate.islast and inSession
+    isInCorrectHours = (currentSessionType == 1 and s1ActiveNow) or (currentSessionType == 2 and s2ActiveNow) or (currentSessionType == 3 and s3ActiveNow)
+    if isInCorrectHours
+        box.delete(currentBox1)
+        box.delete(currentBox2)
+        label.delete(currentLabel)
+        line.delete(currentLine)
+
+        barClose = close
+        barIndex = bar_index
+        candleLong = barClose > htfOpen
+        BGColor = candleLong ? BgLong : BgShort
+
+        if BoxShow
+            currentBox1 := box.new(left = htfBarIndex, top = htfHigh, right = barIndex, bottom = htfLow, border_width = BoxWidth, border_style = BoxLineStyle, border_color = BoxColor, bgcolor = BodyShow ? na : BGColor)
+
+        if BodyShow
+            if candleLong
+                currentBox2 := box.new(left = htfBarIndex, top = close, right = barIndex, bottom = htfOpen, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = BGColor)
+            else
+                currentBox2 := box.new(left = htfBarIndex, top = htfOpen, right = barIndex, bottom = close, border_width = BodyWidth, border_style = BodyLineStyle, border_color = BodyColor, bgcolor = BGColor)
+
+        if BoxRangePips
+            r1 = math.abs(htfHigh - htfLow) * div
+            r2 = math.abs(htfOpen - barClose) * div
+            r3 = r1 != 0 ? r2 / r1 : 0
+            lableText = BoxRangePercentage ? str.tostring(r2, '#,##0.0#') + ' / ' + str.tostring(r1, '#,##0.0#') + ' = ' + str.tostring(r3, '0%') : str.tostring(r1, '#,##0.0#')
+            currentLabel := label.new(htfBarIndex + (barIndex - htfBarIndex) / 2, htfHigh + syminfo.mintick * 30, lableText, style = label.style_none, textcolor = BoxRangeTC, textalign = text.align_right)
+
+        if MidLineShow
+            mp = math.avg(htfLow, htfHigh)
+            currentLine := line.new(htfBarIndex, mp, barIndex, mp, xloc = xloc.bar_index, color = MidLineColor, style = MidLineStyle, width = MidLineWidth)
