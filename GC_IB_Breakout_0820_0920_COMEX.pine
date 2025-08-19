@@ -1,0 +1,92 @@
+//@version=6
+strategy("GC IB Breakout 08:20–09:20 (COMEX)", overlay=true, initial_capital=100000, commission_type=strategy.commission.cash_per_contract, commission_value=2.5, pyramiding=0, process_orders_on_close=true, calc_on_every_tick=false)
+
+// ===================== Inputs =====================
+ibWindow       = input.session("0820-0920", "IB window (COMEX RTH)")
+tradeWindow    = input.session("0920-1330", "Trade window (after IB)")
+contracts      = input.int(1, "Contracts", minval=1)
+tpMultiple     = input.float(1.0, "TP multiple of Δ beyond IB edge (1.0=x2, 2.0=x3)", minval=0.0, step=0.5)
+minDelta       = input.float(1.0, "Min Δ to trade", step=0.1)
+maxDelta       = input.float(100.0, "Max Δ to trade", step=0.1)
+oneTradePerDay = input.bool(true, "One trade per day (any side)")
+
+// ===================== Helpers =====================
+within(sess) => not na(time(timeframe.period, sess))
+
+calcIB(n) =>
+    float hi = high[1]
+    float lo = low[1]
+    for i = 1 to n
+        if low[i] < lo
+            lo := low[i]
+        if high[i] > hi
+            hi := high[i]
+    [hi, lo, (hi + lo) / 2.0]
+
+// ===================== IB Calculation =====================
+var float ibHigh    = na
+var float ibLow     = na
+var float ibMid     = na
+var float ibDelta   = na
+var int   barsCount = 0
+
+active = within(ibWindow)
+if active
+    barsCount += 1
+
+// On window close, lock today's IB
+if active[1] and not active
+    [hi, lo, mid] = calcIB(barsCount)
+    ibHigh  := hi
+    ibLow   := lo
+    ibMid   := mid
+    ibDelta := hi - lo
+    barsCount := 0
+
+// ===================== Trading Logic =====================
+inTradeWindow = within(tradeWindow)
+ibReady = not active and not na(ibDelta)
+validDelta = ibReady and ibDelta >= minDelta and ibDelta <= maxDelta
+
+// IB extensions for exits
+longTP  = ibReady ? ibHigh + ibDelta * tpMultiple : na
+shortTP = ibReady ? ibLow  - ibDelta * tpMultiple : na
+longSL  = ibReady ? ibLow  : na
+shortSL = ibReady ? ibHigh : na
+
+longSignal  = validDelta and inTradeWindow and ta.crossover(close, ibHigh)
+shortSignal = validDelta and inTradeWindow and ta.crossunder(close, ibLow)
+
+// One-trade-per-day via session key (daily time bucket)
+var int tradedSession = na
+sessionKey = time("D")  // ms timestamp of the current daily candle
+canTrade = not oneTradePerDay or na(tradedSession) or tradedSession != sessionKey
+
+if canTrade
+    if longSignal and strategy.position_size <= 0
+        strategy.entry("Long", strategy.long, qty=contracts)
+        strategy.exit("Long-Exit", "Long", stop=longSL, limit=longTP)
+        if oneTradePerDay
+            tradedSession := sessionKey
+    else if shortSignal and strategy.position_size >= 0
+        strategy.entry("Short", strategy.short, qty=contracts)
+        strategy.exit("Short-Exit", "Short", stop=shortSL, limit=shortTP)
+        if oneTradePerDay
+            tradedSession := sessionKey
+
+// Force flat at trade window end
+if not inTradeWindow and inTradeWindow[1]
+    strategy.close("Long")
+    strategy.close("Short")
+
+// Reset trade flag on new day
+if ta.change(time("D"))
+    tradedSession := na
+
+// ===================== Plots =====================
+plot(ibHigh,  "IB High", color=color.new(color.green, 0), linewidth=2)
+plot(ibLow,   "IB Low",  color=color.new(color.red,   0), linewidth=2)
+plot(ibMid,   "IB Mid",  color=color.new(color.orange,0), linewidth=1, style=plot.style_circles)
+plot(longTP,  "Long TP", color=color.new(color.green, 60))
+plot(shortTP, "Short TP",color=color.new(color.red,   60))
+
