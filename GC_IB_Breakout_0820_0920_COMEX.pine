@@ -54,8 +54,11 @@ shortTP = ibReady ? ibLow  - ibDelta * tpMultiple : na
 longSL  = ibReady ? ibLow  : na
 shortSL = ibReady ? ibHigh : na
 
-longSignal  = validDelta and inTradeWindow and ta.crossover(close, ibHigh)
-shortSignal = validDelta and inTradeWindow and ta.crossunder(close, ibLow)
+// Precompute cross signals to avoid conditional execution warnings
+crossUp   = ta.crossover(close, ibHigh)
+crossDown = ta.crossunder(close, ibLow)
+longSignal  = validDelta and inTradeWindow and crossUp
+shortSignal = validDelta and inTradeWindow and crossDown
 
 // One-trade-per-day via session key (daily time bucket)
 var int tradedSession = na
@@ -80,7 +83,7 @@ if not inTradeWindow and inTradeWindow[1]
     strategy.close("Short")
 
 // Reset trade flag on new day
-if ta.change(time("D"))
+if ta.change(time("D")) != 0
     tradedSession := na
 
 // ===================== Plots =====================
