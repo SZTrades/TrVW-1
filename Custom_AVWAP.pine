@@ -2,39 +2,39 @@
 indicator("Custom AVWAP", shorttitle="AVWAP Win", overlay=true, max_bars_back=5000)
 
 // Inputs
-avwapWindow  = input.session("0920-1330", "AVWAP window (start-end)")
-src          = input.source(hlc3, "Price source")
-lineColor    = input.color(color.new(color.blue, 0), "Line color")
-lineWidth    = input.int(2, "Line width", minval=1, maxval=5)
-lineStyle    = input.string("Line", "Style", options=["Line","Dots"])
-shadeWindow  = input.bool(false, "Highlight AVWAP window")
-shadeColor   = input.color(color.new(color.blue, 85), "Window tint")
+avwapWindowSession = input.session("0920-1330", "AVWAP window (start-end)")
+src                = input.source(hlc3, "Price source")
+lineColor          = input.color(color.new(color.blue, 0), "Line color")
+lineWidth          = input.int(2, "Line width", minval=1, maxval=5)
+lineStyle          = input.string("Line", "Style", options=["Line","Dots"])
+shadeWindow        = input.bool(false, "Highlight AVWAP window")
+shadeColor         = input.color(color.new(color.blue, 85), "Window tint")
 
 // Helpers
-within(sess) => not na(time(timeframe.period, sess))
+isWithinSession_avwap(string sess) => not na(time(timeframe.period, sess))
 
 // Session state
-active  = within(avwapWindow)
-isStart = active and not active[1]
+avwapActive  = isWithinSession_avwap(avwapWindowSession)
+avwapIsStart = avwapActive and not avwapActive[1]
 
 // Cumulative PV/V reset ONLY at start of window
-var float cumPV = na
-var float cumV  = na
-if isStart
-    cumPV := 0.0
-    cumV  := 0.0
+var float avwapCumPV = na
+var float avwapCumV  = na
+if avwapIsStart
+    avwapCumPV := 0.0
+    avwapCumV  := 0.0
 
 // Build AVWAP only while inside the window
-if active
-    cumPV += src * volume
-    cumV  += volume
+if avwapActive
+    avwapCumPV += src * volume
+    avwapCumV  += volume
 
 // Series is NA outside the window, so it cuts at the end time and resumes next day
-avwap = active and cumV != 0 ? cumPV / cumV : na
+avwapSeries = avwapActive and avwapCumV != 0 ? avwapCumPV / avwapCumV : na
 
 // Optional shading
-bgcolor(shadeWindow and active ? shadeColor : na)
+bgcolor(shadeWindow and avwapActive ? shadeColor : na)
 
 // Plots with daily breaks (line) or dots; toggle by color NA
-plot(avwap, "AVWAP (line)", color=lineStyle=="Line"?lineColor:na, linewidth=lineWidth, style=plot.style_linebr)
-plot(avwap, "AVWAP (dots)", color=lineStyle=="Dots"?lineColor:na, linewidth=1, style=plot.style_circles)
+plot(avwapSeries, "AVWAP (line)", color=lineStyle=="Line"?lineColor:na, linewidth=lineWidth, style=plot.style_linebr)
+plot(avwapSeries, "AVWAP (dots)", color=lineStyle=="Dots"?lineColor:na, linewidth=1, style=plot.style_circles)
