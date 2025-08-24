@@ -1,0 +1,139 @@
+//@version=6
+strategy("MGC IB Breakout 08:20–09:20 (COMEX)", overlay=true, initial_capital=100000, commission_type=strategy.commission.cash_per_contract, commission_value=2.5, pyramiding=0, process_orders_on_close=true, calc_on_every_tick=false)
+
+
+// ===================== Inputs =====================
+ibWindow       = input.session("0820-0920", "IB window (COMEX RTH)")
+tradeWindow    = input.session("0920-1330", "Trade window (after IB)")
+contracts      = input.int(1, "Contracts", minval=1)
+// Direction and risk settings
+direction      = input.string("Both", "Direction", options=["Both","Long only","Short only"])
+
+minDelta       = input.float(1.0, "Min Δ to trade", step=0.1)
+maxDelta       = input.float(100.0, "Max Δ to trade", step=0.1)
+oneTradePerDay = input.bool(true, "One trade per day (any side)")
+// Targets and partials
+// Ajustes solicitados: TP1 = 50% del rango (0.5x Δ), TP1 qty = 50%; TP2 = 100% del rango (1.0x Δ)
+tp1Multiple    = input.float(0.5, "TP1 multiple of Δ (50%)", minval=0.0, step=0.05)
+tp2Multiple    = input.float(1.0, "TP2 multiple of Δ (100%)", minval=0.0, step=0.05)
+
+// Fijamos por defecto 50% del qty en TP1
+// Permitimos cambiarlo pero por defecto 50
+// Si lo prefieres fijo al 50 sin input, puedo hardcodearlo
+
+tp1QtyPercent  = input.int(50, "TP1 qty % (default 50)", minval=1, maxval=99)
+moveStopToBE   = input.bool(true, "Move stop to BE after TP1")
+// Stop mode
+stopMode       = input.string("Opposite IB edge", "Stop mode", options=["Opposite IB edge","Multiple of Δ"])
+stopDeltaMult  = input.float(0.75, "Stop Δ multiple (if Multiple of Δ)", minval=0.1, step=0.05)
+
+
+// ===================== Helpers =====================
+within(sess) => not na(time(timeframe.period, sess))
+
+calcIB(n) =>
+    float hi = high[1]
+    float lo = low[1]
+    for i = 1 to n
+        if low[i] < lo
+            lo := low[i]
+        if high[i] > hi
+            hi := high[i]
+    [hi, lo, (hi + lo) / 2.0]
+
+// ===================== IB Calculation =====================
+var float ibHigh    = na
+var float ibLow     = na
+var float ibMid     = na
+var float ibDelta   = na
+var int   barsCount = 0
+
+active = within(ibWindow)
+if active
+    barsCount += 1
+
+// On window close, lock today's IB
+if active[1] and not active
+    [hi, lo, mid] = calcIB(barsCount)
+    ibHigh  := hi
+    ibLow   := lo
+    ibMid   := mid
+    ibDelta := hi - lo
+    barsCount := 0
+
+// ===================== Trading Logic =====================
+inTradeWindow = within(tradeWindow)
+ibReady = not active and not na(ibDelta)
+validDelta = ibReady and ibDelta >= minDelta and ibDelta <= maxDelta
+
+// Precompute cross signals to avoid conditional execution warnings
+crossUp   = ta.crossover(close, ibHigh)
+crossDown = ta.crossunder(close, ibLow)
+allowLong   = direction != "Short only"
+allowShort  = direction != "Long only"
+longSignal  = validDelta and inTradeWindow and allowLong  and crossUp
+shortSignal = validDelta and inTradeWindow and allowShort and crossDown
+
+// Targets ajustados
+longTP1  = ibReady ? ibHigh + ibDelta * tp1Multiple : na
+longTP2  = ibReady ? ibHigh + ibDelta * tp2Multiple : na
+shortTP1 = ibReady ? ibLow  - ibDelta * tp1Multiple : na
+shortTP2 = ibReady ? ibLow  - ibDelta * tp2Multiple : na
+
+// Position state
+inLong  = strategy.position_size > 0
+inShort = strategy.position_size < 0
+entryPrice = strategy.position_avg_price
+
+// Base stops
+longStopBase  = ibReady and inLong  ? (stopMode == "Opposite IB edge" ? ibLow  : entryPrice - stopDeltaMult * ibDelta) : na
+shortStopBase = ibReady and inShort ? (stopMode == "Opposite IB edge" ? ibHigh : entryPrice + stopDeltaMult * ibDelta) : na
+
+// Move to BE after TP1 touch
+reachedTP1Long  = inLong  and not na(longTP1)  and high >= longTP1
+reachedTP1Short = inShort and not na(shortTP1) and low  <= shortTP1
+longStop  = inLong  ? (moveStopToBE and reachedTP1Long  ? math.max(longStopBase,  entryPrice) : longStopBase)  : na
+shortStop = inShort ? (moveStopToBE and reachedTP1Short ? math.min(shortStopBase, entryPrice) : shortStopBase) : na
+
+// One-trade-per-day via session key (daily time bucket)
+var int tradedSession = na
+sessionKey = time("D")  // ms timestamp of the current daily candle
+canTrade = not oneTradePerDay or na(tradedSession) or tradedSession != sessionKey
+
+if canTrade
+    if longSignal and strategy.position_size <= 0 and allowLong
+        strategy.entry("Long", strategy.long, qty=contracts)
+        if oneTradePerDay
+            tradedSession := sessionKey
+    else if shortSignal and strategy.position_size >= 0 and allowShort
+        strategy.entry("Short", strategy.short, qty=contracts)
+        if oneTradePerDay
+            tradedSession := sessionKey
+
+// Exits with partials and dynamic stops (evaluated every bar)
+if inLong
+    strategy.exit("Long-TP1", from_entry="Long", qty_percent=tp1QtyPercent, stop=longStop, limit=longTP1)
+    strategy.exit("Long-TP2", from_entry="Long", qty_percent=100 - tp1QtyPercent, stop=longStop, limit=longTP2)
+
+if inShort
+    strategy.exit("Short-TP1", from_entry="Short", qty_percent=tp1QtyPercent, stop=shortStop, limit=shortTP1)
+    strategy.exit("Short-TP2", from_entry="Short", qty_percent=100 - tp1QtyPercent, stop=shortStop, limit=shortTP2)
+
+// Force flat at trade window end
+if not inTradeWindow and inTradeWindow[1]
+    strategy.close("Long")
+    strategy.close("Short")
+
+// Reset trade flag on new day
+if ta.change(time("D")) != 0
+    tradedSession := na
+
+// ===================== Plots =====================
+plot(ibHigh,  "IB High", color=color.new(color.green, 0), linewidth=2)
+plot(ibLow,   "IB Low",  color=color.new(color.red,   0), linewidth=2)
+plot(ibMid,   "IB Mid",  color=color.new(color.orange,0), linewidth=1, style=plot.style_circles)
+
+plot(longTP1,  "Long TP1 (50%)",  color=color.new(color.green, 70))
+plot(longTP2,  "Long TP2 (100%)", color=color.new(color.green, 60))
+plot(shortTP1, "Short TP1 (50%)", color=color.new(color.red,   70))
+plot(shortTP2, "Short TP2 (100%)", color=color.new(color.red,   60))
