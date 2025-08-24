@@ -1,40 +1,125 @@
 //@version=6
 indicator("Custom AVWAP", shorttitle="AVWAP Win", overlay=true, max_bars_back=5000)
 
-// Inputs
-avwapWindowSession = input.session("0920-1330", "AVWAP window (start-end)")
+// Global inputs
 src                = input.source(hlc3, "Price source")
-lineColor          = input.color(color.new(color.blue, 0), "Line color")
 lineWidth          = input.int(2, "Line width", minval=1, maxval=5)
 lineStyle          = input.string("Line", "Style", options=["Line","Dots"])
 shadeWindow        = input.bool(false, "Highlight AVWAP window")
 shadeColor         = input.color(color.new(color.blue, 85), "Window tint")
 
+// AVWAP 1
+avwap1Enabled       = input.bool(true,  "Enable AVWAP 1", group='AVWAP 1', inline='row1')
+avwap1Color         = input.color(color.new(color.blue, 0), "", group='AVWAP 1', inline='row1')
+avwap1WindowSession = input.session("0920-1330", "Window", group='AVWAP 1')
+
+// AVWAP 2
+avwap2Enabled       = input.bool(false, "Enable AVWAP 2", group='AVWAP 2', inline='row2')
+avwap2Color         = input.color(color.new(color.red, 0), "", group='AVWAP 2', inline='row2')
+avwap2WindowSession = input.session("0920-1330", "Window", group='AVWAP 2')
+
+// AVWAP 3
+avwap3Enabled       = input.bool(false, "Enable AVWAP 3", group='AVWAP 3', inline='row3')
+avwap3Color         = input.color(color.new(color.green, 0), "", group='AVWAP 3', inline='row3')
+avwap3WindowSession = input.session("0920-1330", "Window", group='AVWAP 3')
+
+// AVWAP 4
+avwap4Enabled       = input.bool(false, "Enable AVWAP 4", group='AVWAP 4', inline='row4')
+avwap4Color         = input.color(color.new(color.orange, 0), "", group='AVWAP 4', inline='row4')
+avwap4WindowSession = input.session("0920-1330", "Window", group='AVWAP 4')
+
+// AVWAP 5
+avwap5Enabled       = input.bool(false, "Enable AVWAP 5", group='AVWAP 5', inline='row5')
+avwap5Color         = input.color(color.new(color.purple, 0), "", group='AVWAP 5', inline='row5')
+avwap5WindowSession = input.session("0920-1330", "Window", group='AVWAP 5')
+
 // Helpers
 isWithinSession_avwap(string sess) => not na(time(timeframe.period, sess))
 
-// Session state
-avwapActive  = isWithinSession_avwap(avwapWindowSession)
-avwapIsStart = avwapActive and not avwapActive[1]
+// --- AVWAP 1 state ---
+avwap1Active  = isWithinSession_avwap(avwap1WindowSession)
+avwap1IsStart = avwap1Active and not avwap1Active[1]
+var float avwap1CumPV = na
+var float avwap1CumV  = na
+if avwap1IsStart
+    avwap1CumPV := 0.0
+    avwap1CumV  := 0.0
+if avwap1Active
+    avwap1CumPV += src * volume
+    avwap1CumV  += volume
+avwap1Series = avwap1Active and avwap1CumV != 0 ? avwap1CumPV / avwap1CumV : na
 
-// Cumulative PV/V reset ONLY at start of window
-var float avwapCumPV = na
-var float avwapCumV  = na
-if avwapIsStart
-    avwapCumPV := 0.0
-    avwapCumV  := 0.0
+// --- AVWAP 2 state ---
+avwap2Active  = isWithinSession_avwap(avwap2WindowSession)
+avwap2IsStart = avwap2Active and not avwap2Active[1]
+var float avwap2CumPV = na
+var float avwap2CumV  = na
+if avwap2IsStart
+    avwap2CumPV := 0.0
+    avwap2CumV  := 0.0
+if avwap2Active
+    avwap2CumPV += src * volume
+    avwap2CumV  += volume
+avwap2Series = avwap2Active and avwap2CumV != 0 ? avwap2CumPV / avwap2CumV : na
 
-// Build AVWAP only while inside the window
-if avwapActive
-    avwapCumPV += src * volume
-    avwapCumV  += volume
+// --- AVWAP 3 state ---
+avwap3Active  = isWithinSession_avwap(avwap3WindowSession)
+avwap3IsStart = avwap3Active and not avwap3Active[1]
+var float avwap3CumPV = na
+var float avwap3CumV  = na
+if avwap3IsStart
+    avwap3CumPV := 0.0
+    avwap3CumV  := 0.0
+if avwap3Active
+    avwap3CumPV += src * volume
+    avwap3CumV  += volume
+avwap3Series = avwap3Active and avwap3CumV != 0 ? avwap3CumPV / avwap3CumV : na
 
-// Series is NA outside the window, so it cuts at the end time and resumes next day
-avwapSeries = avwapActive and avwapCumV != 0 ? avwapCumPV / avwapCumV : na
+// --- AVWAP 4 state ---
+avwap4Active  = isWithinSession_avwap(avwap4WindowSession)
+avwap4IsStart = avwap4Active and not avwap4Active[1]
+var float avwap4CumPV = na
+var float avwap4CumV  = na
+if avwap4IsStart
+    avwap4CumPV := 0.0
+    avwap4CumV  := 0.0
+if avwap4Active
+    avwap4CumPV += src * volume
+    avwap4CumV  += volume
+avwap4Series = avwap4Active and avwap4CumV != 0 ? avwap4CumPV / avwap4CumV : na
 
-// Optional shading
-bgcolor(shadeWindow and avwapActive ? shadeColor : na)
+// --- AVWAP 5 state ---
+avwap5Active  = isWithinSession_avwap(avwap5WindowSession)
+avwap5IsStart = avwap5Active and not avwap5Active[1]
+var float avwap5CumPV = na
+var float avwap5CumV  = na
+if avwap5IsStart
+    avwap5CumPV := 0.0
+    avwap5CumV  := 0.0
+if avwap5Active
+    avwap5CumPV += src * volume
+    avwap5CumV  += volume
+avwap5Series = avwap5Active and avwap5CumV != 0 ? avwap5CumPV / avwap5CumV : na
 
-// Plots with daily breaks (line) or dots; toggle by color NA
-plot(avwapSeries, "AVWAP (line)", color=lineStyle=="Line"?lineColor:na, linewidth=lineWidth, style=plot.style_linebr)
-plot(avwapSeries, "AVWAP (dots)", color=lineStyle=="Dots"?lineColor:na, linewidth=1, style=plot.style_circles)
+// Any window active for shading
+anyActive = avwap1Active or avwap2Active or avwap3Active or avwap4Active or avwap5Active
+
+// Optional shading (single tint when any window is active)
+bgcolor(shadeWindow and anyActive ? shadeColor : na)
+
+// --- Plots ---
+// AVWAP 1
+plot(avwap1Series, "AVWAP 1 (line)", color=avwap1Enabled and lineStyle=="Line" ? avwap1Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(avwap1Series, "AVWAP 1 (dots)", color=avwap1Enabled and lineStyle=="Dots" ? avwap1Color : na, linewidth=1, style=plot.style_circles)
+// AVWAP 2
+plot(avwap2Series, "AVWAP 2 (line)", color=avwap2Enabled and lineStyle=="Line" ? avwap2Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(avwap2Series, "AVWAP 2 (dots)", color=avwap2Enabled and lineStyle=="Dots" ? avwap2Color : na, linewidth=1, style=plot.style_circles)
+// AVWAP 3
+plot(avwap3Series, "AVWAP 3 (line)", color=avwap3Enabled and lineStyle=="Line" ? avwap3Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(avwap3Series, "AVWAP 3 (dots)", color=avwap3Enabled and lineStyle=="Dots" ? avwap3Color : na, linewidth=1, style=plot.style_circles)
+// AVWAP 4
+plot(avwap4Series, "AVWAP 4 (line)", color=avwap4Enabled and lineStyle=="Line" ? avwap4Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(avwap4Series, "AVWAP 4 (dots)", color=avwap4Enabled and lineStyle=="Dots" ? avwap4Color : na, linewidth=1, style=plot.style_circles)
+// AVWAP 5
+plot(avwap5Series, "AVWAP 5 (line)", color=avwap5Enabled and lineStyle=="Line" ? avwap5Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(avwap5Series, "AVWAP 5 (dots)", color=avwap5Enabled and lineStyle=="Dots" ? avwap5Color : na, linewidth=1, style=plot.style_circles)
