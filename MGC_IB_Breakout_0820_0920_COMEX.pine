@@ -31,6 +31,29 @@ stopDeltaMult  = input.float(0.75, "Stop Δ multiple (if Multiple of Δ)", minva
 adjustSLAfterBreakout = input.bool(true, "Tighten SL after breakout close")
 postBreakoutDeltaMult = input.float(0.25, "Post-breakout Stop Δ multiple", minval=0.0, step=0.05)
 
+// ===================== Filters =====================
+// Buffer over IB edge
+useBuffer      = input.bool(true,  "Use IB buffer", group="Filters - Buffer")
+bufferMode     = input.string("Ticks", "Buffer mode", options=["Ticks","ATR"], group="Filters - Buffer")
+bufferTicks    = input.int(4, "Buffer ticks", minval=0, group="Filters - Buffer")
+bufferAtrMult  = input.float(0.1, "Buffer ATR multiple", minval=0.0, step=0.01, group="Filters - Buffer")
+
+// Volume percentile filter
+useVolFilter   = input.bool(false, "Use volume percentile filter", group="Filters - Volume")
+volLookback    = input.int(50, "Volume lookback", minval=10, group="Filters - Volume")
+volPercentile  = input.float(70.0, "Volume percentile (0-100)", minval=0.0, maxval=100.0, step=0.5, group="Filters - Volume")
+
+// Minimum IB size vs ATR
+useMinIb       = input.bool(false, "Use minimum IB size vs ATR", group="Filters - IB Size")
+atrLen         = input.int(14, "ATR length", minval=1, group="Filters - IB Size")
+minIbAtrMult   = input.float(0.5, "Min IB size as ATR multiple", minval=0.0, step=0.05, group="Filters - IB Size")
+
+// Trend filter (EMA/VWAP slope)
+useTrendFilter = input.bool(false, "Use trend filter", group="Filters - Trend")
+trendSource    = input.string("EMA", "Trend source", options=["EMA","VWAP"], group="Filters - Trend")
+emaLen         = input.int(50, "EMA length", minval=1, group="Filters - Trend")
+slopeLb        = input.int(5, "Slope lookback bars", minval=1, group="Filters - Trend")
+
 
 // ===================== Helpers =====================
 within(sess) => not na(time(timeframe.period, sess))
@@ -68,15 +91,28 @@ if active[1] and not active
 // ===================== Trading Logic =====================
 inTradeWindow = within(tradeWindow)
 ibReady = not active and not na(ibDelta)
-validDelta = ibReady and ibDelta >= minDelta and ibDelta <= maxDelta
 
-// Precompute cross signals to avoid conditional execution warnings
-crossUp   = ta.crossover(close, ibHigh)
-crossDown = ta.crossunder(close, ibLow)
+// Derived metrics for filters
+atrVal = ta.atr(atrLen)
+bufferValue = useBuffer ? (bufferMode == "Ticks" ? bufferTicks * syminfo.mintick : bufferAtrMult * atrVal) : 0.0
+volThreshold = ta.percentile_linear_interpolation(volume, volLookback, volPercentile)
+
+validDelta = ibReady and ibDelta >= minDelta and ibDelta <= maxDelta
+ibSizeOk   = not useMinIb or (ibReady and ibDelta >= minIbAtrMult * atrVal)
+volumeOk   = not useVolFilter or (volume >= volThreshold)
+
+emaVal   = ta.ema(close, emaLen)
+vwapVal  = ta.vwap
+trendOkLong  = not useTrendFilter or (trendSource == "EMA"  ? (emaVal > emaVal[slopeLb]   and close > emaVal)  : (vwapVal > vwapVal[slopeLb] and close > vwapVal))
+trendOkShort = not useTrendFilter or (trendSource == "EMA"  ? (emaVal < emaVal[slopeLb]   and close < emaVal)  : (vwapVal < vwapVal[slopeLb] and close < vwapVal))
+
+// Precompute cross signals with buffer
+crossUp   = ta.crossover(close, ibHigh + bufferValue)
+crossDown = ta.crossunder(close, ibLow  - bufferValue)
 allowLong   = direction != "Short only"
 allowShort  = direction != "Long only"
-longSignal  = validDelta and inTradeWindow and allowLong  and crossUp
-shortSignal = validDelta and inTradeWindow and allowShort and crossDown
+longSignal  = validDelta and ibSizeOk and volumeOk and trendOkLong  and inTradeWindow and allowLong  and crossUp
+shortSignal = validDelta and ibSizeOk and volumeOk and trendOkShort and inTradeWindow and allowShort and crossDown
 
 // Targets ajustados
 longTP1  = ibReady ? ibHigh + ibDelta * tp1Multiple : na
