@@ -27,6 +27,10 @@ moveStopToBE   = input.bool(true, "Move stop to BE after TP1")
 stopMode       = input.string("Opposite IB edge", "Stop mode", options=["Opposite IB edge","Multiple of Δ"])
 stopDeltaMult  = input.float(0.75, "Stop Δ multiple (if Multiple of Δ)", minval=0.1, step=0.05)
 
+// Post-breakout SL management
+adjustSLAfterBreakout = input.bool(true, "Tighten SL after breakout close")
+postBreakoutDeltaMult = input.float(0.25, "Post-breakout Stop Δ multiple", minval=0.0, step=0.05)
+
 
 // ===================== Helpers =====================
 within(sess) => not na(time(timeframe.period, sess))
@@ -95,9 +99,32 @@ if newLong
 if newShort
     shortBE := false
 
+// Breakout-close tracking (for SL tighten)
+var bool longBreakoutClosed  = false
+var bool shortBreakoutClosed = false
+if newLong
+    longBreakoutClosed := false
+if newShort
+    shortBreakoutClosed := false
+if inLong and not longBreakoutClosed and close > ibHigh
+    longBreakoutClosed := true
+if inShort and not shortBreakoutClosed and close < ibLow
+    shortBreakoutClosed := true
+
 // Base stops
 longStopBase  = ibReady and inLong  ? (stopMode == "Opposite IB edge" ? ibLow  : entryPrice - stopDeltaMult * ibDelta) : na
 shortStopBase = ibReady and inShort ? (stopMode == "Opposite IB edge" ? ibHigh : entryPrice + stopDeltaMult * ibDelta) : na
+
+// Manage stops after breakout close (tighter than base)
+longManagedBase  = longStopBase
+shortManagedBase = shortStopBase
+if adjustSLAfterBreakout and ibReady
+    longPostBreakStop  = inLong  ? entryPrice - postBreakoutDeltaMult * ibDelta : na
+    shortPostBreakStop = inShort ? entryPrice + postBreakoutDeltaMult * ibDelta : na
+    if inLong and longBreakoutClosed and not na(longPostBreakStop)
+        longManagedBase := math.max(longStopBase, longPostBreakStop)
+    if inShort and shortBreakoutClosed and not na(shortPostBreakStop)
+        shortManagedBase := math.min(shortStopBase, shortPostBreakStop)
 
 // Detect TP1 execution via position reduction and arm BE
 reducedLong  = inLong  and strategy.position_size < strategy.position_size[1]
@@ -108,8 +135,8 @@ if reducedShort
     shortBE := true
 
 // Apply BE stop if armed (exact entry price)
-longStop  = inLong  ? ((moveStopToBE and longBE)  ? entryPrice : longStopBase)  : na
-shortStop = inShort ? ((moveStopToBE and shortBE) ? entryPrice : shortStopBase) : na
+longStop  = inLong  ? ((moveStopToBE and longBE)  ? entryPrice : longManagedBase)  : na
+shortStop = inShort ? ((moveStopToBE and shortBE) ? entryPrice : shortManagedBase) : na
 
 // One-trade-per-day via session key (daily time bucket)
 var int tradedSession = na
