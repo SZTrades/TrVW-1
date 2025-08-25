@@ -55,41 +55,43 @@ f_daily(src, sess) =>
     d1 = act and cumV != 0 ? cumPV / cumV : na
     [d1]
 
-// Two-day continuous (solo tramo D2 continuo; acumula desde inicio D1 hasta cierre D2)
+// Two-day continuous (siempre inicia en cada cierre de sesión y continúa hasta el próximo cierre)
 f_two_day(src, sess, enabled) =>
     act = isSess(sess)
     st  = act and not act[1]
     en  = not act and act[1]
-    var bool  cycle   = false
-    var bool  inDay2  = false
-    var int   ends    = 0
-    var float cumPV2  = na
-    var float cumV2   = na
 
-    if st and enabled
-        if not cycle
-            cycle  := true
-            inDay2 := false
-            ends   := 0
-            cumPV2 := 0.0
-            cumV2  := 0.0
+    // Acumulado intrasesión del día actual (para capturar el valor al cierre)
+    var float sessCumPV = na
+    var float sessCumV  = na
+    if st
+        sessCumPV := 0.0
+        sessCumV  := 0.0
+    if act
+        sessCumPV += src * volume
+        sessCumV  += volume
 
-    if cycle
-        cumPV2 += src * volume
-        cumV2  += volume
+    // Estado del tramo de 2 días que corre entre cierres
+    var bool  d2Active = false
+    var float carryPV  = na
+    var float carryV   = na
 
-    if en and cycle
-        ends += 1
-        if ends == 1
-            inDay2 := true
-        else
-            cycle  := false
-            inDay2 := false
-            cumPV2 := na
-            cumV2  := na
+    // Al primer bar fuera de sesión (cierre detectado), iniciamos/renovamos el tramo
+    if en and enabled
+        d2Active := true
+        carryPV  := sessCumPV
+        carryV   := sessCumV
 
-    series2 = cycle and cumV2 != 0 ? cumPV2 / cumV2 : na
-    d2seg = cycle and inDay2 ? series2 : na
+    // Actualizamos continuamente mientras esté activo (incluye fuera de sesión y la sesión siguiente)
+    if d2Active
+        carryPV += src * volume
+        carryV  += volume
+
+    // Si el usuario desactiva la extensión, apagamos el tramo
+    if not enabled
+        d2Active := false
+
+    d2seg = d2Active and carryV != 0 ? carryPV / carryV : na
     [d2seg]
 
 // AVWAP 1
