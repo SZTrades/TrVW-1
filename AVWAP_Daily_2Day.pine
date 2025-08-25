@@ -1,0 +1,141 @@
+//@version=6
+indicator("AVWAP Daily + 2Day", shorttitle="AVWAP2D", overlay=true, max_bars_back=5000)
+
+// Global
+src       = input.source(hlc3, "Price source")
+lineWidth = input.int(2, "Line width", minval=1, maxval=5)
+lineStyle = input.string("Line", "Style", options=["Line","Dots"])
+extend2D  = input.bool(true, "Extend previous day into next (continuous)")
+
+// AVWAP 1
+av1Enabled       = input.bool(true,  "Enable AVWAP 1", group="AVWAP 1", inline="r1a")
+av1Color         = input.color(color.new(color.blue, 0), "", group="AVWAP 1", inline="r1a")
+av1Session       = input.session("0930-1600", "Window", group="AVWAP 1", inline="r1b")
+av1Day2Opacity   = input.int(35, "Day2 opacity", minval=0, maxval=100, group="AVWAP 1", inline="r1b")
+
+// AVWAP 2
+av2Enabled       = input.bool(false, "Enable AVWAP 2", group="AVWAP 2", inline="r2a")
+av2Color         = input.color(color.new(color.red, 0), "", group="AVWAP 2", inline="r2a")
+av2Session       = input.session("0930-1600", "Window", group="AVWAP 2", inline="r2b")
+av2Day2Opacity   = input.int(35, "Day2 opacity", minval=0, maxval=100, group="AVWAP 2", inline="r2b")
+
+// AVWAP 3
+av3Enabled       = input.bool(false, "Enable AVWAP 3", group="AVWAP 3", inline="r3a")
+av3Color         = input.color(color.new(color.green, 0), "", group="AVWAP 3", inline="r3a")
+av3Session       = input.session("0930-1600", "Window", group="AVWAP 3", inline="r3b")
+av3Day2Opacity   = input.int(35, "Day2 opacity", minval=0, maxval=100, group="AVWAP 3", inline="r3b")
+
+// AVWAP 4
+av4Enabled       = input.bool(false, "Enable AVWAP 4", group="AVWAP 4", inline="r4a")
+av4Color         = input.color(color.new(color.orange, 0), "", group="AVWAP 4", inline="r4a")
+av4Session       = input.session("0930-1600", "Window", group="AVWAP 4", inline="r4b")
+av4Day2Opacity   = input.int(35, "Day2 opacity", minval=0, maxval=100, group="AVWAP 4", inline="r4b")
+
+// AVWAP 5
+av5Enabled       = input.bool(false, "Enable AVWAP 5", group="AVWAP 5", inline="r5a")
+av5Color         = input.color(color.new(color.purple, 0), "", group="AVWAP 5", inline="r5a")
+av5Session       = input.session("0930-1600", "Window", group="AVWAP 5", inline="r5b")
+av5Day2Opacity   = input.int(35, "Day2 opacity", minval=0, maxval=100, group="AVWAP 5", inline="r5b")
+
+// Helper
+isSess(sess) => not na(time(timeframe.period, sess))
+
+// Daily AVWAP (D1 “fresco”)
+f_daily(src, sess) =>
+    act  = isSess(sess)
+    st   = act and not act[1]
+    var float cumPV = na
+    var float cumV  = na
+    if st
+        cumPV := 0.0
+        cumV  := 0.0
+    if act
+        cumPV += src * volume
+        cumV  += volume
+    d1 = act and cumV != 0 ? cumPV / cumV : na
+    [d1]
+
+// Two-day continuous (solo tramo D2 continuo; acumula desde inicio D1 hasta cierre D2)
+f_two_day(src, sess, enabled) =>
+    act = isSess(sess)
+    st  = act and not act[1]
+    en  = not act and act[1]
+    var bool  cycle   = false
+    var bool  inDay2  = false
+    var int   ends    = 0
+    var float cumPV2  = na
+    var float cumV2   = na
+
+    if st and enabled
+        if not cycle
+            cycle  := true
+            inDay2 := false
+            ends   := 0
+            cumPV2 := 0.0
+            cumV2  := 0.0
+
+    if cycle
+        cumPV2 += src * volume
+        cumV2  += volume
+
+    if en and cycle
+        ends += 1
+        if ends == 1
+            inDay2 := true
+        else
+            cycle  := false
+            inDay2 := false
+            cumPV2 := na
+            cumV2  := na
+
+    series2 = cycle and cumV2 != 0 ? cumPV2 / cumV2 : na
+    d2seg = cycle and inDay2 ? series2 : na
+    [d2seg]
+
+// AVWAP 1
+[av1D1]   = f_daily(src, av1Session)
+[av1D2seg]= f_two_day(src, av1Session, extend2D)
+av1Tr     = 100 - av1Day2Opacity
+
+// AVWAP 2
+[av2D1]   = f_daily(src, av2Session)
+[av2D2seg]= f_two_day(src, av2Session, extend2D)
+av2Tr     = 100 - av2Day2Opacity
+
+// AVWAP 3
+[av3D1]   = f_daily(src, av3Session)
+[av3D2seg]= f_two_day(src, av3Session, extend2D)
+av3Tr     = 100 - av3Day2Opacity
+
+// AVWAP 4
+[av4D1]   = f_daily(src, av4Session)
+[av4D2seg]= f_two_day(src, av4Session, extend2D)
+av4Tr     = 100 - av4Day2Opacity
+
+// AVWAP 5
+[av5D1]   = f_daily(src, av5Session)
+[av5D2seg]= f_two_day(src, av5Session, extend2D)
+av5Tr     = 100 - av5Day2Opacity
+
+// Plots D1 (fresco cada día)
+plot(av1D1, "AVWAP 1 D1", color=av1Enabled and lineStyle=="Line" ? av1Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av1D1, "AVWAP 1 D1 dots", color=av1Enabled and lineStyle=="Dots" ? av1Color : na, linewidth=1, style=plot.style_circles)
+
+plot(av2D1, "AVWAP 2 D1", color=av2Enabled and lineStyle=="Line" ? av2Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av2D1, "AVWAP 2 D1 dots", color=av2Enabled and lineStyle=="Dots" ? av2Color : na, linewidth=1, style=plot.style_circles)
+
+plot(av3D1, "AVWAP 3 D1", color=av3Enabled and lineStyle=="Line" ? av3Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av3D1, "AVWAP 3 D1 dots", color=av3Enabled and lineStyle=="Dots" ? av3Color : na, linewidth=1, style=plot.style_circles)
+
+plot(av4D1, "AVWAP 4 D1", color=av4Enabled and lineStyle=="Line" ? av4Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av4D1, "AVWAP 4 D1 dots", color=av4Enabled and lineStyle=="Dots" ? av4Color : na, linewidth=1, style=plot.style_circles)
+
+plot(av5D1, "AVWAP 5 D1", color=av5Enabled and lineStyle=="Line" ? av5Color : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av5D1, "AVWAP 5 D1 dots", color=av5Enabled and lineStyle=="Dots" ? av5Color : na, linewidth=1, style=plot.style_circles)
+
+// Plot 2-Day (solo tramo D2 continuo, con opacidad)
+plot(av1D2seg, "AVWAP 1 D2", color=av1Enabled ? color.new(av1Color, av1Tr) : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av2D2seg, "AVWAP 2 D2", color=av2Enabled ? color.new(av2Color, av2Tr) : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av3D2seg, "AVWAP 3 D2", color=av3Enabled ? color.new(av3Color, av3Tr) : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av4D2seg, "AVWAP 4 D2", color=av4Enabled ? color.new(av4Color, av4Tr) : na, linewidth=lineWidth, style=plot.style_linebr)
+plot(av5D2seg, "AVWAP 5 D2", color=av5Enabled ? color.new(av5Color, av5Tr) : na, linewidth=lineWidth, style=plot.style_linebr)
