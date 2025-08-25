@@ -73,12 +73,14 @@ f_two_day(src, sess, enabled) =>
 
     // Estado del tramo de 2 días que corre entre cierres
     var bool  d2Active = false
+    var bool  d2JustStarted = false
     var float carryPV  = na
     var float carryV   = na
 
     // Al primer bar fuera de sesión (cierre detectado), iniciamos/renovamos el tramo
     if en and enabled
         d2Active := true
+        d2JustStarted := true
         carryPV  := sessCumPV
         carryV   := sessCumV
 
@@ -91,7 +93,11 @@ f_two_day(src, sess, enabled) =>
     if not enabled
         d2Active := false
 
-    d2seg = d2Active and carryV != 0 ? carryPV / carryV : na
+    v2 = d2Active and carryV != 0 ? carryPV / carryV : na
+    // Forzamos corte visual: la primera barra del tramo D2 no se dibuja
+    d2seg = d2Active and not d2JustStarted ? v2 : na
+    if d2JustStarted
+        d2JustStarted := false
     [d2seg]
 
 // AVWAP 1
