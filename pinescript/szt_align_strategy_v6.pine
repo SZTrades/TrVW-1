@@ -30,10 +30,11 @@ useWeeklyBias = input.bool(true, "Use Weekly Bias (bull only longs, bear only sh
 useWeeklyOpenConfirm = input.bool(false, "Also require price vs Weekly Open (bull: above / bear: below)", group=groupFilters)
 weeklyOpen = request.security(syminfo.tickerid, "W", open, lookahead=barmerge.lookahead_off)
 weeklyClose = request.security(syminfo.tickerid, "W", close, lookahead=barmerge.lookahead_off)
-isWeeklyBull = weeklyClose > weeklyOpen
-isWeeklyBear = weeklyClose < weeklyOpen
-priceAboveWOpen = close > weeklyOpen
-priceBelowWOpen = close < weeklyOpen
+priceAboveWOpen = not na(weeklyOpen) and (close > weeklyOpen)
+priceBelowWOpen = not na(weeklyOpen) and (close < weeklyOpen)
+// Bias based on current week vs its open (robust intrasemana)
+isWeeklyBull = priceAboveWOpen
+isWeeklyBear = priceBelowWOpen
 allowLongByWeek = (not useWeeklyBias or isWeeklyBull) and (not useWeeklyOpenConfirm or priceAboveWOpen)
 allowShortByWeek = (not useWeeklyBias or isWeeklyBear) and (not useWeeklyOpenConfirm or priceBelowWOpen)
 
@@ -164,9 +165,9 @@ if useVolStopMode
 // Opposite signal exits (active for Opposite or Both)
 exitOnOpposite = exitMode == "Opposite Signal" or exitMode == "Both"
 if exitOnOpposite
-    if strategy.position_size > 0 and alignShortStart
+    if strategy.position_size > 0 and alignShortStart and allowShortByWeek
         strategy.close("Long")
-    if strategy.position_size < 0 and alignLongStart
+    if strategy.position_size < 0 and alignLongStart and allowLongByWeek
         strategy.close("Short")
 
 // Scheduled weekly close: Friday 13:30 (exchange timezone)
