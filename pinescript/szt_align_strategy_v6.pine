@@ -1,0 +1,172 @@
+// @version=6
+strategy("SZ Align Strategy (Kernel+JMA, Weekly Bias, VolStop SL)", overlay=true, initial_capital=10000, currency=currency.USD, pyramiding=0, commission_type=strategy.commission.percent, commission_value=0.0, calc_on_order_fills=true)
+
+import jdehorty/KernelFunctions/2 as kernels
+
+// ================================
+// ==== Inputs (Kernel & JMA)  ====
+// ================================
+var string groupKernel = "Kernel Settings"
+useKernelSmoothing = input.bool(false, "Enhance Kernel Smoothing", tooltip="If enabled, alignment uses kernel cross (yhat2 vs yhat1). If disabled, uses kernel rate of change.", group=groupKernel)
+h = input.int(8, 'Lookback Window', minval=3, tooltip='Bars used for estimation. Recommended: 3-50', group=groupKernel)
+r = input.float(8., 'Relative Weighting', step=0.25, tooltip='Relative weighting of time frames. Recommended: 0.25-25', group=groupKernel)
+x = input.int(25, "Regression Level", tooltip='Starting bar index for regression. Smaller = tighter fit. Recommended: 2-25', group=groupKernel)
+lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Recommended: 1-2", group=groupKernel)
+source = input.source(close, "Source", group=groupKernel)
+
+var string groupJma = "JMA"
+// Hard-coded length = 20 (same as indicator)
+jmaLength = 20
+jmaPhase = input.int(50, "JMA Phase", minval=-100, maxval=100, group=groupJma)
+jmaPower = input.int(2, "JMA Power", minval=1, group=groupJma)
+useJmaColorConfirm = input.bool(true, "Use JMA Color Confirmation", group=groupJma)
+invertJmaSignals = input.bool(false, "Invert JMA Signals", group=groupJma)
+
+// ======================
+// ==== Weekly Bias  ====
+// ======================
+var string groupFilters = "Filters"
+useWeeklyBias = input.bool(true, "Use Weekly Bias (bull only longs, bear only shorts)", group=groupFilters)
+useWeeklyOpenConfirm = input.bool(false, "Also require price vs Weekly Open (bull: above / bear: below)", group=groupFilters)
+weeklyOpen = request.security(syminfo.tickerid, "W", open, lookahead=barmerge.lookahead_off)
+weeklyClose = request.security(syminfo.tickerid, "W", close, lookahead=barmerge.lookahead_off)
+isWeeklyBull = weeklyClose > weeklyOpen
+isWeeklyBear = weeklyClose < weeklyOpen
+priceAboveWOpen = close > weeklyOpen
+priceBelowWOpen = close < weeklyOpen
+allowLongByWeek = (not useWeeklyBias or isWeeklyBull) and (not useWeeklyOpenConfirm or priceAboveWOpen)
+allowShortByWeek = (not useWeeklyBias or isWeeklyBear) and (not useWeeklyOpenConfirm or priceBelowWOpen)
+
+// ============================
+// ==== Volatility Stop SL  ===
+// ============================
+var string groupVolStop = "Volatility Stop (SL)"
+useVolStop = input.bool(true,  "Use Volatility Stop for SL/Trailing", group=groupVolStop)
+vsLength   = input.int(20,     "Length", minval=2, group=groupVolStop)
+vsFactor   = input.float(2.0,  "Multiplier", minval=0.25, step=0.25, group=groupVolStop)
+vsSource   = input.source(close, "Source", group=groupVolStop)
+slBufferTicks = input.int(0, "SL Buffer (ticks)", minval=0, group=groupVolStop, tooltip="Extra ticks beyond Volatility Stop level. Longs subtract, shorts add.")
+
+volStop(src, atrlen, atrmult) =>
+    if not na(src)
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool  uptrend   = true
+        var float stop      = na
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = (bar_index > 0) ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+[vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
+
+// ==================================
+// ==== Kernel Regression (Lib)  ====
+// ==================================
+
+yhat1 = kernels.rationalQuadratic(source, h, r, x)
+yhat2 = kernels.gaussian(source, h - lag, x)
+
+wasBearishRate = yhat1[2] > yhat1[1]
+wasBullishRate = yhat1[2] < yhat1[1]
+isBearishRate = yhat1[1] > yhat1
+isBullishRate = yhat1[1] < yhat1
+isBullishSmooth = yhat2 >= yhat1
+isBearishSmooth = yhat2 <= yhat1
+
+kernelBullish = useKernelSmoothing ? isBullishSmooth : isBullishRate
+kernelBearish = useKernelSmoothing ? isBearishSmooth : isBearishRate
+
+// ===============
+// ====  JMA  ====
+// ===============
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+
+isUp = jma > jma[1]
+isDown = jma < jma[1]
+longBase = useJmaColorConfirm ? (isUp and close > jma) : (close > jma)
+shortBase = useJmaColorConfirm ? (isDown and close < jma) : (close < jma)
+jmaLong = invertJmaSignals ? shortBase : longBase
+jmaShort = invertJmaSignals ? longBase : shortBase
+
+// ======================
+// ==== Alignment I/O ===
+// ======================
+
+alignLong = jmaLong and kernelBullish
+alignShort = jmaShort and kernelBearish
+
+// Start-of-alignment with cycle gating (non-repainting at bar close)
+var int cycleDir = 0  // 1 = long cycle active, -1 = short cycle active, 0 = none
+alignLongStart = barstate.isconfirmed and alignLong and not alignLong[1] and (cycleDir != 1)
+alignShortStart = barstate.isconfirmed and alignShort and not alignShort[1] and (cycleDir != -1)
+cycleDir := alignLongStart ? 1 : alignShortStart ? -1 : cycleDir
+cycleDir := (cycleDir == 1 and alignShort) ? 0 : (cycleDir == -1 and alignLong) ? 0 : cycleDir
+
+// Apply weekly bias filter to entries
+canLong = alignLongStart and allowLongByWeek
+canShort = alignShortStart and allowShortByWeek
+
+// ======================
+// ==== Exit Modes   ====
+// ======================
+var string groupExits = "Exits"
+exitMode = input.string(title="Exit Mode", defval="VolStop only", options=["VolStop only", "Opposite Signal", "Both", "Disable exits"], group=groupExits)
+
+// ==========================
+// ==== Order Management  ===
+// ==========================
+orderQty = input.float(1.0, "Order Quantity", minval=0.01, group="Trading")
+
+// Flip/entries
+if canLong
+    if strategy.position_size < 0
+        strategy.close("Short")
+    strategy.entry("Long", strategy.long, qty=orderQty)
+
+if canShort
+    if strategy.position_size > 0
+        strategy.close("Long")
+    strategy.entry("Short", strategy.short, qty=orderQty)
+
+// Trailing SL via Volatility Stop (only if enabled by exit mode)
+useVolStopMode = useVolStop and (exitMode == "VolStop only" or exitMode == "Both")
+
+if useVolStopMode
+    tick = syminfo.mintick
+    longStop = strategy.position_size > 0 and not na(vsStop) ? vsStop - slBufferTicks * tick : na
+    shortStop = strategy.position_size < 0 and not na(vsStop) ? vsStop + slBufferTicks * tick : na
+    if strategy.position_size > 0 and not na(longStop)
+        strategy.exit("L-Exit", from_entry="Long", stop=longStop)
+    if strategy.position_size < 0 and not na(shortStop)
+        strategy.exit("S-Exit", from_entry="Short", stop=shortStop)
+
+// Opposite signal exits (active for Opposite or Both)
+exitOnOpposite = exitMode == "Opposite Signal" or exitMode == "Both"
+if exitOnOpposite
+    if strategy.position_size > 0 and alignShortStart
+        strategy.close("Long")
+    if strategy.position_size < 0 and alignLongStart
+        strategy.close("Short")
+
+// Visual aids
+plot(useVolStop ? vsStop : na, title="Volatility Stop", color=vsUp ? color.new(#009688, 0) : color.new(#F44336, 0))
