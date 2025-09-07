@@ -187,6 +187,15 @@ smaPeriod = input.int(title="Period", defval=200, minval=1, step=1, group="Filte
 isSmaUptrend = useSmaFilter ? close > ta.sma(close, smaPeriod) : true
 isSmaDowntrend = useSmaFilter ? close < ta.sma(close, smaPeriod) : true
 
+// Weekly Bias Filter (optional): Bullish week -> only longs; Bearish week -> only shorts
+useWeeklyBiasFilter = input.bool(title="Use Weekly Bias Filter", defval=false, group="Filters", inline="wk")
+weeklyOpen = request.security(syminfo.tickerid, "W", open, lookahead=barmerge.lookahead_off)
+weeklyClose = request.security(syminfo.tickerid, "W", close, lookahead=barmerge.lookahead_off)
+isWeeklyBull = weeklyClose > weeklyOpen
+isWeeklyBear = weeklyClose < weeklyOpen
+allowLongByWeekly = (not useWeeklyBiasFilter) or isWeeklyBull
+allowShortByWeekly = (not useWeeklyBiasFilter) or isWeeklyBear
+
 // Nadaraya-Watson Kernel Regression Settings
 useKernelFilter = input.bool(true, "Trade with Kernel", group="Kernel Settings", inline="kernel")
 showKernelEstimate = input.bool(true, "Show Kernel Estimate", group="Kernel Settings", inline="kernel")
@@ -289,8 +298,8 @@ isBearish = useKernelFilter ? (useKernelSmoothing ? isBearishSmooth : isBearishR
 // ==== Entries and Exits ====
 // ===========================
 
-startLongTrade = isNewBuySignal and isBullish and isEmaUptrend and isSmaUptrend
-startShortTrade = isNewSellSignal and isBearish and isEmaDowntrend and isSmaDowntrend
+startLongTrade = isNewBuySignal and isBullish and isEmaUptrend and isSmaUptrend and allowLongByWeekly
+startShortTrade = isNewSellSignal and isBearish and isEmaDowntrend and isSmaDowntrend and allowShortByWeekly
 
 lastSignalWasBullish = ta.barssince(startLongTrade) < ta.barssince(startShortTrade)
 lastSignalWasBearish = ta.barssince(startShortTrade) < ta.barssince(startLongTrade)
