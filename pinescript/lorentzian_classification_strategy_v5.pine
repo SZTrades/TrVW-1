@@ -245,13 +245,13 @@ signal := prediction > 0 and filter_all ? direction.long : prediction < 0 and fi
 
 // Bar-Count Filters
 var int barsHeld = 0
-barsHeld := ta.change(signal) ? 0 : barsHeld + 1
+barsHeld := (ta.change(signal) != 0) ? 0 : barsHeld + 1
 isHeldFourBars = barsHeld == 4
 isHeldLessThanFourBars = 0 < barsHeld and barsHeld < 4
 
 // Fractal Filters
-isDifferentSignalType = ta.change(signal)
-isEarlySignalFlip = ta.change(signal) and (ta.change(signal[1]) or ta.change(signal[2]) or ta.change(signal[3]))
+isDifferentSignalType = (ta.change(signal) != 0)
+isEarlySignalFlip = (ta.change(signal) != 0) and ((ta.change(signal[1]) != 0) or (ta.change(signal[2]) != 0) or (ta.change(signal[3]) != 0))
 isBuySignal = signal == direction.long and isEmaUptrend and isSmaUptrend
 isSellSignal = signal == direction.short and isEmaDowntrend and isSmaDowntrend
 isLastSignalBuy = signal[4] == direction.long and isEmaUptrend[4] and isSmaUptrend[4]
@@ -314,8 +314,7 @@ exitMode = input.string(
      title="Exit Mode",
      defval="Strict 4 bars",
      options=["Strict 4 bars", "Dynamic (Kernel)", "Opposite Signal", "Kernel Color Flip", "Disable exits"],
-     group="Exits"
-)
+     group="Exits")
 
 // Determine final exits according to selected mode
 endLongTradeFinal = switch exitMode
