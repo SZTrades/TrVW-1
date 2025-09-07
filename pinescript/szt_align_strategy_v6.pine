@@ -116,10 +116,31 @@ jmaShort = invertJmaSignals ? longBase : shortBase
 alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 
+// Strict Arrow Mode: require both lines to change this bar
+strictArrowMode = input.bool(false, "Strict Arrow Mode (both lines change this bar)", group=groupKernel, tooltip="If enabled, a start signal requires BOTH JMA trend color and Kernel color to change on the same bar.")
+
+// JMA change-of-color booleans
+jmaUpNow = jma > jma[1]
+jmaUpPrev = jma[1] > jma[2]
+jmaDownNow = jma < jma[1]
+jmaDownPrev = jma[1] < jma[2]
+jmaChangedUp = jmaUpNow and not jmaUpPrev
+jmaChangedDown = jmaDownNow and not jmaDownPrev
+
+// Kernel change-of-color booleans
+kernelChangedUp = useKernelSmoothing ? ta.crossover(yhat2, yhat1) : (isBullishRate and wasBearishRate)
+kernelChangedDown = useKernelSmoothing ? ta.crossunder(yhat2, yhat1) : (isBearishRate and wasBullishRate)
+
 // Start-of-alignment with cycle gating (non-repainting at bar close)
 var int cycleDir = 0  // 1 = long cycle active, -1 = short cycle active, 0 = none
-alignLongStart = barstate.isconfirmed and alignLong and not alignLong[1] and (cycleDir != 1)
-alignShortStart = barstate.isconfirmed and alignShort and not alignShort[1] and (cycleDir != -1)
+alignLongStartLoose = barstate.isconfirmed and alignLong and not alignLong[1] and (cycleDir != 1)
+alignShortStartLoose = barstate.isconfirmed and alignShort and not alignShort[1] and (cycleDir != -1)
+alignLongStartStrict = barstate.isconfirmed and jmaChangedUp and kernelChangedUp and (cycleDir != 1)
+alignShortStartStrict = barstate.isconfirmed and jmaChangedDown and kernelChangedDown and (cycleDir != -1)
+
+alignLongStart = strictArrowMode ? alignLongStartStrict : alignLongStartLoose
+alignShortStart = strictArrowMode ? alignShortStartStrict : alignShortStartLoose
+
 cycleDir := alignLongStart ? 1 : alignShortStart ? -1 : cycleDir
 cycleDir := (cycleDir == 1 and alignShort) ? 0 : (cycleDir == -1 and alignLong) ? 0 : cycleDir
 
