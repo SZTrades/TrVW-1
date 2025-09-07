@@ -131,6 +131,7 @@ canShort = alignShortStart and allowShortByWeek
 // ======================
 var string groupExits = "Exits"
 exitMode = input.string(title="Exit Mode", defval="VolStop only", options=["VolStop only", "Opposite Signal", "Both", "Disable exits"], group=groupExits)
+closeFridayToggle = input.bool(true, "Force close all on Friday 13:30", group=groupExits, tooltip="Closes any open position at 13:30 on Fridays (exchange timezone), evaluated on current timeframe bar time.")
 
 // ==========================
 // ==== Order Management  ===
@@ -166,6 +167,15 @@ if exitOnOpposite
     if strategy.position_size > 0 and alignShortStart
         strategy.close("Long")
     if strategy.position_size < 0 and alignLongStart
+        strategy.close("Short")
+
+// Scheduled weekly close: Friday 13:30 (exchange timezone)
+isFriday = dayofweek == dayofweek.friday
+isTime1330 = (hour == 13 and minute == 30)
+if closeFridayToggle and isFriday and isTime1330
+    if strategy.position_size > 0
+        strategy.close("Long")
+    if strategy.position_size < 0
         strategy.close("Short")
 
 // Visual aids
