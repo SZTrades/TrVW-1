@@ -309,6 +309,29 @@ isDynamicExitValid = not useEmaFilter and not useSmaFilter and not useKernelSmoo
 endLongTrade = settings.useDynamicExits and isDynamicExitValid ? endLongTradeDynamic : endLongTradeStrict 
 endShortTrade = settings.useDynamicExits and isDynamicExitValid ? endShortTradeDynamic : endShortTradeStrict
 
+// Exit mode selector to avoid always closing at 4 bars
+exitMode = input.string(
+     title="Exit Mode",
+     defval="Strict 4 bars",
+     options=["Strict 4 bars", "Dynamic (Kernel)", "Opposite Signal", "Kernel Color Flip", "Disable exits"],
+     group="Exits"
+)
+
+// Determine final exits according to selected mode
+endLongTradeFinal = switch exitMode
+    "Strict 4 bars" => endLongTradeStrict
+    "Dynamic (Kernel)" => endLongTradeDynamic
+    "Opposite Signal" => startShortTrade
+    "Kernel Color Flip" => alertBearish
+    "Disable exits" => false
+
+endShortTradeFinal = switch exitMode
+    "Strict 4 bars" => endShortTradeStrict
+    "Dynamic (Kernel)" => endShortTradeDynamic
+    "Opposite Signal" => startLongTrade
+    "Kernel Color Flip" => alertBullish
+    "Disable exits" => false
+
 // Submit orders
 // Close opposite and flip when new signal arrives
 if startLongTrade
@@ -322,10 +345,10 @@ if startShortTrade
     strategy.entry("Short", strategy.short, qty=orderQty)
 
 // Exit conditions
-if endLongTrade
+if endLongTradeFinal
     strategy.close("Long")
 
-if endShortTrade
+if endShortTradeFinal
     strategy.close("Short")
 
 // ============== Visuals ==============
