@@ -1,5 +1,5 @@
 // @version=6
-strategy("SZ Align Strategy (Kernel+JMA, Weekly Bias, VolStop SL)", overlay=true, initial_capital=10000, currency=currency.USD, pyramiding=0, commission_type=strategy.commission.percent, commission_value=0.0, calc_on_order_fills=true)
+strategy("SZ Align Strategy (Kernel+JMA, Weekly Bias, VolStop SL)", overlay=true, initial_capital=10000, currency=currency.USD, pyramiding=0, commission_type=strategy.commission.percent, commission_value=0.0, calc_on_order_fills=true, process_orders_on_close=true)
 
 import jdehorty/KernelFunctions/2 as kernels
 
@@ -181,3 +181,6 @@ if closeFridayToggle and isFriday and isTime1330
 
 // Visual aids
 plot(useVolStop ? vsStop : na, title="Volatility Stop", color=vsUp ? color.new(#009688, 0) : color.new(#F44336, 0))
+showStrategyDots = input.bool(true, "Show Strategy Entry Dots", group="Display")
+plotshape(showStrategyDots and alignLongStart ? low : na, title='Strategy Long Dot', style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), size=size.tiny)
+plotshape(showStrategyDots and alignShortStart ? high : na, title='Strategy Short Dot', style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
