@@ -1,5 +1,5 @@
-//@version=5
-indicator("IB Range Breakout", shorttitle="Initial Balance", overlay=true, max_bars_back=5000)
+//@version=6
+indicator("IB Range Breakout", shorttitle="InitialBal", overlay=true, max_bars_back=5000)
 
 // ╔═════════════════════╗
 // ║   USER PREFERENCES  ║
@@ -36,13 +36,13 @@ zoneTint       = input.color(#b8851faa, "Zone fill colour",                     
 
 // Extra styling controls for St. Dev. and 50% lines
 extLineWidth   = input.int(1, "St. Dev. line width",                             group="Styling")
-clrHighExt     = input.color(color.new(clrHigh, 0), "St. Dev. high colour",      group="Styling")
-clrLowExt      = input.color(color.new(clrLow, 0),  "St. Dev. low colour",       group="Styling")
+clrHighExt     = input.color(color.green, "St. Dev. high colour",      group="Styling")
+clrLowExt      = input.color(color.red,  "St. Dev. low colour",       group="Styling")
 
 halfStyle      = input.string("Dotted", "50% level style",
                  options=["Solid","Dashed","Dotted"],                            group="Styling")
 halfLineWidth  = input.int(1, "50% line width",                                   group="Styling")
-clrHalf        = input.color(color.new(clrMid, 0), "50% level colour",           group="Styling")
+clrHalf        = input.color(#ffa726, "50% level colour",           group="Styling")
 
 // ──────────────────────────────────────────────
 // Utility helpers
