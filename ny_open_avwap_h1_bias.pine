@@ -6,7 +6,7 @@ strategy(title="NY Open AVWAP H1 Bias (MNQ)", shorttitle="NY Open AVWAP H1 Bias"
 // Inputs
 // ==========================
 // Trading window (ET)
-string TZ_NY = "America/New_York"
+const string TZ_NY = "America/New_York"
 inputSessionStartH = input.int(9, "Window start hour (ET)", minval=0, maxval=23)
 inputSessionStartM = input.int(30, "Window start minute (ET)", minval=0, maxval=59)
 inputSessionEndH   = input.int(9, "Window end hour (ET)", minval=0, maxval=23)
@@ -45,15 +45,13 @@ showDebug    = input.bool(false, "Show debug plots")
 // ==========================
 // Time helpers (ET)
 // ==========================
-nyHour   = hour(time, TZ_NY)
-nyMinute = minute(time, TZ_NY)
-nyDoy    = dayofyear(time, TZ_NY)
-nyIsNewDay = ta.change(nyDoy)
+nyHour      = hour(time, TZ_NY)
+nyMinute    = minute(time, TZ_NY)
+nyDayOfMon  = dayofmonth(time, TZ_NY)
+nyIsNewDay  = ta.change(nyDayOfMon)
 
-inWindow = (
-     (nyHour > inputSessionStartH or (nyHour == inputSessionStartH and nyMinute >= inputSessionStartM)) and
-     (nyHour < inputSessionEndH   or (nyHour == inputSessionEndH   and nyMinute <= inputSessionEndM))
-)
+// Keep it on a single line to avoid parser quirks
+inWindow = (nyHour > inputSessionStartH or (nyHour == inputSessionStartH and nyMinute >= inputSessionStartM)) and (nyHour < inputSessionEndH or (nyHour == inputSessionEndH and nyMinute <= inputSessionEndM))
 
 // ==========================
 // 9:00 H1 bias (live candle bias)
@@ -190,11 +188,11 @@ withinDistShort = not na(avwap_open) and (avwap_open - close) <= maxDistATR * at
 // ==========================
 var bool tradedLongToday  = false
 var bool tradedShortToday = false
-var int  lastNYDoy = na
-if na(lastNYDoy) or nyIsNewDay
+var int  lastNYDom = na
+if na(lastNYDom) or nyIsNewDay
     tradedLongToday  := false
     tradedShortToday := false
-    lastNYDoy := nyDoy
+    lastNYDom := nyDayOfMon
 
 canLong  = inWindow and passLong  and not tradedLongToday
 canShort = inWindow and passShort and not tradedShortToday
