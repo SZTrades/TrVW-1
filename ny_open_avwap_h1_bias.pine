@@ -6,7 +6,7 @@ strategy(title="NY Open AVWAP H1 Bias (MNQ)", shorttitle="NY Open AVWAP H1 Bias"
 // Inputs
 // ==========================
 // Trading window (ET)
-const string TZ_NY = "America/New_York"
+string TZ_NY = "America/New_York"
 inputSessionStartH = input.int(9, "Window start hour (ET)", minval=0, maxval=23)
 inputSessionStartM = input.int(30, "Window start minute (ET)", minval=0, maxval=59)
 inputSessionEndH   = input.int(9, "Window end hour (ET)", minval=0, maxval=23)
@@ -66,11 +66,21 @@ biasDown = not na(ny9Open) and close < ny9Open
 // ==========================
 // Anchored VWAP builders (per-anchor state)
 // ==========================
-var float cumPV_asia   = na, cumV_asia   = na, avwap_asia   = na
-var float cumPV_london = na, cumV_london = na, avwap_london = na
-var float cumPV_pre    = na, cumV_pre    = na, avwap_pre    = na
-var float cumPV_open   = na, cumV_open   = na, avwap_open   = na
-var float cumPV_ten    = na, cumV_ten    = na, avwap_ten    = na
+var float cumPV_asia   = na
+var float cumV_asia    = na
+var float avwap_asia   = na
+var float cumPV_london = na
+var float cumV_london  = na
+var float avwap_london = na
+var float cumPV_pre    = na
+var float cumV_pre     = na
+var float avwap_pre    = na
+var float cumPV_open   = na
+var float cumV_open    = na
+var float avwap_open   = na
+var float cumPV_ten    = na
+var float cumV_ten     = na
+var float avwap_ten    = na
 
 source = hlc3
 pv     = source * volume
