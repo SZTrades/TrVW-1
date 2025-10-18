@@ -199,8 +199,17 @@ withinDistShort = not na(avwap_open) and (avwap_open - close) <= maxDistATR * at
 var bool tradedLongToday  = false
 var bool tradedShortToday = false
 var int  lastNYDom = na
-isNewSessionBar = ta.change(time("D", TZ_NY))
-if na(lastNYDom) or isNewSessionBar
+// Detect new NY day using daily time change; cast to bool
+bool isNewSessionBar = ta.change(time("D", TZ_NY)) != 0
+
+// Initialize on first bar
+if barstate.isfirst
+    tradedLongToday  := false
+    tradedShortToday := false
+    lastNYDom := nyDayOfMon
+
+// Reset flags on new session bar
+if isNewSessionBar
     tradedLongToday  := false
     tradedShortToday := false
     lastNYDom := nyDayOfMon
