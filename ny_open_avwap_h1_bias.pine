@@ -1,6 +1,6 @@
 //@version=6
-// Strategy declaration (single line to avoid parsing issues on some editors)
-strategy(title="NY Open AVWAP H1 Bias (MNQ)", shorttitle="NY Open AVWAP H1 Bias", overlay=true, initial_capital=100000, default_qty_type=strategy.fixed, default_qty_value=1, commission_type=strategy.commission.cash, commission_value=1.5, slippage=2, pyramiding=0, calc_on_order_fills=true, calc_on_every_tick=true)
+// Strategy declaration (kept minimal for compatibility across editors)
+strategy("NY Open AVWAP H1 Bias (MNQ)", overlay=true, initial_capital=100000, pyramiding=0, calc_on_order_fills=true, calc_on_every_tick=true)
 
 // ==========================
 // Inputs
@@ -199,7 +199,8 @@ withinDistShort = not na(avwap_open) and (avwap_open - close) <= maxDistATR * at
 var bool tradedLongToday  = false
 var bool tradedShortToday = false
 var int  lastNYDom = na
-if na(lastNYDom) or nyIsNewDay
+isNewSessionBar = ta.change(time("D", TZ_NY))
+if na(lastNYDom) or isNewSessionBar
     tradedLongToday  := false
     tradedShortToday := false
     lastNYDom := nyDayOfMon
