@@ -45,8 +45,12 @@ useManualPremHL   = input.bool(false, "Use manual Premarket High/Low")
 manualPremHigh    = input.float(0.0, "Premarket High (manual)")
 manualPremLow     = input.float(0.0, "Premarket Low (manual)")
 
-// Daily open line toggle
-showDailyOpenLine = input.bool(true, "Show Daily Open line (18:00 ET)")
+// Daily open line toggle and timing
+showDailyOpenLine = input.bool(true, "Show Daily Open line")
+dailyOpenH = input.int(18, "Daily open hour (ET)", minval=0, maxval=23)
+dailyOpenM = input.int(0,  "Daily open minute (ET)", minval=0, maxval=59)
+dailyCloseH = input.int(17, "Daily close hour (ET)", minval=0, maxval=23)
+dailyCloseM = input.int(0,  "Daily close minute (ET)", minval=0, maxval=59)
 
 // Bias mode
 modeStrict = input.bool(true, "Strict mode (all AVWAPs aligned; else Pragmatic mode)")
@@ -251,16 +255,24 @@ asiaLoPlot  = plot(asiaLow,   color=color.new(color.teal,  0), title="Asia Low")
 londonHiPlot= plot(londonHigh,color=color.new(color.blue,  0), title="London High")
 londonLoPlot= plot(londonLow, color=color.new(color.blue,  0), title="London Low")
 
-// Daily open line at 18:00 ET (robust via session time)
+// Daily open line (start at dailyOpenH:M, stop at dailyCloseH:M)
 var line dailyOpenLine = na
-bool tDailyOpenMinute = not na(time("", "1800-1801", TZ_NY))
+var bool dailyOpenActive = false
+isDailyOpenMinute  = (nyHour == dailyOpenH and nyMinute == dailyOpenM)
+isDailyCloseMinute = (nyHour == dailyCloseH and nyMinute == dailyCloseM)
+
 if showDailyOpenLine
-    // On the first bar of the 18:00–18:01 minute, create a new horizontal line at the bar open
-    if tDailyOpenMinute and not tDailyOpenMinute[1]
-        dailyOpenLine := line.new(time, open, time, open, xloc=xloc.bar_time, extend=extend.right, color=color.black, style=line.style_dotted, width=2)
-    // Keep the latest line extended to current bar time
-    if not na(dailyOpenLine)
+    // Start new line at open minute
+    if isDailyOpenMinute and not isDailyOpenMinute[1]
+        dailyOpenLine := line.new(time, open, time, open, xloc=xloc.bar_time, extend=extend.none, color=color.black, style=line.style_dotted, width=2)
+        dailyOpenActive := true
+    // Extend line until close minute
+    if dailyOpenActive and not na(dailyOpenLine)
         line.set_x2(dailyOpenLine, time)
+    // Stop extending at close minute
+    if isDailyCloseMinute and not isDailyCloseMinute[1] and dailyOpenActive and not na(dailyOpenLine)
+        line.set_x2(dailyOpenLine, time)
+        dailyOpenActive := false
 
 // ==========================
 // Trigger: Reclaim AVWAP 9:30 (+ optional BOS)
