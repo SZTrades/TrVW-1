@@ -85,6 +85,9 @@ f_inSession(sh, sm, eh, em) =>
     else
         ((nyHour > sh or (nyHour == sh and nyMinute >= sm)) or (nyHour < eh or (nyHour == eh and nyMinute < em)))
 
+// Daily change flag (compute once per bar)
+newDay = ta.change(time("D", TZ_NY)) != 0
+
 // ==========================
 // 9:00 H1 bias (live candle bias)
 // ==========================
@@ -201,7 +204,7 @@ passShort = (modeStrict ? strictShort : pragShort)
 var float pdHigh = na
 var float pdLow  = na
 var int   curDay = nyDayOfMon
-if ta.change(time("D", TZ_NY))
+if newDay
     pdHigh := high[1]
     pdLow  := low[1]
 // Plot PDH/PDL
@@ -212,7 +215,7 @@ plot(pdLow,  color=color.new(color.fuchsia, 0), title="PDL")
 inPrem = f_inSession(premStartH, premStartM, premEndH, premEndM)
 var float premHigh = na
 var float premLow  = na
-if barstate.isfirst or ta.change(time("D", TZ_NY))
+if barstate.isfirst or newDay
     premHigh := na
     premLow  := na
 premHigh := inPrem and (na(premHigh) or high > premHigh) ? high : premHigh
@@ -226,7 +229,7 @@ plot(premLoPlot, color=color.new(color.yellow, 0), title="Premarket Low")
 inAsia = f_inSession(asiaStartH, asiaStartM, asiaEndH, asiaEndM)
 var float asiaHigh = na
 var float asiaLow  = na
-if barstate.isfirst or ta.change(time("D", TZ_NY))
+if barstate.isfirst or newDay
     asiaHigh := na
     asiaLow  := na
 asiaHigh := inAsia and (na(asiaHigh) or high > asiaHigh) ? high : asiaHigh
@@ -236,7 +239,7 @@ asiaLow  := inAsia and (na(asiaLow)  or low  < asiaLow)  ? low  : asiaLow
 inLondon = f_inSession(londonStartH, londonStartM, londonEndH, londonEndM)
 var float londonHigh = na
 var float londonLow  = na
-if barstate.isfirst or ta.change(time("D", TZ_NY))
+if barstate.isfirst or newDay
     londonHigh := na
     londonLow  := na
 londonHigh := inLondon and (na(londonHigh) or high > londonHigh) ? high : londonHigh
@@ -255,6 +258,10 @@ fill(premHiFill,  premLoFill,  color=color.new(color.orange,85), title="Premarke
 
 // Daily open line at 18:00 ET
 if showDailyOpenLine and (nyHour == 18 and nyMinute == 0)
+    doLine = true
+else
+    doLine = false
+if doLine
     line.new(bar_index, open, bar_index+1, open, xloc=xloc.bar_index, extend=extend.right, color=color.black, style=line.style_dotted, width=2)
 
 // ==========================
