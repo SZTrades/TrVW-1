@@ -213,24 +213,34 @@ passLong  = (modeStrict ? strictLong  : pragLong)
 passShort = (modeStrict ? strictShort : pragShort)
 
 // ==========================
-// Previous Day High/Low as right-extended lines until daily close (like sessions)
+// Previous Day High/Low as dotted horizontal lines (green/blue), extend until daily close
 // ==========================
 var line pdhLine = na
 var line pdlLine = na
+var bool pdLinesActive = false
 prevDayHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
 prevDayLow  = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
 
-// Create PDH/PDL at start of new NY day
-if showPDLines and newDay
-    pdhLine := line.new(time, prevDayHigh, time, prevDayHigh, xloc=xloc.bar_time, extend=extend.right, color=pdHighColor, width=pdLineWidth)
-    pdlLine := line.new(time, prevDayLow,  time, prevDayLow,  xloc=xloc.bar_time, extend=extend.right, color=pdLowColor,  width=pdLineWidth)
+// Create PDH/PDL at the daily open minute (align with Daily Open handling)
+if showPDLines and isDailyOpenMinute and not isDailyOpenMinute[1]
+    pdhLine := line.new(time, prevDayHigh, time, prevDayHigh, xloc=xloc.bar_time, extend=extend.none, color=color.green, style=line.style_dotted, width=2)
+    pdlLine := line.new(time, prevDayLow,  time, prevDayLow,  xloc=xloc.bar_time, extend=extend.none, color=color.blue,  style=line.style_dotted, width=2)
+    pdLinesActive := true
 
-// Stop extending at daily close minute
-if showPDLines and isDailyCloseMinute and not isDailyCloseMinute[1]
+// Extend lines during the day
+if showPDLines and pdLinesActive
     if not na(pdhLine)
         line.set_x2(pdhLine, time)
     if not na(pdlLine)
         line.set_x2(pdlLine, time)
+
+// Stop extending at daily close minute
+if showPDLines and isDailyCloseMinute and not isDailyCloseMinute[1] and pdLinesActive
+    if not na(pdhLine)
+        line.set_x2(pdhLine, time)
+    if not na(pdlLine)
+        line.set_x2(pdlLine, time)
+    pdLinesActive := false
 
 // ==========================
 // Weekly High/Low (previous and current for context)
