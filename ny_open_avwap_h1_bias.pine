@@ -268,81 +268,47 @@ if barstate.isfirst or newDay
 londonHigh := inLondon and (na(londonHigh) or high > londonHigh) ? high : londonHigh
 londonLow  := inLondon and (na(londonLow)  or low  < londonLow)  ? low  : londonLow
 
-// Draw Asia (20:00–00:00) and London (02:00–07:00) as boxes with H/L lines extended right
-var box  asiaBox   = na
-var line asiaHiLn  = na
-var line asiaLoLn  = na
-var int  asiaT0    = na
+// Draw Asia (20:00–00:00) and London (02:00–07:00) using plot series so colors are editable in Style
+// Carry H/L to the right until new day; optional fill as session box
+var float asiaHighCarry   = na
+var float asiaLowCarry    = na
+var float londonHighCarry = na
+var float londonLowCarry  = na
 
-var box  londonBox = na
-var line londonHiLn= na
-var line londonLoLn= na
-var int  londonT0  = na
+// Reset session carries on new day
+if newDay
+    asiaHighCarry   := na
+    asiaLowCarry    := na
+    londonHighCarry := na
+    londonLowCarry  := na
 
-// Asia session box and lines
-if inAsia and not inAsia[1]
-    // session start
-    asiaT0 := time
-    // reset extremes at session start
-    asiaHigh := high
-    asiaLow  := low
-    if showAsiaBox
-        asiaBox := box.new(asiaT0, asiaHigh, asiaT0, asiaLow, xloc=xloc.bar_time, bgcolor=color.new(asiaColor, asiaFillT), border_color=asiaColor)
-    // create lines anchored at session start
-    asiaHiLn := line.new(asiaT0, asiaHigh, time, asiaHigh, xloc=xloc.bar_time, extend=extend.none, color=asiaColor, width=asiaLineW)
-    asiaLoLn := line.new(asiaT0, asiaLow,  time, asiaLow,  xloc=xloc.bar_time, extend=extend.none, color=asiaColor, width=asiaLineW)
+// Asia updates
+if inAsia and na(asiaHighCarry)
+    asiaHighCarry := high
+    asiaLowCarry  := low
+if inAsia and not na(asiaHighCarry)
+    asiaHighCarry := math.max(asiaHighCarry, high)
+    asiaLowCarry  := math.min(asiaLowCarry,  low)
 
-if inAsia
-    // update extremes
-    asiaHigh := math.max(asiaHigh, high)
-    asiaLow  := math.min(asiaLow,  low)
-    // update box bounds
-    if not na(asiaBox)
-        box.set_right(asiaBox, time)
-        box.set_top(asiaBox,   asiaHigh)
-        box.set_bottom(asiaBox,asiaLow)
-    // update lines (left at start, right at now)
-    if not na(asiaHiLn)
-        line.set_xy1(asiaHiLn, asiaT0, asiaHigh)
-        line.set_xy2(asiaHiLn, time,   asiaHigh)
-    if not na(asiaLoLn)
-        line.set_xy1(asiaLoLn, asiaT0, asiaLow)
-        line.set_xy2(asiaLoLn, time,   asiaLow)
+// London updates
+if inLondon and na(londonHighCarry)
+    londonHighCarry := high
+    londonLowCarry  := low
+if inLondon and not na(londonHighCarry)
+    londonHighCarry := math.max(londonHighCarry, high)
+    londonLowCarry  := math.min(londonLowCarry,  low)
 
-// After session ends, keep extending lines to the right at fixed prices
-if not inAsia and not na(asiaHiLn)
-    line.set_x2(asiaHiLn, time)
-if not inAsia and not na(asiaLoLn)
-    line.set_x2(asiaLoLn, time)
+// Plot lines (editable in Style panel)
+asiaHiPlot   = plot(asiaHighCarry,   title="Asia High",   color=asiaColor,   linewidth=asiaLineW)
+asiaLoPlot   = plot(asiaLowCarry,    title="Asia Low",    color=asiaColor,   linewidth=asiaLineW)
+londonHiPlot = plot(londonHighCarry, title="London High", color=londonColor, linewidth=londonLineW)
+londonLoPlot = plot(londonLowCarry,  title="London Low",  color=londonColor, linewidth=londonLineW)
 
-// London session box and lines
-if inLondon and not inLondon[1]
-    londonT0 := time
-    londonHigh := high
-    londonLow  := low
-    if showLondonBox
-        londonBox := box.new(londonT0, londonHigh, londonT0, londonLow, xloc=xloc.bar_time, bgcolor=color.new(londonColor, londonFillT), border_color=londonColor)
-    londonHiLn := line.new(londonT0, londonHigh, time, londonHigh, xloc=xloc.bar_time, extend=extend.none, color=londonColor, width=londonLineW)
-    londonLoLn := line.new(londonT0, londonLow,  time, londonLow,  xloc=xloc.bar_time, extend=extend.none, color=londonColor, width=londonLineW)
-
-if inLondon
-    londonHigh := math.max(londonHigh, high)
-    londonLow  := math.min(londonLow,  low)
-    if not na(londonBox)
-        box.set_right(londonBox, time)
-        box.set_top(londonBox,   londonHigh)
-        box.set_bottom(londonBox,londonLow)
-    if not na(londonHiLn)
-        line.set_xy1(londonHiLn, londonT0, londonHigh)
-        line.set_xy2(londonHiLn, time,     londonHigh)
-    if not na(londonLoLn)
-        line.set_xy1(londonLoLn, londonT0, londonLow)
-        line.set_xy2(londonLoLn, time,     londonLow)
-
-if not inLondon and not na(londonHiLn)
-    line.set_x2(londonHiLn, time)
-if not inLondon and not na(londonLoLn)
-    line.set_x2(londonLoLn, time)
+// Optional fills for session boxes (color editable via Inputs; transparency via Inputs)
+asiaFillColor   = showAsiaBox   and not na(asiaHighCarry)   and not na(asiaLowCarry)   ? color.new(asiaColor,   asiaFillT)   : na
+londonFillColor = showLondonBox and not na(londonHighCarry) and not na(londonLowCarry) ? color.new(londonColor, londonFillT) : na
+fill(asiaHiPlot,   asiaLoPlot,   color=asiaFillColor,   title="Asia Box")
+fill(londonHiPlot, londonLoPlot, color=londonFillColor, title="London Box")
 
 // Daily open line (start at dailyOpenH:M, stop at dailyCloseH:M) + label
 var line dailyOpenLine = na
