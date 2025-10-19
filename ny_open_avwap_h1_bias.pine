@@ -78,10 +78,12 @@ nyIsNewDay  = ta.change(nyDayOfMon)
 inWindow = (nyHour > inputSessionStartH or (nyHour == inputSessionStartH and nyMinute >= inputSessionStartM)) and (nyHour < inputSessionEndH or (nyHour == inputSessionEndH and nyMinute <= inputSessionEndM))
 
 // Helper: session membership handling midnight-crossing sessions
-f_inSession(int sh, int sm, int eh, int em) =>
-    sh*60 + sm <= eh*60 + em
-        ? ((nyHour > sh or (nyHour == sh and nyMinute >= sm)) and (nyHour < eh or (nyHour == eh and nyMinute < em)))
-        : ((nyHour > sh or (nyHour == sh and nyMinute >= sm)) or (nyHour < eh or (nyHour == eh and nyMinute < em)))
+f_inSession(sh, sm, eh, em) =>
+    sameDay = sh*60 + sm <= eh*60 + em
+    if sameDay
+        ((nyHour > sh or (nyHour == sh and nyMinute >= sm)) and (nyHour < eh or (nyHour == eh and nyMinute < em)))
+    else
+        ((nyHour > sh or (nyHour == sh and nyMinute >= sm)) or (nyHour < eh or (nyHour == eh and nyMinute < em)))
 
 // ==========================
 // 9:00 H1 bias (live candle bias)
