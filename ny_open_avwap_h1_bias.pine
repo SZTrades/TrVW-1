@@ -78,6 +78,14 @@ asiaLineW    = input.int(1, "Asia line width", minval=1, maxval=5)
 londonColor  = input.color(color.blue, "London color")
 londonFillT  = input.int(85, "London box transparency", minval=0, maxval=100)
 londonLineW  = input.int(1, "London line width", minval=1, maxval=5)
+// Level style customization
+showPDLevels = input.bool(true, "Show Previous Day H/L")
+pdHighColor  = input.color(color.new(color.green, 0), "PD High Color")
+pdLowColor   = input.color(color.new(color.red,   0), "PD Low Color")
+pdLineWidth  = input.int(1, "PD Line Width", minval=1, maxval=5)
+weeklyHighColor = input.color(color.new(color.green, 0), "Weekly High Color")
+weeklyLowColor  = input.color(color.new(color.blue,  0), "Weekly Low Color")
+weeklyLineWidth = input.int(1, "Weekly Line Width", minval=1, maxval=5)
 
 // ==========================
 // Time helpers (ET)
@@ -211,27 +219,20 @@ passLong  = (modeStrict ? strictLong  : pragLong)
 passShort = (modeStrict ? strictShort : pragShort)
 
 // ==========================
-// Previous Day High/Low (as right-extended lines per day)
+// Previous Day High/Low (configurable color/width) via 1D security
 // ==========================
-var line pdhLine = na
-var line pdlLine = na
 prevDayHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
 prevDayLow  = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
-
-if newDay
-    // create new PDH/PDL lines at start of new day
-    pdhLine := line.new(time, prevDayHigh, time, prevDayHigh, xloc=xloc.bar_time, extend=extend.right, color=color.new(color.fuchsia, 0), style=line.style_solid, width=1)
-    pdlLine := line.new(time, prevDayLow,  time, prevDayLow,  xloc=xloc.bar_time, extend=extend.right, color=color.new(color.fuchsia, 0), style=line.style_solid, width=1)
+plot(showPDLevels ? prevDayHigh : na, color=pdHighColor, title="PDH", linewidth=pdLineWidth)
+plot(showPDLevels ? prevDayLow  : na, color=pdLowColor,  title="PDL", linewidth=pdLineWidth)
 
 // ==========================
 // Weekly High/Low (previous and current for context)
 // ==========================
-wh  = request.security(syminfo.tickerid, "1W", high,   lookahead=barmerge.lookahead_off)
-wl  = request.security(syminfo.tickerid, "1W", low,    lookahead=barmerge.lookahead_off)
 pwh = request.security(syminfo.tickerid, "1W", high[1],lookahead=barmerge.lookahead_off)
 pwl = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off)
-plot(showWeeklyHL ? pwh : na, color=color.new(color.green, 0), title="Prev Weekly High")
-plot(showWeeklyHL ? pwl : na, color=color.new(color.blue,  0), title="Prev Weekly Low")
+plot(showWeeklyHL ? pwh : na, color=weeklyHighColor, title="Prev Weekly High", linewidth=weeklyLineWidth)
+plot(showWeeklyHL ? pwl : na, color=weeklyLowColor,  title="Prev Weekly Low",  linewidth=weeklyLineWidth)
 
 // Premarket (18:00–9:30 ET by default)
 inPrem = f_inSession(premStartH, premStartM, premEndH, premEndM)
