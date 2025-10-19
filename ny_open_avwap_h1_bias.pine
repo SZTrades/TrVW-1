@@ -67,11 +67,16 @@ moveToBE     = input.bool(true, "Move stop to BE at 1R")
 timeStopMin  = input.int(15, "Time-stop minutes (exit if not hit TP/SL)", minval=1)
 
 // Visuals
-showLabels   = input.bool(true, "Show entry/exit labels")
-showDebug    = input.bool(false, "Show debug plots")
-showAsiaBox  = input.bool(true, "Show Asia box (pink)")
-showLondonBox= input.bool(true, "Show London box (blue)")
-showWeeklyHL = input.bool(true, "Show Weekly High/Low")
+showLabels    = input.bool(true, "Show entry/exit labels")
+showDebug     = input.bool(false, "Show debug plots")
+showAsiaBox   = input.bool(true, "Show Asia box (pink)")
+showLondonBox = input.bool(true, "Show London box (blue)")
+showWeeklyHL  = input.bool(true, "Show Weekly High/Low")
+// Previous Day H/L lines (like sessions)
+showPDLines   = input.bool(true, "Show Previous Day H/L lines")
+pdHighColor   = input.color(color.new(color.green, 0), "PD High Color")
+pdLowColor    = input.color(color.new(color.red, 0),    "PD Low Color")
+pdLineWidth   = input.int(1, "PD Line Width", minval=1, maxval=5)
 
 // ==========================
 // Time helpers (ET)
@@ -205,12 +210,24 @@ passLong  = (modeStrict ? strictLong  : pragLong)
 passShort = (modeStrict ? strictShort : pragShort)
 
 // ==========================
-// Previous Day High/Low (robust via 1D security)
+// Previous Day High/Low as right-extended lines until daily close (like sessions)
 // ==========================
-pdh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
-pdl = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
-plot(pdh, color=color.new(color.fuchsia, 0), title="PDH")
-plot(pdl, color=color.new(color.fuchsia, 0), title="PDL")
+var line pdhLine = na
+var line pdlLine = na
+prevDayHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
+prevDayLow  = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
+
+// Create PDH/PDL at start of new NY day
+if showPDLines and newDay
+    pdhLine := line.new(time, prevDayHigh, time, prevDayHigh, xloc=xloc.bar_time, extend=extend.right, color=pdHighColor, width=pdLineWidth)
+    pdlLine := line.new(time, prevDayLow,  time, prevDayLow,  xloc=xloc.bar_time, extend=extend.right, color=pdLowColor,  width=pdLineWidth)
+
+// Stop extending at daily close minute
+if showPDLines and isDailyCloseMinute and not isDailyCloseMinute[1]
+    if not na(pdhLine)
+        line.set_x2(pdhLine, time)
+    if not na(pdlLine)
+        line.set_x2(pdlLine, time)
 
 // ==========================
 // Weekly High/Low (previous and current for context)
