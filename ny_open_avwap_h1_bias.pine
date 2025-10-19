@@ -251,10 +251,16 @@ asiaLoPlot  = plot(asiaLow,   color=color.new(color.teal,  0), title="Asia Low")
 londonHiPlot= plot(londonHigh,color=color.new(color.blue,  0), title="London High")
 londonLoPlot= plot(londonLow, color=color.new(color.blue,  0), title="London Low")
 
-// Daily open line at 18:00 ET
-bool doLine = showDailyOpenLine and (nyHour == 18 and nyMinute == 0)
-if doLine
-    line.new(bar_index, open, bar_index+1, open, xloc=xloc.bar_index, extend=extend.right, color=color.black, style=line.style_dotted, width=2)
+// Daily open line at 18:00 ET (robust via session time)
+var line dailyOpenLine = na
+bool tDailyOpenMinute = not na(time("", "1800-1801", TZ_NY))
+if showDailyOpenLine
+    // On the first bar of the 18:00–18:01 minute, create a new horizontal line at the bar open
+    if tDailyOpenMinute and not tDailyOpenMinute[1]
+        dailyOpenLine := line.new(time, open, time, open, xloc=xloc.bar_time, extend=extend.right, color=color.black, style=line.style_dotted, width=2)
+    // Keep the latest line extended to current bar time
+    if not na(dailyOpenLine)
+        line.set_x2(dailyOpenLine, time)
 
 // ==========================
 // Trigger: Reclaim AVWAP 9:30 (+ optional BOS)
