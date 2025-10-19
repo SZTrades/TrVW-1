@@ -214,20 +214,40 @@ passShort = (modeStrict ? strictShort : pragShort)
 
 // ==========================
 // Previous Day High/Low as dotted horizontal lines (green/blue), extend until daily close
+// Session-based calculation aligned to custom day (dailyOpenH:M .. dailyCloseH:M)
 // ==========================
 var line pdhLine = na
 var line pdlLine = na
 var bool pdLinesActive = false
-prevDayHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
-prevDayLow  = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
+var float currDayHigh = na
+var float currDayLow  = na
+var float prevDayHighSess = na
+var float prevDayLowSess  = na
 
-// Create PDH/PDL at the daily open minute (align with Daily Open handling)
-if showPDLines and isDailyOpenMinute and not isDailyOpenMinute[1]
-    pdhLine := line.new(time, prevDayHigh, time, prevDayHigh, xloc=xloc.bar_time, extend=extend.none, color=color.green, style=line.style_dotted, width=2)
-    pdlLine := line.new(time, prevDayLow,  time, prevDayLow,  xloc=xloc.bar_time, extend=extend.none, color=color.blue,  style=line.style_dotted, width=2)
-    pdLinesActive := true
+// On first bar, initialize current day extremes
+if barstate.isfirst
+    currDayHigh := high
+    currDayLow  := low
 
-// Extend lines during the day
+// Update current day extremes continuously
+currDayHigh := na(currDayHigh) ? high : math.max(currDayHigh, high)
+currDayLow  := na(currDayLow)  ? low  : math.min(currDayLow,  low)
+
+// At the daily open minute, finalize previous day extremes and create PDH/PDL lines
+if isDailyOpenMinute and not isDailyOpenMinute[1]
+    // Previous day extremes are those accumulated up to this open
+    prevDayHighSess := currDayHigh
+    prevDayLowSess  := currDayLow
+    // Reset for new day
+    currDayHigh := high
+    currDayLow  := low
+    // Create lines if enabled and have valid prev values
+    if showPDLines and not na(prevDayHighSess) and not na(prevDayLowSess)
+        pdhLine := line.new(time, prevDayHighSess, time, prevDayHighSess, xloc=xloc.bar_time, extend=extend.none, color=color.green, style=line.style_dotted, width=2)
+        pdlLine := line.new(time, prevDayLowSess,  time, prevDayLowSess,  xloc=xloc.bar_time, extend=extend.none, color=color.blue,  style=line.style_dotted, width=2)
+        pdLinesActive := true
+
+// Extend PDH/PDL during the day
 if showPDLines and pdLinesActive
     if not na(pdhLine)
         line.set_x2(pdhLine, time)
