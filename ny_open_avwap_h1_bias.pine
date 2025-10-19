@@ -72,20 +72,6 @@ showDebug    = input.bool(false, "Show debug plots")
 showAsiaBox  = input.bool(true, "Show Asia box (pink)")
 showLondonBox= input.bool(true, "Show London box (blue)")
 showWeeklyHL = input.bool(true, "Show Weekly High/Low")
-asiaColor    = input.color(color.fuchsia, "Asia color")
-asiaFillT    = input.int(85, "Asia box transparency", minval=0, maxval=100)
-asiaLineW    = input.int(1, "Asia line width", minval=1, maxval=5)
-londonColor  = input.color(color.blue, "London color")
-londonFillT  = input.int(85, "London box transparency", minval=0, maxval=100)
-londonLineW  = input.int(1, "London line width", minval=1, maxval=5)
-// Level style customization
-showPDLevels = input.bool(true, "Show Previous Day H/L")
-pdHighColor  = input.color(color.new(color.green, 0), "PD High Color")
-pdLowColor   = input.color(color.new(color.red,   0), "PD Low Color")
-pdLineWidth  = input.int(1, "PD Line Width", minval=1, maxval=5)
-weeklyHighColor = input.color(color.new(color.green, 0), "Weekly High Color")
-weeklyLowColor  = input.color(color.new(color.blue,  0), "Weekly Low Color")
-weeklyLineWidth = input.int(1, "Weekly Line Width", minval=1, maxval=5)
 
 // ==========================
 // Time helpers (ET)
@@ -219,12 +205,12 @@ passLong  = (modeStrict ? strictLong  : pragLong)
 passShort = (modeStrict ? strictShort : pragShort)
 
 // ==========================
-// Previous Day High/Low (configurable color/width) via 1D security
+// Previous Day High/Low (robust via 1D security)
 // ==========================
-prevDayHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
-prevDayLow  = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
-plot(showPDLevels ? prevDayHigh : na, title="PDH")
-plot(showPDLevels ? prevDayLow  : na, title="PDL")
+pdh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
+pdl = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
+plot(pdh, color=color.new(color.fuchsia, 0), title="PDH")
+plot(pdl, color=color.new(color.fuchsia, 0), title="PDL")
 
 // ==========================
 // Weekly High/Low (previous and current for context)
@@ -298,17 +284,81 @@ if inLondon and not na(londonHighCarry)
     londonHighCarry := math.max(londonHighCarry, high)
     londonLowCarry  := math.min(londonLowCarry,  low)
 
-// Plot lines (editable in Style panel)
-asiaHiPlot   = plot(asiaHighCarry,   title="Asia High")
-asiaLoPlot   = plot(asiaLowCarry,    title="Asia Low")
-londonHiPlot = plot(londonHighCarry, title="London High")
-londonLoPlot = plot(londonLowCarry,  title="London Low")
+// Draw Asia (20:00–00:00) and London (02:00–07:00) as boxes with H/L lines extended right
+var box  asiaBox   = na
+var line asiaHiLn  = na
+var line asiaLoLn  = na
+var int  asiaT0    = na
 
-// Optional fills for session boxes (color editable via Inputs; transparency via Inputs)
-asiaFillColor   = showAsiaBox   and not na(asiaHighCarry)   and not na(asiaLowCarry)   ? color.new(asiaColor,   asiaFillT)   : na
-londonFillColor = showLondonBox and not na(londonHighCarry) and not na(londonLowCarry) ? color.new(londonColor, londonFillT) : na
-fill(asiaHiPlot,   asiaLoPlot,   color=asiaFillColor,   title="Asia Box")
-fill(londonHiPlot, londonLoPlot, color=londonFillColor, title="London Box")
+var box  londonBox = na
+var line londonHiLn= na
+var line londonLoLn= na
+var int  londonT0  = na
+
+// Asia session box and lines
+if inAsia and not inAsia[1]
+    // session start
+    asiaT0 := time
+    // reset extremes at session start
+    asiaHigh := high
+    asiaLow  := low
+    if showAsiaBox
+        asiaBox := box.new(asiaT0, asiaHigh, asiaT0, asiaLow, xloc=xloc.bar_time, bgcolor=color.new(color.fuchsia, 85), border_color=color.fuchsia)
+    // create lines anchored at session start
+    asiaHiLn := line.new(asiaT0, asiaHigh, time, asiaHigh, xloc=xloc.bar_time, extend=extend.none, color=color.fuchsia, width=1)
+    asiaLoLn := line.new(asiaT0, asiaLow,  time, asiaLow,  xloc=xloc.bar_time, extend=extend.none, color=color.fuchsia, width=1)
+
+if inAsia
+    // update extremes
+    asiaHigh := math.max(asiaHigh, high)
+    asiaLow  := math.min(asiaLow,  low)
+    // update box bounds
+    if not na(asiaBox)
+        box.set_right(asiaBox, time)
+        box.set_top(asiaBox,   asiaHigh)
+        box.set_bottom(asiaBox,asiaLow)
+    // update lines (left at start, right at now)
+    if not na(asiaHiLn)
+        line.set_xy1(asiaHiLn, asiaT0, asiaHigh)
+        line.set_xy2(asiaHiLn, time,   asiaHigh)
+    if not na(asiaLoLn)
+        line.set_xy1(asiaLoLn, asiaT0, asiaLow)
+        line.set_xy2(asiaLoLn, time,   asiaLow)
+
+// After session ends, keep extending lines to the right at fixed prices
+if not inAsia and not na(asiaHiLn)
+    line.set_x2(asiaHiLn, time)
+if not inAsia and not na(asiaLoLn)
+    line.set_x2(asiaLoLn, time)
+
+// London session box and lines
+if inLondon and not inLondon[1]
+    londonT0 := time
+    londonHigh := high
+    londonLow  := low
+    if showLondonBox
+        londonBox := box.new(londonT0, londonHigh, londonT0, londonLow, xloc=xloc.bar_time, bgcolor=color.new(color.blue, 85), border_color=color.blue)
+    londonHiLn := line.new(londonT0, londonHigh, time, londonHigh, xloc=xloc.bar_time, extend=extend.none, color=color.blue, width=1)
+    londonLoLn := line.new(londonT0, londonLow,  time, londonLow,  xloc=xloc.bar_time, extend=extend.none, color=color.blue, width=1)
+
+if inLondon
+    londonHigh := math.max(londonHigh, high)
+    londonLow  := math.min(londonLow,  low)
+    if not na(londonBox)
+        box.set_right(londonBox, time)
+        box.set_top(londonBox,   londonHigh)
+        box.set_bottom(londonBox,londonLow)
+    if not na(londonHiLn)
+        line.set_xy1(londonHiLn, londonT0, londonHigh)
+        line.set_xy2(londonHiLn, time,     londonHigh)
+    if not na(londonLoLn)
+        line.set_xy1(londonLoLn, londonT0, londonLow)
+        line.set_xy2(londonLoLn, time,     londonLow)
+
+if not inLondon and not na(londonHiLn)
+    line.set_x2(londonHiLn, time)
+if not inLondon and not na(londonLoLn)
+    line.set_x2(londonLoLn, time)
 
 // Daily open line (start at dailyOpenH:M, stop at dailyCloseH:M) + label
 var line dailyOpenLine = na
