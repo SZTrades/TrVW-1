@@ -218,6 +218,8 @@ passShort = (modeStrict ? strictShort : pragShort)
 // ==========================
 var line pdhLine = na
 var line pdlLine = na
+var label pdhLabel = na
+var label pdlLabel = na
 var bool pdLinesActive = false
 var float currDayHigh = na
 var float currDayLow  = na
@@ -245,14 +247,22 @@ if isDailyOpenMinute and not isDailyOpenMinute[1]
     if showPDLines and not na(prevDayHighSess) and not na(prevDayLowSess)
         pdhLine := line.new(time, prevDayHighSess, time, prevDayHighSess, xloc=xloc.bar_time, extend=extend.none, color=color.green, style=line.style_dotted, width=2)
         pdlLine := line.new(time, prevDayLowSess,  time, prevDayLowSess,  xloc=xloc.bar_time, extend=extend.none, color=color.blue,  style=line.style_dotted, width=2)
+        pdhLabel := label.new(time, prevDayHighSess, "PDH", xloc=xloc.bar_time, style=label.style_label_left, color=color.new(color.white, 100), textcolor=color.green, size=size.tiny)
+        pdlLabel := label.new(time, prevDayLowSess,  "PDL", xloc=xloc.bar_time, style=label.style_label_left, color=color.new(color.white, 100), textcolor=color.blue,  size=size.tiny)
         pdLinesActive := true
 
 // Extend PDH/PDL during the day
 if showPDLines and pdLinesActive
     if not na(pdhLine)
         line.set_x2(pdhLine, time)
+        if not na(pdhLabel)
+            label.set_x(pdhLabel, time)
+            label.set_y(pdhLabel, line.get_y1(pdhLine))
     if not na(pdlLine)
         line.set_x2(pdlLine, time)
+        if not na(pdlLabel)
+            label.set_x(pdlLabel, time)
+            label.set_y(pdlLabel, line.get_y1(pdlLine))
 
 // Stop extending at daily close minute
 if showPDLines and isDailyCloseMinute and not isDailyCloseMinute[1] and pdLinesActive
