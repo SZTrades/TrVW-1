@@ -211,12 +211,17 @@ passLong  = (modeStrict ? strictLong  : pragLong)
 passShort = (modeStrict ? strictShort : pragShort)
 
 // ==========================
-// Previous Day High/Low (robust via 1D security)
+// Previous Day High/Low (as right-extended lines per day)
 // ==========================
-pdh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
-pdl = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
-plot(pdh, color=color.new(color.fuchsia, 0), title="PDH")
-plot(pdl, color=color.new(color.fuchsia, 0), title="PDL")
+var line pdhLine = na
+var line pdlLine = na
+prevDayHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
+prevDayLow  = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
+
+if newDay
+    // create new PDH/PDL lines at start of new day
+    pdhLine := line.new(time, prevDayHigh, time, prevDayHigh, xloc=xloc.bar_time, extend=extend.right, color=color.new(color.fuchsia, 0), style=line.style_solid, width=1)
+    pdlLine := line.new(time, prevDayLow,  time, prevDayLow,  xloc=xloc.bar_time, extend=extend.right, color=color.new(color.fuchsia, 0), style=line.style_solid, width=1)
 
 // ==========================
 // Weekly High/Low (previous and current for context)
