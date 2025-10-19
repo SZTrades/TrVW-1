@@ -202,18 +202,12 @@ passLong  = (modeStrict ? strictLong  : pragLong)
 passShort = (modeStrict ? strictShort : pragShort)
 
 // ==========================
-// Previous Day High/Low and Session High/Low + Boxes
+// Previous Day High/Low (robust via 1D security)
 // ==========================
-// Previous day (RTH day aligned with TZ_NY daily)
-var float pdHigh = na
-var float pdLow  = na
-var int   curDay = nyDayOfMon
-if newDay
-    pdHigh := high[1]
-    pdLow  := low[1]
-// Plot PDH/PDL
-plot(pdHigh, color=color.new(color.fuchsia, 0), title="PDH")
-plot(pdLow,  color=color.new(color.fuchsia, 0), title="PDL")
+pdh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
+pdl = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
+plot(pdh, color=color.new(color.fuchsia, 0), title="PDH")
+plot(pdl, color=color.new(color.fuchsia, 0), title="PDL")
 
 // Premarket (18:00–9:30 ET by default)
 inPrem = f_inSession(premStartH, premStartM, premEndH, premEndM)
@@ -255,8 +249,9 @@ asiaLoPlot  = plot(asiaLow,   color=color.new(color.teal,  0), title="Asia Low")
 londonHiPlot= plot(londonHigh,color=color.new(color.blue,  0), title="London High")
 londonLoPlot= plot(londonLow, color=color.new(color.blue,  0), title="London Low")
 
-// Daily open line (start at dailyOpenH:M, stop at dailyCloseH:M)
+// Daily open line (start at dailyOpenH:M, stop at dailyCloseH:M) + label
 var line dailyOpenLine = na
+var label dailyOpenLabel = na
 var bool dailyOpenActive = false
 isDailyOpenMinute  = (nyHour == dailyOpenH and nyMinute == dailyOpenM)
 isDailyCloseMinute = (nyHour == dailyCloseH and nyMinute == dailyCloseM)
@@ -265,10 +260,14 @@ if showDailyOpenLine
     // Start new line at open minute
     if isDailyOpenMinute and not isDailyOpenMinute[1]
         dailyOpenLine := line.new(time, open, time, open, xloc=xloc.bar_time, extend=extend.none, color=color.black, style=line.style_dotted, width=2)
+        dailyOpenLabel := label.new(time, open, "Daily Open", xloc=xloc.bar_time, style=label.style_label_left, color=color.new(color.white, 100), textcolor=color.black, size=size.tiny)
         dailyOpenActive := true
-    // Extend line until close minute
+    // Extend line and keep label aligned until close minute
     if dailyOpenActive and not na(dailyOpenLine)
         line.set_x2(dailyOpenLine, time)
+        if not na(dailyOpenLabel)
+            label.set_x(dailyOpenLabel, time)
+            label.set_y(dailyOpenLabel, line.get_y1(dailyOpenLine))
     // Stop extending at close minute
     if isDailyCloseMinute and not isDailyCloseMinute[1] and dailyOpenActive and not na(dailyOpenLine)
         line.set_x2(dailyOpenLine, time)
