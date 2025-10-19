@@ -223,16 +223,16 @@ passShort = (modeStrict ? strictShort : pragShort)
 // ==========================
 prevDayHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
 prevDayLow  = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
-plot(showPDLevels ? prevDayHigh : na, color=pdHighColor, title="PDH", linewidth=pdLineWidth)
-plot(showPDLevels ? prevDayLow  : na, color=pdLowColor,  title="PDL", linewidth=pdLineWidth)
+plot(showPDLevels ? prevDayHigh : na, title="PDH")
+plot(showPDLevels ? prevDayLow  : na, title="PDL")
 
 // ==========================
 // Weekly High/Low (previous and current for context)
 // ==========================
 pwh = request.security(syminfo.tickerid, "1W", high[1],lookahead=barmerge.lookahead_off)
 pwl = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off)
-plot(showWeeklyHL ? pwh : na, color=weeklyHighColor, title="Prev Weekly High", linewidth=weeklyLineWidth)
-plot(showWeeklyHL ? pwl : na, color=weeklyLowColor,  title="Prev Weekly Low",  linewidth=weeklyLineWidth)
+plot(showWeeklyHL ? pwh : na, title="Prev Weekly High")
+plot(showWeeklyHL ? pwl : na, title="Prev Weekly Low")
 
 // Premarket (18:00–9:30 ET by default)
 inPrem = f_inSession(premStartH, premStartM, premEndH, premEndM)
@@ -245,8 +245,8 @@ premHigh := inPrem and (na(premHigh) or high > premHigh) ? high : premHigh
 premLow  := inPrem and (na(premLow)  or low  < premLow)  ? low  : premLow
 premHiPlot = useManualPremHL and manualPremHigh != 0.0 ? manualPremHigh : premHigh
 premLoPlot = useManualPremHL and manualPremLow  != 0.0 ? manualPremLow  : premLow
-plot(premHiPlot, color=color.new(color.orange, 0), title="Premarket High")
-plot(premLoPlot, color=color.new(color.orange, 0), title="Premarket Low")
+plot(premHiPlot, title="Premarket High")
+plot(premLoPlot, title="Premarket Low")
 
 // Asia session hi/low and box
 inAsia = f_inSession(asiaStartH, asiaStartM, asiaEndH, asiaEndM)
@@ -299,10 +299,10 @@ if inLondon and not na(londonHighCarry)
     londonLowCarry  := math.min(londonLowCarry,  low)
 
 // Plot lines (editable in Style panel)
-asiaHiPlot   = plot(asiaHighCarry,   title="Asia High",   color=asiaColor,   linewidth=asiaLineW)
-asiaLoPlot   = plot(asiaLowCarry,    title="Asia Low",    color=asiaColor,   linewidth=asiaLineW)
-londonHiPlot = plot(londonHighCarry, title="London High", color=londonColor, linewidth=londonLineW)
-londonLoPlot = plot(londonLowCarry,  title="London Low",  color=londonColor, linewidth=londonLineW)
+asiaHiPlot   = plot(asiaHighCarry,   title="Asia High")
+asiaLoPlot   = plot(asiaLowCarry,    title="Asia Low")
+londonHiPlot = plot(londonHighCarry, title="London High")
+londonLoPlot = plot(londonLowCarry,  title="London Low")
 
 // Optional fills for session boxes (color editable via Inputs; transparency via Inputs)
 asiaFillColor   = showAsiaBox   and not na(asiaHighCarry)   and not na(asiaLowCarry)   ? color.new(asiaColor,   asiaFillT)   : na
