@@ -69,6 +69,9 @@ timeStopMin  = input.int(15, "Time-stop minutes (exit if not hit TP/SL)", minval
 // Visuals
 showLabels   = input.bool(true, "Show entry/exit labels")
 showDebug    = input.bool(false, "Show debug plots")
+showAsiaBox  = input.bool(true, "Show Asia box (pink)")
+showLondonBox= input.bool(true, "Show London box (blue)")
+showWeeklyHL = input.bool(true, "Show Weekly High/Low")
 
 // ==========================
 // Time helpers (ET)
@@ -209,6 +212,16 @@ pdl = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.looka
 plot(pdh, color=color.new(color.fuchsia, 0), title="PDH")
 plot(pdl, color=color.new(color.fuchsia, 0), title="PDL")
 
+// ==========================
+// Weekly High/Low (previous and current for context)
+// ==========================
+wh  = request.security(syminfo.tickerid, "1W", high,   lookahead=barmerge.lookahead_off)
+wl  = request.security(syminfo.tickerid, "1W", low,    lookahead=barmerge.lookahead_off)
+pwh = request.security(syminfo.tickerid, "1W", high[1],lookahead=barmerge.lookahead_off)
+pwl = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off)
+plot(showWeeklyHL ? pwh : na, color=color.new(color.green, 0), title="Prev Weekly High")
+plot(showWeeklyHL ? pwl : na, color=color.new(color.blue,  0), title="Prev Weekly Low")
+
 // Premarket (18:00–9:30 ET by default)
 inPrem = f_inSession(premStartH, premStartM, premEndH, premEndM)
 var float premHigh = na
@@ -243,11 +256,15 @@ if barstate.isfirst or newDay
 londonHigh := inLondon and (na(londonHigh) or high > londonHigh) ? high : londonHigh
 londonLow  := inLondon and (na(londonLow)  or low  < londonLow)  ? low  : londonLow
 
-// Draw session boxes (using fill between highs/lows)
-asiaHiPlot  = plot(asiaHigh,  color=color.new(color.teal,  0), title="Asia High")
-asiaLoPlot  = plot(asiaLow,   color=color.new(color.teal,  0), title="Asia Low")
+// Draw session lines and optional boxes
+asiaHiPlot  = plot(asiaHigh,  color=color.new(color.pink,  0), title="Asia High")
+asiaLoPlot  = plot(asiaLow,   color=color.new(color.pink,  0), title="Asia Low")
 londonHiPlot= plot(londonHigh,color=color.new(color.blue,  0), title="London High")
 londonLoPlot= plot(londonLow, color=color.new(color.blue,  0), title="London Low")
+if showAsiaBox and inAsia and not na(asiaHigh) and not na(asiaLow)
+    fill(asiaHiPlot, asiaLoPlot, color=color.new(color.pink, 85), title="Asia Box")
+if showLondonBox and inLondon and not na(londonHigh) and not na(londonLow)
+    fill(londonHiPlot, londonLoPlot, color=color.new(color.blue, 85), title="London Box")
 
 // Daily open line (start at dailyOpenH:M, stop at dailyCloseH:M) + label
 var line dailyOpenLine = na
