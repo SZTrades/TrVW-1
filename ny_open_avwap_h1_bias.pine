@@ -222,8 +222,8 @@ premHigh := inPrem and (na(premHigh) or high > premHigh) ? high : premHigh
 premLow  := inPrem and (na(premLow)  or low  < premLow)  ? low  : premLow
 premHiPlot = useManualPremHL and manualPremHigh != 0.0 ? manualPremHigh : premHigh
 premLoPlot = useManualPremHL and manualPremLow  != 0.0 ? manualPremLow  : premLow
-plot(premHiPlot, color=color.new(color.yellow, 0), title="Premarket High")
-plot(premLoPlot, color=color.new(color.yellow, 0), title="Premarket Low")
+plot(premHiPlot, color=color.new(color.orange, 0), title="Premarket High")
+plot(premLoPlot, color=color.new(color.orange, 0), title="Premarket Low")
 
 // Asia session hi/low and box
 inAsia = f_inSession(asiaStartH, asiaStartM, asiaEndH, asiaEndM)
@@ -246,15 +246,10 @@ londonHigh := inLondon and (na(londonHigh) or high > londonHigh) ? high : london
 londonLow  := inLondon and (na(londonLow)  or low  < londonLow)  ? low  : londonLow
 
 // Draw session boxes (using fill between highs/lows)
-asiaHiPlot  = plot(asiaHigh,  color=color.new(color.teal, 70), title="Asia High")
-asiaLoPlot  = plot(asiaLow,   color=color.new(color.teal, 70), title="Asia Low")
-londonHiPlot= plot(londonHigh,color=color.new(color.blue, 70), title="London High")
-londonLoPlot= plot(londonLow, color=color.new(color.blue, 70), title="London Low")
-premHiFill  = plot(premHiPlot,color=color.new(color.orange,70), title="Premarket High (box)")
-premLoFill  = plot(premLoPlot,color=color.new(color.orange,70), title="Premarket Low (box)")
-fill(asiaHiPlot,  asiaLoPlot,  color=color.new(color.teal,  85), title="Asia Box")
-fill(londonHiPlot,londonLoPlot,color=color.new(color.blue,  85), title="London Box")
-fill(premHiFill,  premLoFill,  color=color.new(color.orange,85), title="Premarket Box")
+asiaHiPlot  = plot(asiaHigh,  color=color.new(color.teal,  0), title="Asia High")
+asiaLoPlot  = plot(asiaLow,   color=color.new(color.teal,  0), title="Asia Low")
+londonHiPlot= plot(londonHigh,color=color.new(color.blue,  0), title="London High")
+londonLoPlot= plot(londonLow, color=color.new(color.blue,  0), title="London Low")
 
 // Daily open line at 18:00 ET
 bool doLine = showDailyOpenLine and (nyHour == 18 and nyMinute == 0)
