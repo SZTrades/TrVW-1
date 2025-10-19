@@ -99,6 +99,9 @@ f_inSession(sh, sm, eh, em) =>
 
 // Daily change flag (compute once per bar)
 newDay = ta.change(time("D", TZ_NY)) != 0
+// Precompute daily open/close minute flags for reuse
+isDailyOpenMinute  = (nyHour == dailyOpenH and nyMinute == dailyOpenM)
+isDailyCloseMinute = (nyHour == dailyCloseH and nyMinute == dailyCloseM)
 
 // ==========================
 // 9:00 H1 bias (live candle bias)
@@ -381,8 +384,6 @@ if not inLondon and not na(londonLoLn)
 var line dailyOpenLine = na
 var label dailyOpenLabel = na
 var bool dailyOpenActive = false
-isDailyOpenMinute  = (nyHour == dailyOpenH and nyMinute == dailyOpenM)
-isDailyCloseMinute = (nyHour == dailyCloseH and nyMinute == dailyCloseM)
 
 if showDailyOpenLine
     // Start new line at open minute
