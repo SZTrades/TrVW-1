@@ -72,6 +72,12 @@ showDebug    = input.bool(false, "Show debug plots")
 showAsiaBox  = input.bool(true, "Show Asia box (pink)")
 showLondonBox= input.bool(true, "Show London box (blue)")
 showWeeklyHL = input.bool(true, "Show Weekly High/Low")
+asiaColor    = input.color(color.fuchsia, "Asia color")
+asiaFillT    = input.int(85, "Asia box transparency", minval=0, maxval=100)
+asiaLineW    = input.int(1, "Asia line width", minval=1, maxval=5)
+londonColor  = input.color(color.blue, "London color")
+londonFillT  = input.int(85, "London box transparency", minval=0, maxval=100)
+londonLineW  = input.int(1, "London line width", minval=1, maxval=5)
 
 // ==========================
 // Time helpers (ET)
@@ -275,10 +281,10 @@ if inAsia and not inAsia[1]
     asiaHigh := high
     asiaLow  := low
     if showAsiaBox
-        asiaBox := box.new(asiaT0, asiaHigh, asiaT0, asiaLow, xloc=xloc.bar_time, bgcolor=color.new(color.fuchsia, 85), border_color=color.fuchsia)
+        asiaBox := box.new(asiaT0, asiaHigh, asiaT0, asiaLow, xloc=xloc.bar_time, bgcolor=color.new(asiaColor, asiaFillT), border_color=asiaColor)
     // create lines anchored at session start
-    asiaHiLn := line.new(asiaT0, asiaHigh, time, asiaHigh, xloc=xloc.bar_time, extend=extend.none, color=color.fuchsia, width=1)
-    asiaLoLn := line.new(asiaT0, asiaLow,  time, asiaLow,  xloc=xloc.bar_time, extend=extend.none, color=color.fuchsia, width=1)
+    asiaHiLn := line.new(asiaT0, asiaHigh, time, asiaHigh, xloc=xloc.bar_time, extend=extend.none, color=asiaColor, width=asiaLineW)
+    asiaLoLn := line.new(asiaT0, asiaLow,  time, asiaLow,  xloc=xloc.bar_time, extend=extend.none, color=asiaColor, width=asiaLineW)
 
 if inAsia
     // update extremes
@@ -309,9 +315,9 @@ if inLondon and not inLondon[1]
     londonHigh := high
     londonLow  := low
     if showLondonBox
-        londonBox := box.new(londonT0, londonHigh, londonT0, londonLow, xloc=xloc.bar_time, bgcolor=color.new(color.blue, 85), border_color=color.blue)
-    londonHiLn := line.new(londonT0, londonHigh, time, londonHigh, xloc=xloc.bar_time, extend=extend.none, color=color.blue, width=1)
-    londonLoLn := line.new(londonT0, londonLow,  time, londonLow,  xloc=xloc.bar_time, extend=extend.none, color=color.blue, width=1)
+        londonBox := box.new(londonT0, londonHigh, londonT0, londonLow, xloc=xloc.bar_time, bgcolor=color.new(londonColor, londonFillT), border_color=londonColor)
+    londonHiLn := line.new(londonT0, londonHigh, time, londonHigh, xloc=xloc.bar_time, extend=extend.none, color=londonColor, width=londonLineW)
+    londonLoLn := line.new(londonT0, londonLow,  time, londonLow,  xloc=xloc.bar_time, extend=extend.none, color=londonColor, width=londonLineW)
 
 if inLondon
     londonHigh := math.max(londonHigh, high)
