@@ -1,0 +1,204 @@
+//@version=6
+indicator("SZTrades Market Structure Detector", "SZT MS", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// Swing Detection Settings
+swingLength = input.int(5, "Swing Detection Length", minval=2, maxval=50, tooltip="Lower values = more sensitive. Use 3-7 for 1-5m, 8-15 for 15m+", group="Swing Detection")
+minSwingSize = input.float(0.0, "Minimum Swing Size (Points)", minval=0.0, tooltip="Filter out small swings. Use 0 for maximum sensitivity", group="Swing Detection")
+
+// Display Settings  
+showZigzag = input.bool(true, "Show Zigzag Lines", group="Display")
+showLabels = input.bool(true, "Show HH/HL/LH/LL Labels", group="Display")
+
+// Colors
+bullColor = input.color(color.new(color.green, 0), "Bullish Color", group="Colors")
+bearColor = input.color(color.new(color.red, 0), "Bearish Color", group="Colors")
+
+// Line Settings
+lineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Display")
+labelSize = input.string("small", "Label Size", options=["tiny", "small", "normal", "large"], group="Display")
+
+// ====================================
+// ==== Swing Detection ====
+// ====================================
+
+// More sensitive swing detection
+isSwingHigh = ta.pivothigh(high, swingLength, swingLength)
+isSwingLow = ta.pivotlow(low, swingLength, swingLength)
+
+// Filter by minimum swing size if specified
+validSwingHigh = not na(isSwingHigh) and (minSwingSize == 0.0 or (high[swingLength] - low[swingLength*2] >= minSwingSize))
+validSwingLow = not na(isSwingLow) and (minSwingSize == 0.0 or (high[swingLength*2] - low[swingLength] >= minSwingSize))
+
+// ====================================
+// ==== Market Structure Variables ====
+// ====================================
+
+var float lastHighPrice = na
+var int lastHighBar = na
+var float lastLowPrice = na
+var int lastLowBar = na
+var float prevHighPrice = na
+var int prevHighBar = na
+var float prevLowPrice = na
+var int prevLowBar = na
+
+var string currentTrend = "Unknown" // "Bullish", "Bearish", "Unknown"
+var string lastStructure = "Unknown" // "HH", "HL", "LH", "LL"
+
+// Arrays to store zigzag points
+var array<float> zigzagPrices = array.new<float>()
+var array<int> zigzagBars = array.new<int>()
+var array<bool> zigzagIsHigh = array.new<bool>()
+
+// ====================================
+// ==== Structure Detection Logic ====
+// ====================================
+
+// Convert label size string to Pine size
+labelSizeConverted = labelSize == "tiny" ? size.tiny : labelSize == "small" ? size.small : labelSize == "normal" ? size.normal : size.large
+
+// Process swing highs
+if validSwingHigh
+    currentHigh = high[swingLength]
+    currentHighBar = bar_index - swingLength
+    
+    // Store previous values
+    prevHighPrice := lastHighPrice
+    prevHighBar := lastHighBar
+    
+    // Update current values
+    lastHighPrice := currentHigh
+    lastHighBar := currentHighBar
+    
+    // Add to zigzag arrays
+    array.unshift(zigzagPrices, currentHigh)
+    array.unshift(zigzagBars, currentHighBar)
+    array.unshift(zigzagIsHigh, true)
+    if array.size(zigzagPrices) > 10
+        array.pop(zigzagPrices)
+        array.pop(zigzagBars)
+        array.pop(zigzagIsHigh)
+    
+    // Determine structure type
+    if not na(prevHighPrice)
+        if currentHigh > prevHighPrice
+            lastStructure := "HH"
+            currentTrend := "Bullish"
+        else
+            lastStructure := "LH"
+            currentTrend := "Bearish"
+        
+        // Create label
+        if showLabels
+            labelColor = lastStructure == "HH" ? bullColor : bearColor
+            label.new(currentHighBar, currentHigh, 
+                     text=lastStructure, 
+                     color=color.new(labelColor, 80), 
+                     textcolor=labelColor, 
+                     style=label.style_label_down, 
+                     size=labelSizeConverted)
+
+// Process swing lows
+if validSwingLow
+    currentLow = low[swingLength]
+    currentLowBar = bar_index - swingLength
+    
+    // Store previous values
+    prevLowPrice := lastLowPrice
+    prevLowBar := lastLowBar
+    
+    // Update current values
+    lastLowPrice := currentLow
+    lastLowBar := currentLowBar
+    
+    // Add to zigzag arrays
+    array.unshift(zigzagPrices, currentLow)
+    array.unshift(zigzagBars, currentLowBar)
+    array.unshift(zigzagIsHigh, false)
+    if array.size(zigzagPrices) > 10
+        array.pop(zigzagPrices)
+        array.pop(zigzagBars)
+        array.pop(zigzagIsHigh)
+    
+    // Determine structure type
+    if not na(prevLowPrice)
+        if currentLow < prevLowPrice
+            lastStructure := "LL"
+            currentTrend := "Bearish"
+        else
+            lastStructure := "HL"
+            currentTrend := "Bullish"
+        
+        // Create label
+        if showLabels
+            labelColor = lastStructure == "LL" ? bearColor : bullColor
+            label.new(currentLowBar, currentLow, 
+                     text=lastStructure, 
+                     color=color.new(labelColor, 80), 
+                     textcolor=labelColor, 
+                     style=label.style_label_up, 
+                     size=labelSizeConverted)
+
+// ====================================
+// ==== Zigzag Lines ====
+// ====================================
+
+// Draw zigzag line to previous swing point
+if showZigzag and array.size(zigzagPrices) >= 2
+    // Get the two most recent swing points
+    currentPrice = array.get(zigzagPrices, 0)
+    currentBar = array.get(zigzagBars, 0)
+    currentIsHigh = array.get(zigzagIsHigh, 0)
+    
+    prevPrice = array.get(zigzagPrices, 1)
+    prevBar = array.get(zigzagBars, 1)
+    prevIsHigh = array.get(zigzagIsHigh, 1)
+    
+    // Only draw line if they are different types (high to low or low to high)
+    if currentIsHigh != prevIsHigh
+        // Determine line color based on direction
+        lineColor = currentPrice > prevPrice ? bullColor : bearColor
+        
+        line.new(prevBar, prevPrice, currentBar, currentPrice, 
+                 color=lineColor, 
+                 width=lineWidth, 
+                 style=line.style_solid,
+                 extend=extend.none)
+
+// ====================================
+// ==== Current Market Structure Info ====
+// ====================================
+
+// Table to show current market structure
+if barstate.islast
+    var table infoTable = table.new(position.top_left, 2, 3, bgcolor=color.new(color.white, 20), border_width=1)
+    
+    table.clear(infoTable, 0, 0, 1, 2)
+    
+    // Headers
+    table.cell(infoTable, 0, 0, "Market Structure", text_color=color.black, text_size=size.small, bgcolor=color.new(color.white, 30))
+    table.cell(infoTable, 1, 0, "", text_color=color.black, text_size=size.small, bgcolor=color.new(color.white, 30))
+    
+    // Current trend
+    trendColor = currentTrend == "Bullish" ? bullColor : currentTrend == "Bearish" ? bearColor : color.gray
+    table.cell(infoTable, 0, 1, "Trend:", text_color=color.black, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+    table.cell(infoTable, 1, 1, currentTrend, text_color=trendColor, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+    
+    // Last structure
+    structureColor = lastStructure == "HH" or lastStructure == "HL" ? bullColor : lastStructure == "LH" or lastStructure == "LL" ? bearColor : color.gray
+    table.cell(infoTable, 0, 2, "Last:", text_color=color.black, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+    table.cell(infoTable, 1, 2, lastStructure, text_color=structureColor, text_size=size.tiny, bgcolor=color.new(color.white, 30))
+
+// ====================================
+// ==== Plots for Alerts (Optional) ====
+// ====================================
+
+// Plot invisible lines that can be used for alerts
+plotshape(validSwingHigh and lastStructure == "HH", title="Higher High", style=shape.triangleup, location=location.abovebar, color=color.new(bullColor, 100), size=size.tiny)
+plotshape(validSwingLow and lastStructure == "HL", title="Higher Low", style=shape.triangleup, location=location.belowbar, color=color.new(bullColor, 100), size=size.tiny)
+plotshape(validSwingHigh and lastStructure == "LH", title="Lower High", style=shape.triangledown, location=location.abovebar, color=color.new(bearColor, 100), size=size.tiny)
+plotshape(validSwingLow and lastStructure == "LL", title="Lower Low", style=shape.triangledown, location=location.belowbar, color=color.new(bearColor, 100), size=size.tiny)

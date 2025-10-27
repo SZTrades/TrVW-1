@@ -1,0 +1,164 @@
+//@version=6
+indicator("Liquidity Sonar", "Sonar", overlay=true)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// Level Display Settings
+showWeeklyLevels = input.bool(true, "Show Weekly H/L", group="Levels")
+showDailyLevels = input.bool(true, "Show Daily H/L", group="Levels")
+showPrevDayLevels = input.bool(true, "Show Previous Day H/L", group="Levels")
+
+// Display Settings
+showTable = input.bool(true, "Show Distance Table", group="Display")
+tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+showLabels = input.bool(true, "Show Level Labels", group="Display")
+
+// Hardcoded settings
+rayLength = 10
+labelOffset = 10
+
+// Ray Style Settings - Fixed Colors
+weeklyHighColor = input.color(color.green, "Weekly High Color", group="Ray Styles")
+weeklyLowColor = input.color(color.blue, "Weekly Low Color", group="Ray Styles")
+dailyHighColor = input.color(color.green, "Daily High Color", group="Ray Styles")
+dailyLowColor = input.color(color.blue, "Daily Low Color", group="Ray Styles")
+prevDayHighColor = input.color(color.green, "Previous Day High Color", group="Ray Styles")
+prevDayLowColor = input.color(color.blue, "Previous Day Low Color", group="Ray Styles")
+
+rayTransparency = input.int(20, "Ray Transparency", minval=0, maxval=80, step=10, group="Ray Styles")
+weeklyWidth = input.int(2, "Weekly Line Width", minval=1, maxval=4, group="Ray Styles")
+dailyWidth = input.int(1, "Daily Line Width", minval=1, maxval=4, group="Ray Styles")
+prevDayWidth = input.int(1, "Previous Day Width", minval=1, maxval=3, group="Ray Styles")
+
+// ====================================
+// ==== Level Calculations ====
+// ====================================
+
+// Weekly levels (previous week for liquidity hunting)
+prevWeeklyHigh = request.security(syminfo.tickerid, "1W", high[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+prevWeeklyLow = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+weeklyHigh = request.security(syminfo.tickerid, "1W", high, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+weeklyLow = request.security(syminfo.tickerid, "1W", low, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+
+// Daily levels (RTH session: 18:00-17:00 ET next day)
+dailyHigh = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+dailyLow = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+prevDailyHigh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+prevDailyLow = request.security(syminfo.tickerid, "1D", low[1], lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+
+
+
+// ====================================
+// ==== Distance Calculations ====
+// ====================================
+
+// Current price reference
+currentPrice = close
+
+// Distance to weekly levels (use previous week as main target)
+distToWeeklyHigh = prevWeeklyHigh - currentPrice
+distToWeeklyLow = currentPrice - prevWeeklyLow
+distToPrevWeeklyHigh = prevWeeklyHigh - currentPrice
+distToPrevWeeklyLow = currentPrice - prevWeeklyLow
+
+// Distance to daily levels
+distToDailyHigh = dailyHigh - currentPrice
+distToDailyLow = currentPrice - dailyLow
+distToPrevDailyHigh = prevDailyHigh - currentPrice
+distToPrevDailyLow = currentPrice - prevDailyLow
+
+
+
+// ====================================
+// ==== Level Rays (Horizontal Lines) ====
+// ====================================
+
+// Weekly levels (previous week only - main liquidity targets)
+if showWeeklyLevels and barstate.islast
+    // Previous week levels (main targets)
+    line.new(bar_index, prevWeeklyHigh, bar_index + rayLength, prevWeeklyHigh, extend=extend.none, color=color.new(weeklyHighColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
+    line.new(bar_index, prevWeeklyLow, bar_index + rayLength, prevWeeklyLow, extend=extend.none, color=color.new(weeklyLowColor, rayTransparency), width=weeklyWidth, style=line.style_solid)
+
+// Daily levels (current day only)
+if showDailyLevels and barstate.islast
+    // Current day levels
+    line.new(bar_index, dailyHigh, bar_index + rayLength, dailyHigh, extend=extend.none, color=color.new(dailyHighColor, rayTransparency), width=dailyWidth, style=line.style_solid)
+    line.new(bar_index, dailyLow, bar_index + rayLength, dailyLow, extend=extend.none, color=color.new(dailyLowColor, rayTransparency), width=dailyWidth, style=line.style_solid)
+
+// Previous daily levels
+if showPrevDayLevels and barstate.islast
+    line.new(bar_index, prevDailyHigh, bar_index + rayLength, prevDailyHigh, extend=extend.none, color=color.new(prevDayHighColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
+    line.new(bar_index, prevDailyLow, bar_index + rayLength, prevDailyLow, extend=extend.none, color=color.new(prevDayLowColor, rayTransparency + 20), width=prevDayWidth, style=line.style_dashed)
+
+// ====================================
+// ==== Level Labels ====
+// ====================================
+
+// Clean up old labels to prevent trail
+var array<label> allLabels = array.new<label>()
+
+if showLabels and barstate.islast
+    // Clear old labels
+    if array.size(allLabels) > 0
+        for i = 0 to array.size(allLabels) - 1
+            label.delete(array.get(allLabels, i))
+        array.clear(allLabels)
+    
+    labelX = bar_index + labelOffset
+    
+    // Weekly levels (previous week - main targets)
+    if showWeeklyLevels
+        pwh_label = label.new(labelX, prevWeeklyHigh, text="PW. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        pwl_label = label.new(labelX, prevWeeklyLow, text="PW. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        array.push(allLabels, pwh_label)
+        array.push(allLabels, pwl_label)
+    
+    // Daily levels (current day) - same offset as PD levels
+    if showDailyLevels
+        dh_label = label.new(labelX, dailyHigh, text="D. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        dl_label = label.new(labelX, dailyLow, text="D. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        array.push(allLabels, dh_label)
+        array.push(allLabels, dl_label)
+    
+    // Previous daily levels - same consistent offset
+    if showPrevDayLevels
+        pdh_label = label.new(labelX, prevDailyHigh, text="PD. H", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        pdl_label = label.new(labelX, prevDailyLow, text="PD. L", style=label.style_none, color=na, textcolor=color.black, size=size.normal)
+        array.push(allLabels, pdh_label)
+        array.push(allLabels, pdl_label)
+
+// ====================================
+// ==== Clean Distance Table ====
+// ====================================
+
+if showTable and barstate.islast
+    tablePos = tablePosition == "top_left" ? position.top_left : tablePosition == "top_center" ? position.top_center : tablePosition == "top_right" ? position.top_right : tablePosition == "middle_left" ? position.middle_left : tablePosition == "middle_center" ? position.middle_center : tablePosition == "middle_right" ? position.middle_right : tablePosition == "bottom_left" ? position.bottom_left : tablePosition == "bottom_center" ? position.bottom_center : position.bottom_right
+    var table sonarTable = table.new(position = tablePos, columns = 2, rows = 7, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+    
+    // Clear table
+    table.clear(sonarTable, 0, 0, 1, 6)
+    
+    // Header
+    table.cell(sonarTable, 0, 0, "Targets", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 0, "Dist.", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+    
+    // Sonar Layout: Center to extremes (high to low)
+    table.cell(sonarTable, 0, 1, "PW. H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 1, str.tostring(distToWeeklyHigh, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 2, "D. H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 2, str.tostring(distToDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 3, "PD. H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 3, str.tostring(distToPrevDailyHigh, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 4, "PD. L", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 4, str.tostring(distToPrevDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 5, "D. L", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 5, str.tostring(distToDailyLow, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    table.cell(sonarTable, 0, 6, "PW. L", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(sonarTable, 1, 6, str.tostring(distToWeeklyLow, "#.#") + " pts", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))

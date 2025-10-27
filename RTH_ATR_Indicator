@@ -1,0 +1,111 @@
+//@version=6
+indicator("SZTrades Avg. ATR", "Avg. ATR", overlay=true)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// Session Settings
+sessionStart = input.session("0930-0931", "Session Start Time", group="Session Settings", tooltip="When to start ATR calculation (default: 9:30 AM for RTH)")
+sessionEnd = input.session("1600-1601", "Session End Time", group="Session Settings", tooltip="Session end time for reference")
+
+// ATR Settings
+atrPeriods = input.int(4, "ATR Periods", minval=1, maxval=100, step=1, group="ATR Settings", tooltip="Number of bars to average for ATR calculation")
+multiplier = input.float(0.5, "Target Multiplier", minval=0.1, maxval=2.0, step=0.1, group="ATR Settings", tooltip="Multiply ATR by this for conservative target (0.5 = golden chunk)")
+
+// Display Settings
+showTable = input.bool(true, "Show ATR Table", group="Display")
+tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+showLines = input.bool(false, "Show ATR Lines", group="Display", tooltip="Show visual target lines from current price")
+
+// ====================================
+// ==== RTH ATR Logic ====
+// ====================================
+
+// Variables to store RTH data
+var array<float> rth_ranges = array.new<float>()
+var float current_rth_atr = na
+var bool rth_session_active = false
+
+// Check if we're in session (user-defined times)
+session_start = not na(time(timeframe.period, sessionStart, timezone.New_York))
+in_session = not na(time(timeframe.period, str.substring(sessionStart, 0, 4) + "-" + str.substring(sessionEnd, 0, 4), timezone.New_York))
+
+// Daily reset
+is_new_day = ta.change(dayofweek) != 0
+if is_new_day
+    array.clear(rth_ranges)
+    current_rth_atr := na
+    rth_session_active := false
+
+// Start tracking from session start
+if session_start and not rth_session_active
+    rth_session_active := true
+
+// Calculate True Range for current bar (only during session)
+if rth_session_active and in_session
+    // True Range = max of (high-low, high-prev_close, prev_close-low)
+    true_range = math.max(high - low, math.max(math.abs(high - close[1]), math.abs(close[1] - low)))
+    
+    // On timeframe close, add to our RTH ranges array
+    if barstate.isconfirmed
+        array.push(rth_ranges, true_range)
+        
+        // Keep only last X bars (user-defined)
+        if array.size(rth_ranges) > atrPeriods
+            array.shift(rth_ranges)
+        
+        // Calculate RTH ATR (average of available ranges)
+        if array.size(rth_ranges) > 0
+            sum_ranges = 0.0
+            for i = 0 to array.size(rth_ranges) - 1
+                sum_ranges += array.get(rth_ranges, i)
+            current_rth_atr := sum_ranges / array.size(rth_ranges)
+
+// Calculate target range
+target_range = not na(current_rth_atr) ? current_rth_atr * multiplier : na
+
+
+
+// ====================================
+// ==== Table Display ====
+// ====================================
+
+if showTable and barstate.islast and not na(current_rth_atr)
+    var table atr_table = table.new(position = tablePosition == "top_left" ? position.top_left : 
+                                   tablePosition == "top_center" ? position.top_center :
+                                   tablePosition == "top_right" ? position.top_right :
+                                   tablePosition == "middle_left" ? position.middle_left :
+                                   tablePosition == "middle_center" ? position.middle_center :
+                                   tablePosition == "middle_right" ? position.middle_right :
+                                   tablePosition == "bottom_left" ? position.bottom_left :
+                                   tablePosition == "bottom_center" ? position.bottom_center :
+                                   position.bottom_right, 
+                                   columns = 2, rows = 3, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+    
+    // Clear table
+    table.clear(atr_table, 0, 0, 1, 2)
+    
+    // Headers
+    table.cell(atr_table, 0, 0, "Avg.", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+    table.cell(atr_table, 1, 0, "(" + str.tostring(atrPeriods) + ")", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+    
+    // Current ATR
+    table.cell(atr_table, 0, 1, "Current", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(atr_table, 1, 1, str.tostring(current_rth_atr, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    // Target
+    table.cell(atr_table, 0, 2, "Target", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    table.cell(atr_table, 1, 2, str.tostring(target_range, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+
+// ====================================
+// ==== Optional Visual Lines ====
+// ====================================
+
+// Current price reference lines (ATR Lines)
+upper_target = showLines and not na(current_rth_atr) ? close + target_range : na
+lower_target = showLines and not na(current_rth_atr) ? close - target_range : na
+
+// Plot target range from current price
+plot(upper_target, "Upper Target", color=color.new(color.green, 50), linewidth=1, style=plot.style_circles)
+plot(lower_target, "Lower Target", color=color.new(color.red, 50), linewidth=1, style=plot.style_circles)
