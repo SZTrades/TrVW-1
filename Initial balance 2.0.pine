@@ -18,7 +18,7 @@ showIBStats    = input.bool(true,   "Show IB stats",                            
 tblPosOpt = input.string("Bottom Left", "Stats table position",
                  options=["Top Left","Top Center","Top Right","Bottom Left","Bottom Center","Bottom Right"], group="Display")
 // Table styling
-tableTextSize   = size.tiny
+tableTextSize   = size.small
 tableTextColor  = color.black
 tableBgColor    = color.white
 tableBorderColor = color.black
