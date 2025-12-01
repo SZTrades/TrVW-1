@@ -23,6 +23,10 @@ tableTextColor  = color.black
 tableBgColor    = color.white
 tableBorderColor = color.black
 tableBorderWidth = 1
+setTableCell(tbl, col, row, text, txtColor=tableTextColor) =>
+    table.cell(tbl, col, row, text, text_color=txtColor, text_size=tableTextSize, bgcolor=tableBgColor)
+    table.cell_set_border_color(tbl, col, row, tableBorderColor)
+    table.cell_set_border_width(tbl, col, row, tableBorderWidth)
 
 lblSizeOpt     = input.string("Small", "Label size",
                  options=["Auto","Huge","Large","Normal","Small","Tiny"],        group="Styling")
@@ -209,14 +213,14 @@ if showIBStats
         statTbl := table.new(posOf(tblPosOpt), 2, 4)
         lastTblPos := tblPosOpt
 
-    table.cell(statTbl, 0, 0, "IB Stats",      text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
-    table.cell(statTbl, 1, 0, "",              text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
-    table.cell(statTbl, 0, 1, "20d Mean",      text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
-    table.cell(statTbl, 1, 1, str.tostring(mean20, "#.####"), text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
-    table.cell(statTbl, 0, 2, "Today",         text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
-    table.cell(statTbl, 1, 2, str.tostring(delta),            text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
-    table.cell(statTbl, 0, 3, "Today/20d Avg", text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
-    table.cell(statTbl, 1, 3, na(ratio) ? "na" : str.tostring(ratio, "#.##") + "%", text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    setTableCell(statTbl, 0, 0, "IB Stats", tableTextColor)
+    setTableCell(statTbl, 1, 0, "", tableTextColor)
+    setTableCell(statTbl, 0, 1, "20d Mean", tableTextColor)
+    setTableCell(statTbl, 1, 1, str.tostring(mean20, "#.####"), tableTextColor)
+    setTableCell(statTbl, 0, 2, "Today", tableTextColor)
+    setTableCell(statTbl, 1, 2, str.tostring(delta), tableTextColor)
+    setTableCell(statTbl, 0, 3, "Today/20d Avg", tableTextColor)
+    setTableCell(statTbl, 1, 3, na(ratio) ? "na" : str.tostring(ratio, "#.##") + "%", tableTextColor)
 else
     if not na(statTbl)
         table.delete(statTbl)
