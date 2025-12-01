@@ -1,0 +1,223 @@
+//@version=6
+indicator("IB Range Breakout", shorttitle="InitialBal", overlay=true, max_bars_back=5000)
+
+// ╔═════════════════════╗
+// ║   USER PREFERENCES  ║
+// ╚═════════════════════╝
+ibWindow      = input.session("0930-1030",    "IB calculation window",           group="Range Settings")
+drawExtras     = input.bool(true,   "Plot St. Dev. extensions",                 group="Display")
+drawMidPoints  = input.bool(true,   "Plot 50 % mid-levels",                      group="Display")
+shadeWindow    = input.bool(false,  "Highlight IB window on chart",              group="Display")
+renderLabels   = input.bool(true,   "Show price labels",                         group="Display")
+shadeZones     = input.bool(true,   "Tint IB high-low area",                     group="Display")
+thisDayOnly    = input.bool(true,   "Keep only today’s levels",                  group="Display")
+thisZoneOnly   = input.bool(false,  "Keep only today’s tinted zone",             group="Display")
+showIBStats    = input.bool(true,   "Show IB stats",                             group="Display")
+
+// Table position
+tblPosOpt = input.string("Bottom Left", "Stats table position",
+                 options=["Top Left","Top Center","Top Right","Bottom Left","Bottom Center","Bottom Right"], group="Display")
+// Table styling
+tableTextSize   = size.tiny
+tableTextColor  = color.black
+tableBgColor    = color.white
+tableBorderColor = color.black
+tableBorderWidth = 1
+
+lblSizeOpt     = input.string("Small", "Label size",
+                 options=["Auto","Huge","Large","Normal","Small","Tiny"],        group="Styling")
+lineWidth      = input.int(1, "Line width",                                      group="Styling")
+clrHigh        = input.color(color.green, "High-side colour",                    group="Styling")
+clrLow         = input.color(color.red,   "Low-side colour",                     group="Styling")
+clrMid         = input.color(#ffa726,      "Mid-level colour",                   group="Styling")
+extendOpt      = input.string("Right", "Extend lines",
+                 options=["Right","Left","Both","None"],                         group="Styling")
+mainStyle      = input.string("Solid",  "Main level style",
+                 options=["Solid","Dashed","Dotted"],                            group="Styling")
+extStyle       = input.string("Dashed", "St. Dev. level style",
+                 options=["Solid","Dashed","Dotted"],                            group="Styling")
+midStyle       = input.string("Dotted", "Mid-level style",
+                 options=["Solid","Dashed","Dotted"],                            group="Styling")
+zoneTint       = input.color(#b8851faa, "Zone fill colour",                      group="Styling")
+
+// Extra styling controls for St. Dev. and 50% lines
+extLineWidth   = input.int(1, "St. Dev. line width",                             group="Styling")
+clrHighExt     = input.color(color.green, "St. Dev. high colour",      group="Styling")
+clrLowExt      = input.color(color.red,  "St. Dev. low colour",       group="Styling")
+
+halfStyle      = input.string("Dotted", "50% level style",
+                 options=["Solid","Dashed","Dotted"],                            group="Styling")
+halfLineWidth  = input.int(1, "50% line width",                                   group="Styling")
+clrHalf        = input.color(#ffa726, "50% level colour",           group="Styling")
+
+// ──────────────────────────────────────────────
+// Utility helpers
+// ──────────────────────────────────────────────
+extendMode() =>
+     extendOpt=="Right"?extend.right:extendOpt=="Left"?extend.left:
+     extendOpt=="Both"?extend.both:extend.none
+styleOf(s) =>
+     s=="Solid"?line.style_solid:s=="Dotted"?line.style_dotted:line.style_dashed
+within(t) => not na(time(timeframe.period, t))
+calcIB(n) =>
+    hi = high[1]
+    lo = low[1]
+    for i=1 to n
+        if low[i] < lo
+            lo := low[i]
+        if high[i] > hi
+            hi := high[i]
+    [hi, lo, (hi+lo)/2]
+
+posOf(p) =>
+    p=="Top Left"?position.top_left:
+     p=="Top Center"?position.top_center:
+     p=="Top Right"?position.top_right:
+     p=="Bottom Left"?position.bottom_left:
+     p=="Bottom Center"?position.bottom_center:position.bottom_right
+
+// ──────────────────────────────────────────────
+// Persistent containers
+// ──────────────────────────────────────────────
+var float  delta     = na
+var int    barsCount = 0
+var array<float> dBuf = array.new_float(20)
+
+// lines
+var line lnH  = na
+var line lnL  = na
+var line lnM  = na
+var line lnH2 = na
+var line lnL2 = na
+var line lnH3 = na
+var line lnL3 = na
+var line lnHM = na
+var line lnLM = na
+// labels
+var label lbH  = na
+var label lbL  = na
+var label lbM  = na
+var label lbH2 = na
+var label lbL2 = na
+var label lbH3 = na
+var label lbL3 = na
+var label lbHM = na
+var label lbLM = na
+// zone box
+var box   ibBox = na
+
+// label size map
+getLblSize() =>
+     lblSizeOpt=="Huge"?size.huge :
+     lblSizeOpt=="Large"?size.large :
+     lblSizeOpt=="Small"?size.small :
+     lblSizeOpt=="Tiny"?size.tiny :
+     lblSizeOpt=="Auto"?size.auto : size.normal
+
+// highlight calc window
+active = within(ibWindow)
+bgcolor(shadeWindow and active ? #673ab730 : na)
+
+// ──────────────────────────────────────────────
+// Main logic
+// ──────────────────────────────────────────────
+if active
+    barsCount += 1
+
+if active[1] and not active
+    // Finish window – compute levels
+    [hi, lo, mid] = calcIB(barsCount)
+    delta := hi - lo
+    // maintain 20-day buffer
+    if array.size(dBuf) >= 20
+        array.shift(dBuf)
+    array.push(dBuf, delta)
+
+    // clear previous if “today only”
+    if thisDayOnly
+        line.delete(lnH), line.delete(lnL), line.delete(lnM)
+        line.delete(lnH2), line.delete(lnL2), line.delete(lnH3), line.delete(lnL3)
+        line.delete(lnHM), line.delete(lnLM)
+        label.delete(lbH), label.delete(lbL), label.delete(lbM)
+        label.delete(lbH2), label.delete(lbL2), label.delete(lbH3), label.delete(lbL3)
+        label.delete(lbHM), label.delete(lbLM)
+    if shadeZones and thisZoneOnly
+        box.delete(ibBox)
+
+    // draw new lines
+    ext = extendMode()
+    lnH  := line.new(bar_index[barsCount], hi,  bar_index, hi,  width=lineWidth, extend=ext, color=clrHigh, style=styleOf(mainStyle))
+    lnL  := line.new(bar_index[barsCount], lo,  bar_index, lo,  width=lineWidth, extend=ext, color=clrLow,  style=styleOf(mainStyle))
+    if drawMidPoints
+        lnM := line.new(bar_index[barsCount], mid, bar_index, mid, width=lineWidth, extend=ext, color=clrMid, style=styleOf(midStyle))
+    if drawExtras
+        lnH2 := line.new(bar_index[barsCount], hi+delta,       bar_index, hi+delta,       width=extLineWidth, extend=ext, color=clrHighExt, style=styleOf(extStyle))
+        lnL2 := line.new(bar_index[barsCount], lo-delta,       bar_index, lo-delta,       width=extLineWidth, extend=ext, color=clrLowExt,  style=styleOf(extStyle))
+        lnH3 := line.new(bar_index[barsCount], hi+delta*2,     bar_index, hi+delta*2,     width=extLineWidth, extend=ext, color=clrHighExt, style=styleOf(extStyle))
+        lnL3 := line.new(bar_index[barsCount], lo-delta*2,     bar_index, lo-delta*2,     width=extLineWidth, extend=ext, color=clrLowExt,  style=styleOf(extStyle))
+        if drawMidPoints
+            lnHM := line.new(bar_index[barsCount], hi+delta/2, bar_index, hi+delta/2,     width=halfLineWidth, extend=ext, color=clrHalf,  style=styleOf(halfStyle))
+            lnLM := line.new(bar_index[barsCount], lo-delta/2, bar_index, lo-delta/2,     width=halfLineWidth, extend=ext, color=clrHalf,  style=styleOf(halfStyle))
+
+    // labels
+    if renderLabels
+        sz = getLblSize()
+        lbH  := label.new(bar_index[barsCount], hi, text="IB High\n"+str.tostring(hi),            textcolor=clrHigh, style=label.style_none, size=sz)
+        lbL  := label.new(bar_index[barsCount], lo, text="IB Low\n"+str.tostring(lo),            textcolor=clrLow,  style=label.style_none, size=sz)
+        if drawMidPoints
+            lbM := label.new(bar_index[barsCount], mid, text="Mid 50 %\n"+str.tostring(mid)+"\nΔ="+str.tostring(delta), textcolor=clrMid, style=label.style_none, size=sz)
+        if drawExtras
+            lbH2 := label.new(bar_index[barsCount], hi+delta,     text="High 1 St. Dev.\n"+str.tostring(hi+delta),     textcolor=clrHighExt, style=label.style_none, size=sz)
+            lbL2 := label.new(bar_index[barsCount], lo-delta,     text="Low 1 St. Dev.\n"+str.tostring(lo-delta),     textcolor=clrLowExt,  style=label.style_none, size=sz)
+            lbH3 := label.new(bar_index[barsCount], hi+delta*2,   text="High 2 St. Dev.\n"+str.tostring(hi+delta*2),   textcolor=clrHighExt, style=label.style_none, size=sz)
+            lbL3 := label.new(bar_index[barsCount], lo-delta*2,   text="Low 2 St. Dev.\n"+str.tostring(lo-delta*2),   textcolor=clrLowExt,  style=label.style_none, size=sz)
+            if drawMidPoints
+                lbHM := label.new(bar_index[barsCount], hi+delta/2, text="High 50%", textcolor=clrHalf, style=label.style_none, size=sz)
+                lbLM := label.new(bar_index[barsCount], lo-delta/2, text="Low 50%",  textcolor=clrHalf, style=label.style_none, size=sz)
+
+    // zone tint
+    if shadeZones
+        ibBox := box.new(bar_index[barsCount], hi, bar_index, lo, bgcolor=zoneTint, border_color=#00000000)
+
+    // reset
+    barsCount := 0
+
+// Extend lines on every subsequent bar
+if not active and not active[1]
+    line.set_x2(lnH, bar_index), line.set_x2(lnL, bar_index)
+    if drawMidPoints
+        line.set_x2(lnM, bar_index)
+    if drawExtras
+        line.set_x2(lnH2, bar_index), line.set_x2(lnL2, bar_index)
+        line.set_x2(lnH3, bar_index), line.set_x2(lnL3, bar_index)
+        if drawMidPoints
+            line.set_x2(lnHM, bar_index), line.set_x2(lnLM, bar_index)
+
+// ╔═════════════════════╗
+// ║   IB STATS          ║
+// ╚═════════════════════╝
+var table statTbl = na
+var string lastTblPos = na
+if showIBStats
+    mean20 = array.avg(dBuf)
+    ratio  = na(mean20) or mean20 == 0 ? na : (delta / mean20) * 100
+
+    // recreate table when position changes or first use
+    if na(statTbl) or lastTblPos != tblPosOpt
+        if not na(statTbl)
+            table.delete(statTbl)
+        statTbl := table.new(posOf(tblPosOpt), 2, 4)
+        lastTblPos := tblPosOpt
+
+    table.cell(statTbl, 0, 0, "IB Stats",      text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    table.cell(statTbl, 1, 0, "",              text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    table.cell(statTbl, 0, 1, "20d Mean",      text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    table.cell(statTbl, 1, 1, str.tostring(mean20, "#.####"), text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    table.cell(statTbl, 0, 2, "Today",         text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    table.cell(statTbl, 1, 2, str.tostring(delta),            text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    table.cell(statTbl, 0, 3, "Today/20d Avg", text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+    table.cell(statTbl, 1, 3, na(ratio) ? "na" : str.tostring(ratio, "#.##") + "%", text_color=tableTextColor, text_size=tableTextSize, bgcolor=tableBgColor, border_color=tableBorderColor, border_width=tableBorderWidth)
+else
+    if not na(statTbl)
+        table.delete(statTbl)
+        statTbl := na
