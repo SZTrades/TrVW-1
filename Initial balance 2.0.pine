@@ -23,10 +23,8 @@ tableTextColor  = color.black
 tableBgColor    = color.white
 tableBorderColor = color.black
 tableBorderWidth = 1
-setTableCell(tbl, col, row, cellText, txtColor=tableTextColor) =>
+setTableCell(tbl, col, row, cellText, txtColor) =>
     table.cell(tbl, col, row, cellText, text_color=txtColor, text_size=tableTextSize, bgcolor=tableBgColor)
-    table.cell_set_border_color(tbl, col, row, tableBorderColor)
-    table.cell_set_border_width(tbl, col, row, tableBorderWidth)
 
 lblSizeOpt     = input.string("Small", "Label size",
                  options=["Auto","Huge","Large","Normal","Small","Tiny"],        group="Styling")
