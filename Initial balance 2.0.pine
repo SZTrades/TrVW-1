@@ -23,8 +23,8 @@ tableTextColor  = color.black
 tableBgColor    = color.white
 tableBorderColor = color.black
 tableBorderWidth = 1
-setTableCell(tbl, col, row, text, txtColor=tableTextColor) =>
-    table.cell(tbl, col, row, text, text_color=txtColor, text_size=tableTextSize, bgcolor=tableBgColor)
+setTableCell(tbl, col, row, cellText, txtColor=tableTextColor) =>
+    table.cell(tbl, col, row, cellText, text_color=txtColor, text_size=tableTextSize, bgcolor=tableBgColor)
     table.cell_set_border_color(tbl, col, row, tableBorderColor)
     table.cell_set_border_width(tbl, col, row, tableBorderWidth)
 
