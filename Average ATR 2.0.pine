@@ -20,7 +20,6 @@ showLines = input.bool(false, "Show ATR Lines", group="Display")
 tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
 tableTextSize = size.small
 tableBgColor = color.new(color.white, 5)
-tableCellHeight = 12
 
 // ====================================
 // ==== ATR Calculation ====
@@ -95,7 +94,6 @@ var string mtf_table_pos = ""
 rowsCount = 5
 setTableCell(tbl, col, row, cellText, txtColor) =>
     table.cell(tbl, col, row, cellText, text_color=txtColor, text_size=tableTextSize, bgcolor=tableBgColor)
-    table.cell_set_height(tbl, col, row, tableCellHeight)
 
 if showTable and barstate.islast
     desiredPos = posFromString(tablePosition)
