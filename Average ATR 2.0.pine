@@ -20,7 +20,7 @@ showLines = input.bool(false, "Show ATR Lines", group="Display")
 tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
 tableTextSize = size.small
 tableBgColor = color.new(color.white, 5)
-tableCellHeight = 16
+tableCellHeight = 12
 
 // ====================================
 // ==== ATR Calculation ====
