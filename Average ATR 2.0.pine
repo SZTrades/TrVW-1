@@ -91,18 +91,19 @@ posFromString(pos) =>
 
 var table mtf_table = na
 var string mtf_table_pos = ""
-rowsCount = 5
 setTableCell(tbl, col, row, cellText, txtColor) =>
     table.cell(tbl, col, row, cellText, text_color=txtColor, text_size=tableTextSize, bgcolor=tableBgColor)
 
 if showTable and barstate.islast
     desiredPos = posFromString(tablePosition)
+    columnsCount = showAlignment ? 6 : 2
+    rowsCount = 1
     if na(mtf_table) or mtf_table_pos != tablePosition
         if not na(mtf_table)
             table.delete(mtf_table)
-        mtf_table := table.new(desiredPos, columns=2, rows=rowsCount, bgcolor=color.new(color.white, 5), border_width=1, border_color=color.black)
+        mtf_table := table.new(desiredPos, columns=columnsCount, rows=rowsCount, bgcolor=color.new(color.white, 5), border_width=1, border_color=color.black)
         mtf_table_pos := tablePosition
-    table.clear(mtf_table, 0, 0, 1, rowsCount - 1)
+    table.clear(mtf_table, 0, 0, columnsCount - 1, rowsCount - 1)
 
     // ATR row
     setTableCell(mtf_table, 0, 0, "Avg. ATR", color.black)
@@ -110,17 +111,10 @@ if showTable and barstate.islast
     setTableCell(mtf_table, 1, 0, atrDisplay, not na(current_rth_atr) ? color.black : color.gray)
 
     if showAlignment
-        setTableCell(mtf_table, 0, 1, "2H", color.black)
-        setTableCell(mtf_table, 1, 1, tf_2h_bull ? "BULL" : "BEAR", tf_2h_bull ? color.green : color.red)
-
-        setTableCell(mtf_table, 0, 2, "1H", color.black)
-        setTableCell(mtf_table, 1, 2, tf_1h_bull ? "BULL" : "BEAR", tf_1h_bull ? color.green : color.red)
-
-        setTableCell(mtf_table, 0, 3, "30M", color.black)
-        setTableCell(mtf_table, 1, 3, tf_30m_bull ? "BULL" : "BEAR", tf_30m_bull ? color.green : color.red)
-
-        setTableCell(mtf_table, 0, 4, "15M", color.black)
-        setTableCell(mtf_table, 1, 4, tf_15m_bull ? "BULL" : "BEAR", tf_15m_bull ? color.green : color.red)
+        setTableCell(mtf_table, 2, 0, "2H "+(tf_2h_bull ? "BULL" : "BEAR"), tf_2h_bull ? color.green : color.red)
+        setTableCell(mtf_table, 3, 0, "1H "+(tf_1h_bull ? "BULL" : "BEAR"), tf_1h_bull ? color.green : color.red)
+        setTableCell(mtf_table, 4, 0, "30M "+(tf_30m_bull ? "BULL" : "BEAR"), tf_30m_bull ? color.green : color.red)
+        setTableCell(mtf_table, 5, 0, "15M "+(tf_15m_bull ? "BULL" : "BEAR"), tf_15m_bull ? color.green : color.red)
 else
     if not na(mtf_table)
         table.delete(mtf_table)
