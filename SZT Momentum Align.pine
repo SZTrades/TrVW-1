@@ -68,15 +68,37 @@ t3Color = highlightMovementsT3 ? (t3Direction > 0 ? color.green : color.red) : #
 
 basicLongT3 = t3Direction > 0 and close > t3
 basicShortT3 = t3Direction < 0 and close < t3
+longTriggerT3 = basicLongT3 and not nz(basicLongT3[1])
+shortTriggerT3 = basicShortT3 and not nz(basicShortT3[1])
 
-t3Long = useT3 ? (crossT3 ? (not basicLongT3[1] and basicLongT3) : basicLongT3) : true
-t3Short = useT3 ? (crossT3 ? (not basicShortT3[1] and basicShortT3) : basicShortT3) : true
+var bool t3StateLong = true
+var bool t3StateShort = true
+if barstate.isfirst
+    t3StateLong := not useT3 or basicLongT3
+    t3StateShort := not useT3 or basicShortT3
+else
+    if not useT3
+        t3StateLong := true
+        t3StateShort := true
+    else if crossT3
+        if longTriggerT3
+            t3StateLong := true
+            t3StateShort := false
+        else if shortTriggerT3
+            t3StateLong := false
+            t3StateShort := true
+        else
+            t3StateLong := nz(t3StateLong[1], false)
+            t3StateShort := nz(t3StateShort[1], false)
+    else
+        t3StateLong := basicLongT3
+        t3StateShort := basicShortT3
 
 if inverseT3
-    prevLong = t3Long
-    prevShort = t3Short
-    t3Long := prevShort
-    t3Short := prevLong
+    prevLong = t3StateLong
+    prevShort = t3StateShort
+    t3StateLong := prevShort
+    t3StateShort := prevLong
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CVD core calculation & filter
@@ -106,20 +128,45 @@ bearCVD = not useCVD ? true : cvdDelta < -cvdThreshold
 rvIDI = math.avg(rvIDIOriginal(high, stdevLengthDI, rvIDISmoothLength), rvIDIOriginal(low, stdevLengthDI, rvIDISmoothLength))
 inertiaDI = ta.linreg(rvIDI, smoothLengthDI, 0)
 
-longDI = useDI ? (crossDI ? ta.crossover(inertiaDI, middleLineLong) : inertiaDI > middleLineLong) : true
-shortDI = useDI ? (crossDI ? ta.crossunder(inertiaDI, middleLineShort) : inertiaDI < middleLineShort) : true
+baseLongDI = inertiaDI > middleLineLong
+baseShortDI = inertiaDI < middleLineShort
+longTriggerDI = baseLongDI and not nz(baseLongDI[1])
+shortTriggerDI = baseShortDI and not nz(baseShortDI[1])
+
+var bool diStateLong = true
+var bool diStateShort = true
+if barstate.isfirst
+    diStateLong := not useDI or baseLongDI
+    diStateShort := not useDI or baseShortDI
+else
+    if not useDI
+        diStateLong := true
+        diStateShort := true
+    else if crossDI
+        if longTriggerDI
+            diStateLong := true
+            diStateShort := false
+        else if shortTriggerDI
+            diStateLong := false
+            diStateShort := true
+        else
+            diStateLong := nz(diStateLong[1], false)
+            diStateShort := nz(diStateShort[1], false)
+    else
+        diStateLong := baseLongDI
+        diStateShort := baseShortDI
 
 if inverseDI
-    prevLongDI = longDI
-    prevShortDI = shortDI
-    longDI := prevShortDI
-    shortDI := prevLongDI
+    prevLongDI = diStateLong
+    prevShortDI = diStateShort
+    diStateLong := prevShortDI
+    diStateShort := prevLongDI
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Alignment logic & signalling
 // ─────────────────────────────────────────────────────────────────────────────
-bullAligned = t3Long and bullCVD and longDI
-bearAligned = t3Short and bearCVD and shortDI
+bullAligned = t3StateLong and bullCVD and diStateLong
+bearAligned = t3StateShort and bearCVD and diStateShort
 
 newBull = bullAligned and not bullAligned[1]
 newBear = bearAligned and not bearAligned[1]
