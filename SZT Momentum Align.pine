@@ -131,6 +131,6 @@ plot(showT3Line and useT3 ? t3 : na, title='T3', linewidth=2, color=t3Color)
 
 plotshape(showBullSignals and newBull, title='Bull Alignment', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny, text='Bull')
 plotshape(showBearSignals and newBear, title='Bear Alignment', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny, text='Bear')
-plotshape(showBreakSignals and brokenMomentum, title='Momentum Break', location=location.top, style=shape.circle, color=color.new(color.orange, 0), size=size.tiny, text='Break')
+plotshape(showBreakSignals and brokenMomentum, title='Momentum Break', location=location.top, style=shape.circle, color=color.new(color.orange, 0), size=size.tiny, text='X')
 
 plot(showBullSignals or showBearSignals ? (bullAligned ? 1 : bearAligned ? -1 : 0) : na, title='Alignment State', style=plot.style_columns, color=bullAligned ? color.green : bearAligned ? color.red : color.gray, transp=70)
