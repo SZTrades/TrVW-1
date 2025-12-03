@@ -190,8 +190,8 @@ bgcolor(tintBackground ? (alignmentState == 1 ? color.new(color.green, 85) : ali
 
 plot(showT3Line and useT3 ? t3HTF : na, title='T3', linewidth=2, color=t3Color)
 
-plotshape(showBullSignals and newBull, title='Bull Align', style=shape.triangleup, color=color.green, location=location.belowbar, size=size.tiny, text='Bull')
-plotshape(showBearSignals and newBear, title='Bear Align', style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny, text='Bear')
+plotshape(showBullSignals and newBull, title='Bull Align', style=shape.triangleup, color=color.green, location=location.belowbar, size=size.tiny)
+plotshape(showBearSignals and newBear, title='Bear Align', style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny)
 plotshape(showBreakSignals and breakSignal, title='Momentum Break', style=shape.circle, color=color.orange, location=location.top, size=size.tiny, text='X')
 
 plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_columns, color=alignmentState == 1 ? color.green : alignmentState == -1 ? color.red : color.gray, transp=60)
