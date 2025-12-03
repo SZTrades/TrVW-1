@@ -1,0 +1,113 @@
+//@version=5
+// SZTrades Momentum Alignment (HTF replication)
+// Rebuilds SZT Momentum using higher-timeframe data (default 5m) while running on lower charts.
+// Based on open-source components by DaviddTech (T3 & DI, CC BY-NC-SA 4.0)
+// and Ankit_1618 (Cumulative Volume Delta, MPL 2.0).
+
+indicator('SZT Momentum Align HTF', shorttitle='SZT Momentum HTF', overlay=true, max_labels_count=500)
+
+// ─────────────────────────────────────────────
+// Higher-timeframe sourcing
+// ─────────────────────────────────────────────
+htfResolution = input.string('5', 'Higher timeframe', group='HTF Source')
+confirmOnClose = input.bool(true, 'Only use confirmed HTF closes?', group='HTF Source', tooltip='When true, signals update once the HTF bar closes (matches original timing). When false, signals stream intra-bar.')
+lookaheadMode = confirmOnClose ? barmerge.lookahead_on : barmerge.lookahead_off
+
+htfOpen  = request.security(syminfo.tickerid, htfResolution, open,  lookahead=lookaheadMode)
+htfHigh  = request.security(syminfo.tickerid, htfResolution, high,  lookahead=lookaheadMode)
+htfLow   = request.security(syminfo.tickerid, htfResolution, low,   lookahead=lookaheadMode)
+htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=lookaheadMode)
+htfVol   = request.security(syminfo.tickerid, htfResolution, volume, lookahead=lookaheadMode)
+
+// ─────────────────────────────────────────────
+// Fixed filter settings (matching 5m template)
+// ─────────────────────────────────────────────
+lengthT3 = input.int(5, 'T3 Length', group='T3 Filter')
+factorT3 = input.float(0.7, 'T3 Factor', minval=0, maxval=1, group='T3 Filter')
+
+cumulationLength = input.int(14, 'CVD Length', minval=1, group='CVD Filter')
+cvdThreshold = input.float(0.0, 'CVD Delta threshold', group='CVD Filter')
+
+middleLineLong = input.float(50.0, 'DI Long trigger', group='DI Filter')
+middleLineShort = input.float(50.0, 'DI Short trigger', group='DI Filter')
+stdevLengthDI = input.int(12, 'DI StdDev length', minval=1, group='DI Filter')
+rvIDISmoothLength = input.int(6, 'rvIDI smooth', minval=1, group='DI Filter')
+smoothLengthDI = input.int(6, 'Inertia smooth', minval=1, group='DI Filter')
+
+// Display toggles
+tintBackground = input.bool(true, 'Tint background on alignment', group='Display')
+showLabels = input.bool(true, 'Show alignment signals', group='Display')
+showDebug = input.bool(false, 'Show debug columns', group='Display')
+
+// ─────────────────────────────────────────────
+// Helper functions (operate on HTF series)
+// ─────────────────────────────────────────────
+gdT3(src, len) =>
+    ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
+
+rvIDIOriginal(src, stdevLen, smoothLen) =>
+    stdev = ta.stdev(src, stdevLen)
+    change = ta.change(src)
+    upSum = ta.ema(change >= 0 ? stdev : 0.0, smoothLen)
+    downSum = ta.ema(change >= 0 ? 0.0 : stdev, smoothLen)
+    denom = upSum + downSum
+    denom == 0.0 ? 50.0 : 100.0 * upSum / denom
+
+// ─────────────────────────────────────────────
+// T3 filter on HTF
+// ─────────────────────────────────────────────
+t3HTF = gdT3(gdT3(gdT3(htfClose, lengthT3), lengthT3), lengthT3)
+t3Dir = t3HTF > t3HTF[1] ? 1 : t3HTF < t3HTF[1] ? -1 : 0
+
+t3Bull = t3Dir > 0 and htfClose > t3HTF
+t3Bear = t3Dir < 0 and htfClose < t3HTF
+
+// ─────────────────────────────────────────────
+// CVD filter on HTF
+// ─────────────────────────────────────────────
+upperWick = htfClose > htfOpen ? htfHigh - htfClose : htfHigh - htfOpen
+lowerWick = htfClose > htfOpen ? htfOpen - htfLow : htfClose - htfLow
+spread = math.max(htfHigh - htfLow, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+halfWicks = (percentUpper + percentLower) / 2
+
+buyVol = htfClose > htfOpen ? (percentBody + halfWicks) * htfVol : halfWicks * htfVol
+sellVol = htfClose < htfOpen ? (percentBody + halfWicks) * htfVol : halfWicks * htfVol
+
+cumBuy = ta.ema(buyVol, cumulationLength)
+cumSell = ta.ema(sellVol, cumulationLength)
+cvdDelta = cumBuy - cumSell
+
+cvdBull = cvdDelta > cvdThreshold
+cvdBear = cvdDelta < -cvdThreshold
+
+// ─────────────────────────────────────────────
+// DI filter on HTF
+// ─────────────────────────────────────────────
+rvIDI = math.avg(rvIDIOriginal(htfHigh, stdevLengthDI, rvIDISmoothLength), rvIDIOriginal(htfLow, stdevLengthDI, rvIDISmoothLength))
+inertiaDI = ta.linreg(rvIDI, smoothLengthDI, 0)
+
+diBull = inertiaDI > middleLineLong
+diBear = inertiaDI < middleLineShort
+
+// ─────────────────────────────────────────────
+// Alignment logic
+// ─────────────────────────────────────────────
+bullAligned = t3Bull and cvdBull and diBull
+bearAligned = t3Bear and cvdBear and diBear
+alignmentState = bullAligned ? 1 : bearAligned ? -1 : 0
+
+newBull = bullAligned and not bullAligned[1]
+newBear = bearAligned and not bearAligned[1]
+breakSignal = (bullAligned[1] and not bullAligned) or (bearAligned[1] and not bearAligned)
+
+bgcolor(tintBackground ? (alignmentState == 1 ? color.new(color.green, 85) : alignmentState == -1 ? color.new(color.red, 85) : na) : na)
+
+plotshape(showLabels and newBull, title='Bull Align', style=shape.triangleup, color=color.green, location=location.belowbar, size=size.tiny, text='Bull')
+plotshape(showLabels and newBear, title='Bear Align', style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny, text='Bear')
+plotshape(showLabels and breakSignal, title='Momentum Break', style=shape.circle, color=color.orange, location=location.top, size=size.tiny, text='X')
+
+plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_columns, color=alignmentState == 1 ? color.green : alignmentState == -1 ? color.red : color.gray, transp=60)
