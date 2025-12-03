@@ -46,7 +46,7 @@ slopeUp = t3 > t3[1]
 slopeDown = t3 < t3[1]
 lineColor = showSlopeColor ? slopeUp ? lineColorUp : slopeDown ? lineColorDown : lineColorFlat : defaultLineColor
 
-plot(showBaseline ? t3 : na, title='T3 HTF', color=lineColor, linewidth=lineWidth)
+plot(showBaseline ? t3 : na, title='T3 HTF', color=lineColor, linewidth=lineWidth, style=plot.style_line, trackprice=true)
 
 var float bandUpper = na
 var float bandLower = na
