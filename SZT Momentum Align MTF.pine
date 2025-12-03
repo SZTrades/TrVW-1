@@ -236,5 +236,10 @@ plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_
 [vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
 vsLineColor = vsUp ? color.new(color.green, 0) : color.new(color.red, 0)
 plot(useVolStop and vsShowLine ? vsStop : na, title='Volatility Stop', color=vsLineColor, linewidth=vsLineWidth)
-vsDotSizeConst = vsDotSizeOpt == 'Huge' ? size.huge : vsDotSizeOpt == 'Large' ? size.large : vsDotSizeOpt == 'Normal' ? size.normal : vsDotSizeOpt == 'Small' ? size.small : vsDotSizeOpt == 'Tiny' ? size.tiny : size.auto
-plotshape(useVolStop and vsShowDots ? vsStop : na, title='Volatility Stop Dots', style=shape.circle, location=location.absolute, size=vsDotSizeConst, color=vsUp ? vsDotColorUp : vsDotColorDown)
+dotSeries = useVolStop and vsShowDots ? vsStop : na
+plotshape(vsDotSizeOpt == 'Tiny' ? dotSeries : na, title='VS Dots Tiny', style=shape.circle, location=location.absolute, size=size.tiny, color=vsUp ? vsDotColorUp : vsDotColorDown)
+plotshape(vsDotSizeOpt == 'Small' ? dotSeries : na, title='VS Dots Small', style=shape.circle, location=location.absolute, size=size.small, color=vsUp ? vsDotColorUp : vsDotColorDown)
+plotshape(vsDotSizeOpt == 'Normal' ? dotSeries : na, title='VS Dots Normal', style=shape.circle, location=location.absolute, size=size.normal, color=vsUp ? vsDotColorUp : vsDotColorDown)
+plotshape(vsDotSizeOpt == 'Large' ? dotSeries : na, title='VS Dots Large', style=shape.circle, location=location.absolute, size=size.large, color=vsUp ? vsDotColorUp : vsDotColorDown)
+plotshape(vsDotSizeOpt == 'Huge' ? dotSeries : na, title='VS Dots Huge', style=shape.circle, location=location.absolute, size=size.huge, color=vsUp ? vsDotColorUp : vsDotColorDown)
+plotshape(vsDotSizeOpt == 'Auto' ? dotSeries : na, title='VS Dots Auto', style=shape.circle, location=location.absolute, size=size.auto, color=vsUp ? vsDotColorUp : vsDotColorDown)
