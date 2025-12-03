@@ -14,11 +14,17 @@ showSlopeColor = input.bool(true, 'Color by slope', group='T3 Settings')
 
 // Display
 showBaseline = input.bool(true, 'Show T3 line', group='Display')
+lineColorUp = input.color(color.new(color.green, 0), 'Color Up', group='Display')
+lineColorDown = input.color(color.new(color.red, 0), 'Color Down', group='Display')
+lineColorFlat = input.color(color.new(color.yellow, 0), 'Color Flat', group='Display')
+defaultLineColor = input.color(color.new(color.teal, 0), 'Color No Slope', group='Display')
 showBands = input.bool(false, 'Show +/- factor bands', group='Display')
 bandColor = input.color(color.new(color.blue, 70), 'Band fill', group='Display')
 lineWidth = input.int(2, 'Line width', minval=1, maxval=5, group='Display')
 
-htfSrc = request.security(syminfo.tickerid, htfResolution, src, lookahead=lookaheadMode)
+tickerInput = input.string('', 'Symbol (blank = current)', group='HTF Source', tooltip='Optional: override symbol for the HTF calculation.')
+symbolToUse = tickerInput == '' ? syminfo.tickerid : tickerInput
+htfSrc = request.security(symbolToUse, htfResolution, src, lookahead=lookaheadMode)
 
 getT3(series, len) =>
     e1 = ta.ema(series, len)
@@ -37,7 +43,7 @@ t3 = getT3(htfSrc, lengthT3)
 
 slopeUp = t3 > t3[1]
 slopeDown = t3 < t3[1]
-lineColor = showSlopeColor ? slopeUp ? color.new(color.green, 0) : slopeDown ? color.new(color.red, 0) : color.new(color.yellow, 0) : color.new(color.teal, 0)
+lineColor = showSlopeColor ? slopeUp ? lineColorUp : slopeDown ? lineColorDown : lineColorFlat : defaultLineColor
 
 plot(showBaseline ? t3 : na, title='T3 HTF', color=lineColor, linewidth=lineWidth)
 
@@ -50,6 +56,6 @@ else
     bandUpper := na
     bandLower := na
 
-bandTopPlot = plot(bandUpper, title='Upper Band', color=color.new(lineColor, 60), linewidth=1)
-bandBottomPlot = plot(bandLower, title='Lower Band', color=color.new(lineColor, 60), linewidth=1)
-fill(bandTopPlot, bandBottomPlot, color=bandColor)
+bandTopPlot = plot(showBands ? bandUpper : na, title='Upper Band', color=color.new(lineColor, 60), linewidth=1)
+bandBottomPlot = plot(showBands ? bandLower : na, title='Lower Band', color=color.new(lineColor, 60), linewidth=1)
+fill(bandTopPlot, bandBottomPlot, color=showBands ? bandColor : na)
