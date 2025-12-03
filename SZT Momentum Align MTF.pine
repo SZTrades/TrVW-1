@@ -1,10 +1,10 @@
-//@version=5
+//@version=6
 // SZTrades Momentum Alignment (HTF replication)
 // Rebuilds SZT Momentum using higher-timeframe data (default 5m) while running on lower charts.
 // Based on open-source components by DaviddTech (T3 & DI, CC BY-NC-SA 4.0)
 // and Ankit_1618 (Cumulative Volume Delta, MPL 2.0).
 
-indicator('SZT Momentum Align HTF', shorttitle='SZT Momentum HTF', overlay=true, max_labels_count=500, max_lines_count=500)
+indicator('SZT Momentum Align HTF', shorttitle='SZT MTF', overlay=true, max_labels_count=500, max_lines_count=500)
 
 // ─────────────────────────────────────────────
 // Higher-timeframe sourcing
@@ -91,14 +91,15 @@ plotSizeFromOpt(opt) =>
      opt == 'Tiny' ? size.tiny : size.auto
 
 volStop(src, atrlen, atrmult) =>
-    if na(src)
+    atr = ta.atr(atrlen)
+    if na(src) or na(atr)
         [float(na), bool(na)]
     else
         var float regimeMax = src
         var float regimeMin = src
         var bool uptrend = true
         var float stop = src
-        atrM = ta.atr(atrlen) * atrmult
+        atrM = atr * atrmult
         regimeMax := math.max(regimeMax, src)
         regimeMin := math.min(regimeMin, src)
         stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
@@ -233,12 +234,14 @@ plotshape(showBullSignals and newBull, title='Bull Align', style=shape.triangleu
 plotshape(showBearSignals and newBear, title='Bear Align', style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny)
 plotshape(showBreakSignals and breakSignal, title='Momentum Break', style=shape.circle, color=color.orange, location=location.top, size=size.tiny, text='X')
 
-plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_columns, color=alignmentState == 1 ? color.green : alignmentState == -1 ? color.red : color.gray, transp=60)
+debugColor = alignmentState == 1 ? color.new(color.green, 60) : alignmentState == -1 ? color.new(color.red, 60) : color.new(color.gray, 60)
+plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_columns, color=debugColor)
 
 // ─────────────────────────────────────────────
 // Volatility Stop overlay
 // ─────────────────────────────────────────────
 [vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
 vsDotSize = plotSizeFromOpt(vsDotSizeOpt)
-plot(useVolStop and vsShowLine ? vsStop : na, title='Volatility Stop', color=vsUp ? color.new(color.green, 0) : color.new(color.red, 0), linewidth=vsLineWidth)
-plotshape(useVolStop and vsShowDots, title='Volatility Stop Dots', style=shape.circle, location=location.absolute, y=vsStop, size=vsDotSize, color=vsUp ? vsDotColorUp : vsDotColorDown)
+vsLineColor = vsUp ? color.new(color.green, 0) : color.new(color.red, 0)
+plot(useVolStop and vsShowLine ? vsStop : na, title='Volatility Stop', color=vsLineColor, linewidth=vsLineWidth)
+plotshape(useVolStop and vsShowDots ? vsStop : na, title='Volatility Stop Dots', style=shape.circle, location=location.absolute, size=vsDotSize, color=vsUp ? vsDotColorUp : vsDotColorDown)
