@@ -5,6 +5,7 @@ indicator('SZT T3 MTF', shorttitle='T3 MTF', overlay=true, max_lines_count=500)
 htfResolution = input.string('60', 'Higher timeframe', group='HTF Source', tooltip='Resolution used to compute the T3 (e.g. 60 = 1h).')
 confirmOnClose = input.bool(true, 'Use confirmed HTF close', group='HTF Source', tooltip='When enabled, only closed HTF bars update the T3. Otherwise it streams intra-bar.')
 lookaheadMode = confirmOnClose ? barmerge.lookahead_on : barmerge.lookahead_off
+gapsMode = barmerge.gaps_off
 
 // T3 parameters
 lengthT3 = input.int(5, 'Length', minval=1, group='T3 Settings')
@@ -24,7 +25,7 @@ lineWidth = input.int(2, 'Line width', minval=1, maxval=5, group='Display')
 
 tickerInput = input.string('', 'Symbol (blank = current)', group='HTF Source', tooltip='Optional: override symbol for the HTF calculation.')
 symbolToUse = tickerInput == '' ? syminfo.tickerid : tickerInput
-htfSrc = request.security(symbolToUse, htfResolution, src, lookahead=lookaheadMode)
+htfSrc = request.security(symbolToUse, htfResolution, src, lookahead=lookaheadMode, gaps=gapsMode)
 
 getT3(series, len) =>
     e1 = ta.ema(series, len)
