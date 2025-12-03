@@ -83,13 +83,6 @@ rvIDIOriginal(src, stdevLen, smoothLen) =>
     denom = upSum + downSum
     denom == 0.0 ? 50.0 : 100.0 * upSum / denom
 
-plotSizeFromOpt(opt) =>
-    opt == 'Huge' ? size.huge :
-     opt == 'Large' ? size.large :
-     opt == 'Normal' ? size.normal :
-     opt == 'Small' ? size.small :
-     opt == 'Tiny' ? size.tiny : size.auto
-
 volStop(src, atrlen, atrmult) =>
     atr = ta.atr(atrlen)
     if na(src) or na(atr)
@@ -241,7 +234,7 @@ plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_
 // Volatility Stop overlay
 // ─────────────────────────────────────────────
 [vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
-vsDotSize = plotSizeFromOpt(vsDotSizeOpt)
 vsLineColor = vsUp ? color.new(color.green, 0) : color.new(color.red, 0)
 plot(useVolStop and vsShowLine ? vsStop : na, title='Volatility Stop', color=vsLineColor, linewidth=vsLineWidth)
-plotshape(useVolStop and vsShowDots ? vsStop : na, title='Volatility Stop Dots', style=shape.circle, location=location.absolute, size=vsDotSize, color=vsUp ? vsDotColorUp : vsDotColorDown)
+vsDotSizeConst = vsDotSizeOpt == 'Huge' ? size.huge : vsDotSizeOpt == 'Large' ? size.large : vsDotSizeOpt == 'Normal' ? size.normal : vsDotSizeOpt == 'Small' ? size.small : vsDotSizeOpt == 'Tiny' ? size.tiny : size.auto
+plotshape(useVolStop and vsShowDots ? vsStop : na, title='Volatility Stop Dots', style=shape.circle, location=location.absolute, size=vsDotSizeConst, color=vsUp ? vsDotColorUp : vsDotColorDown)
