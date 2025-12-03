@@ -41,9 +41,15 @@ lineColor = showSlopeColor ? slopeUp ? color.new(color.green, 0) : slopeDown ? c
 
 plot(showBaseline ? t3 : na, title='T3 HTF', color=lineColor, linewidth=lineWidth)
 
+var float bandUpper = na
+var float bandLower = na
 if showBands
-    upper = t3 + factorT3
-    lower = t3 - factorT3
-    plot(upper, title='Upper Band', color=color.new(lineColor, 60), linewidth=1)
-    plot(lower, title='Lower Band', color=color.new(lineColor, 60), linewidth=1)
-    fill(plot(upper, display=display.none), plot(lower, display=display.none), color=bandColor)
+    bandUpper := t3 + factorT3
+    bandLower := t3 - factorT3
+else
+    bandUpper := na
+    bandLower := na
+
+bandTopPlot = plot(bandUpper, title='Upper Band', color=color.new(lineColor, 60), linewidth=1)
+bandBottomPlot = plot(bandLower, title='Lower Band', color=color.new(lineColor, 60), linewidth=1)
+fill(bandTopPlot, bandBottomPlot, color=bandColor)
