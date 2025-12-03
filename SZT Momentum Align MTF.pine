@@ -67,7 +67,8 @@ vsShowDots   = input.bool(true,  'Show Stop Dots', group='Volatility Stop')
 vsLineWidth  = input.int(1,      'Stop Line Width', minval=1, maxval=5, group='Volatility Stop')
 vsDotColorUp = input.color(color.new(color.green, 0), 'Dot Color Bull', group='Volatility Stop')
 vsDotColorDown = input.color(color.new(color.red, 0), 'Dot Color Bear', group='Volatility Stop')
-vsDotSizeOpt = input.string('Tiny', 'Dot Size', options=['Auto','Huge','Large','Normal','Small','Tiny'], group='Volatility Stop')
+vsDotStyle = input.string('Cross', 'Dot Style', options=['Cross','Circle'], group='Volatility Stop')
+vsDotWidth = input.int(3, 'Dot Width', minval=1, maxval=6, group='Volatility Stop')
 
 // ─────────────────────────────────────────────
 // Helper functions (operate on HTF series)
@@ -237,9 +238,6 @@ plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_
 vsLineColor = vsUp ? color.new(color.green, 0) : color.new(color.red, 0)
 plot(useVolStop and vsShowLine ? vsStop : na, title='Volatility Stop', color=vsLineColor, linewidth=vsLineWidth)
 dotSeries = useVolStop and vsShowDots ? vsStop : na
-plotshape(vsDotSizeOpt == 'Tiny' ? dotSeries : na, title='VS Dots Tiny', style=shape.circle, location=location.absolute, size=size.tiny, color=vsUp ? vsDotColorUp : vsDotColorDown)
-plotshape(vsDotSizeOpt == 'Small' ? dotSeries : na, title='VS Dots Small', style=shape.circle, location=location.absolute, size=size.small, color=vsUp ? vsDotColorUp : vsDotColorDown)
-plotshape(vsDotSizeOpt == 'Normal' ? dotSeries : na, title='VS Dots Normal', style=shape.circle, location=location.absolute, size=size.normal, color=vsUp ? vsDotColorUp : vsDotColorDown)
-plotshape(vsDotSizeOpt == 'Large' ? dotSeries : na, title='VS Dots Large', style=shape.circle, location=location.absolute, size=size.large, color=vsUp ? vsDotColorUp : vsDotColorDown)
-plotshape(vsDotSizeOpt == 'Huge' ? dotSeries : na, title='VS Dots Huge', style=shape.circle, location=location.absolute, size=size.huge, color=vsUp ? vsDotColorUp : vsDotColorDown)
-plotshape(vsDotSizeOpt == 'Auto' ? dotSeries : na, title='VS Dots Auto', style=shape.circle, location=location.absolute, size=size.auto, color=vsUp ? vsDotColorUp : vsDotColorDown)
+dotColor = vsUp ? vsDotColorUp : vsDotColorDown
+plot(vsDotStyle == 'Cross' ? dotSeries : na, title='VS Dots Cross', style=plot.style_cross, linewidth=vsDotWidth, color=dotColor)
+plot(vsDotStyle == 'Circle' ? dotSeries : na, title='VS Dots Circle', style=plot.style_circles, linewidth=vsDotWidth, color=dotColor)
