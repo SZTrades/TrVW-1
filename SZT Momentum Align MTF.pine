@@ -57,6 +57,18 @@ showBreakSignals = input.bool(true, 'Show Break Signals', group='Display')
 tintBackground = input.bool(true, 'Tint background on alignment', group='Display')
 showDebug = input.bool(false, 'Show debug columns', group='Display')
 
+// Volatility Stop settings
+useVolStop   = input.bool(true,  'Use Volatility Stop', group='Volatility Stop')
+vsLength     = input.int(20,     'Length', minval=2, group='Volatility Stop')
+vsFactor     = input.float(2.0,  'Multiplier', minval=0.25, step=0.25, group='Volatility Stop')
+vsSource     = input.source(close, 'Source', group='Volatility Stop')
+vsShowLine   = input.bool(false, 'Show Stop Line', group='Volatility Stop')
+vsShowDots   = input.bool(true,  'Show Stop Dots', group='Volatility Stop')
+vsLineWidth  = input.int(1,      'Stop Line Width', minval=1, maxval=5, group='Volatility Stop')
+vsDotColorUp = input.color(color.new(color.green, 0), 'Dot Color Bull', group='Volatility Stop')
+vsDotColorDown = input.color(color.new(color.red, 0), 'Dot Color Bear', group='Volatility Stop')
+vsDotSizeOpt = input.string('Tiny', 'Dot Size', options=['Auto','Huge','Large','Normal','Small','Tiny'], group='Volatility Stop')
+
 // ─────────────────────────────────────────────
 // Helper functions (operate on HTF series)
 // ─────────────────────────────────────────────
@@ -70,6 +82,33 @@ rvIDIOriginal(src, stdevLen, smoothLen) =>
     downSum = ta.ema(change >= 0 ? 0.0 : stdev, smoothLen)
     denom = upSum + downSum
     denom == 0.0 ? 50.0 : 100.0 * upSum / denom
+
+plotSizeFromOpt(opt) =>
+    opt == 'Huge' ? size.huge :
+     opt == 'Large' ? size.large :
+     opt == 'Normal' ? size.normal :
+     opt == 'Small' ? size.small :
+     opt == 'Tiny' ? size.tiny : size.auto
+
+volStop(src, atrlen, atrmult) =>
+    if na(src)
+        [float(na), bool(na)]
+    else
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool uptrend = true
+        var float stop = src
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = bar_index > 0 ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
 
 // ─────────────────────────────────────────────
 // T3 filter on HTF
@@ -195,3 +234,11 @@ plotshape(showBearSignals and newBear, title='Bear Align', style=shape.triangled
 plotshape(showBreakSignals and breakSignal, title='Momentum Break', style=shape.circle, color=color.orange, location=location.top, size=size.tiny, text='X')
 
 plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_columns, color=alignmentState == 1 ? color.green : alignmentState == -1 ? color.red : color.gray, transp=60)
+
+// ─────────────────────────────────────────────
+// Volatility Stop overlay
+// ─────────────────────────────────────────────
+[vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
+vsDotSize = plotSizeFromOpt(vsDotSizeOpt)
+plot(useVolStop and vsShowLine ? vsStop : na, title='Volatility Stop', color=vsUp ? color.new(color.green, 0) : color.new(color.red, 0), linewidth=vsLineWidth)
+plotshape(useVolStop and vsShowDots, title='Volatility Stop Dots', style=shape.circle, location=location.absolute, y=vsStop, size=vsDotSize, color=vsUp ? vsDotColorUp : vsDotColorDown)
