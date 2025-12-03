@@ -196,8 +196,8 @@ else
             diStateLong := false
             diStateShort := true
         else
-            diStateLong := nz(diStateLong[1], false)
-            diStateShort := nz(diStateShort[1], false)
+            diStateLong := na(diStateLong[1]) ? false : diStateLong[1]
+            diStateShort := na(diStateShort[1]) ? false : diStateShort[1]
     else
         diStateLong := baseLongDI
         diStateShort := baseShortDI
