@@ -114,8 +114,8 @@ t3Color = highlightMovementsT3 ? (t3Dir > 0 ? color.green : color.red) : #6d1e7f
 
 basicLongT3 = t3Dir > 0 and htfClose > t3HTF
 basicShortT3 = t3Dir < 0 and htfClose < t3HTF
-longTriggerT3 = basicLongT3 and not nz(basicLongT3[1])
-shortTriggerT3 = basicShortT3 and not nz(basicShortT3[1])
+longTriggerT3 = basicLongT3 and not basicLongT3[1]
+shortTriggerT3 = basicShortT3 and not basicShortT3[1]
 
 var bool t3StateLong = true
 var bool t3StateShort = true
@@ -134,8 +134,8 @@ else
             t3StateLong := false
             t3StateShort := true
         else
-            t3StateLong := nz(t3StateLong[1], false)
-            t3StateShort := nz(t3StateShort[1], false)
+            t3StateLong := t3StateLong[1]
+            t3StateShort := t3StateShort[1]
     else
         t3StateLong := basicLongT3
         t3StateShort := basicShortT3
