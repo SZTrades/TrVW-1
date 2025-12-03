@@ -1,0 +1,22 @@
+//@version=6
+indicator('SZT SMA HTF', shorttitle='SMA HTF', overlay=true)
+
+// Inputs
+htfResolution = input.string('60', 'Higher timeframe', group='HTF Source')
+confirmOnClose = input.bool(true, 'Use confirmed HTF close', group='HTF Source')
+maLength = input.int(50, 'SMA Length', minval=1, group='SMA Settings')
+maSource = input.source(close, 'Source', group='SMA Settings')
+showLine = input.bool(true, 'Show SMA line', group='Display')
+lineColor = input.color(color.new(color.blue, 0), 'Line color', group='Display')
+lineWidth = input.int(2, 'Line width', minval=1, maxval=5, group='Display')
+
+lookaheadMode = confirmOnClose ? barmerge.lookahead_on : barmerge.lookahead_off
+gapsMode = barmerge.gaps_off
+
+htfSource = request.security(syminfo.tickerid, htfResolution, maSource, lookahead=lookaheadMode, gaps=gapsMode)
+htfSma = ta.sma(htfSource, maLength)
+
+direction = htfSma > htfSma[1] ? 1 : htfSma < htfSma[1] ? -1 : 0
+bgcolor(direction == 1 ? color.new(color.green, 92) : direction == -1 ? color.new(color.red, 92) : na)
+
+plot(showLine ? htfSma : na, title='HTF SMA', color=lineColor, linewidth=lineWidth)

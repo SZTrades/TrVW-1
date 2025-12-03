@@ -1,0 +1,38 @@
+//@version=5
+// Remaster based on "Cumulative Volume Delta" by Ankit_1618
+// Original licensed under Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/)
+// Adapted for SZTrades while preserving attribution.
+
+indicator(title='SZTrades CVD Base', shorttitle='SZT CVD', overlay=false, max_lines_count=500)
+
+cumulationLength = input.int(14, 'Cumulation Length', minval=1)
+
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+
+halfWicks = (percentUpper + percentLower) / 2
+
+buyingVolume = close > open ? (percentBody + halfWicks) * volume : halfWicks * volume
+sellingVolume = close < open ? (percentBody + halfWicks) * volume : halfWicks * volume
+
+cumulativeBuying = ta.ema(buyingVolume, cumulationLength)
+cumulativeSelling = ta.ema(sellingVolume, cumulationLength)
+
+fillColor = cumulativeBuying > cumulativeSelling ? color.green : cumulativeBuying < cumulativeSelling ? color.red : color.yellow
+
+pb = plot(cumulativeBuying, color=color.new(color.green, 30), title='Cumulative Buying')
+ps = plot(cumulativeSelling, color=color.new(color.red, 30), title='Cumulative Selling')
+fill(pb, ps, color=fillColor)
+
+volumeStrengthWave = cumulativeBuying > cumulativeSelling ? cumulativeBuying : cumulativeSelling
+emaVolumeStrength = ta.ema(volumeStrengthWave, cumulationLength)
+plot(emaVolumeStrength, color=color.new(color.gray, 80), title='EMA Volume Strength')
+
+cumulativeDelta = cumulativeBuying - cumulativeSelling
+plot(cumulativeDelta, color=cumulativeDelta > 0 ? color.green : color.red, style=plot.style_columns, transp=61, title='Cumulative Volume Delta')
