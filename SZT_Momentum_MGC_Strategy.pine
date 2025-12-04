@@ -263,8 +263,8 @@ plot(vsDotStyle == 'Circle' ? dotSeries : na, title='VS Dots Circle', style=plot
 // ─────────────────────────────────────────────
 sessionActive = not na(time(timeframe.period, manageSession, sessionTZ))
 entryWindowActive = not na(time(timeframe.period, entrySession, sessionTZ))
-prevSessionActive = not na(sessionActive[1]) and sessionActive[1]
-sessionEnded = not sessionActive and prevSessionActive
+sessionActiveState = sessionActive ? 1 : 0
+sessionEnded = sessionActiveState[1] == 1 and sessionActiveState == 0
 
 // Only take new trades on MGC 1m as requested (not enforced, just warn once if timeframe mismatches)
 var bool warnedTimeframe = false
