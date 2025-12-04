@@ -1,0 +1,318 @@
+//@version=6
+// SZTrades Momentum Alignment (HTF replication) Strategy
+// Implements the requested MGC 1m rules:
+// - Only evaluates SZT alignment signals sourced from a higher timeframe (default 5m)
+// - Allows new entries between 07:00 and 07:29 EST, manages trades until 07:59 EST
+// - Initial stop 3 pts, take-profit 6 pts, move stop to +0.5 pts after +3 pts in profit
+// - Closes any open trade at 07:59 EST if TP/SL not hit
+
+strategy('SZT Momentum Align HTF Strategy', shorttitle='SZT MTF Strat', overlay=true, initial_capital=100000, default_qty_type=strategy.fixed, default_qty_value=1, max_lines_count=500, max_labels_count=500, calc_on_every_tick=true)
+
+// ─────────────────────────────────────────────
+// Higher-timeframe sourcing
+// ─────────────────────────────────────────────
+htfResolution = input.string('5', 'Higher timeframe', group='HTF Source')
+confirmOnClose = input.bool(true, 'Only use confirmed HTF closes?', group='HTF Source', tooltip='When true, signals update once the HTF bar closes (matches original timing). When false, signals stream intra-bar.')
+lookaheadMode = confirmOnClose ? barmerge.lookahead_on : barmerge.lookahead_off
+
+htfOpen  = request.security(syminfo.tickerid, htfResolution, open,  lookahead=lookaheadMode)
+htfHigh  = request.security(syminfo.tickerid, htfResolution, high,  lookahead=lookaheadMode)
+htfLow   = request.security(syminfo.tickerid, htfResolution, low,   lookahead=lookaheadMode)
+htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=lookaheadMode)
+htfVol   = request.security(syminfo.tickerid, htfResolution, volume, lookahead=lookaheadMode)
+
+// ─────────────────────────────────────────────
+// T3 Filter settings (pulled from HTF)
+// ─────────────────────────────────────────────
+useT3 = input.bool(true, 'Use T3 Filter', group='T3 Filter')
+crossT3 = input.bool(true, 'Cross confirmation? - T3', group='T3 Filter')
+inverseT3 = input.bool(false, 'Inverse? - T3', group='T3 Filter')
+lengthT3 = input.int(12, 'Length - T3', minval=1, group='T3 Filter')
+factorT3 = input.float(1.0, 'Factor - T3', minval=0.0, maxval=2.0, group='T3 Filter')
+highlightMovementsT3 = input.bool(true, 'Highlight Movements? - T3', group='T3 Filter')
+srcT3 = input.source(close, 'Source - T3', group='T3 Filter')
+
+// ─────────────────────────────────────────────
+// CVD Filter settings
+// ─────────────────────────────────────────────
+useCVD = input.bool(true, 'Use CVD Filter', group='CVD Filter')
+cumulationLength = input.int(14, 'Cumulation Length - CVD', minval=1, group='CVD Filter')
+cvdThreshold = input.float(0.0, 'Delta Threshold', tooltip='Optional threshold to require stronger divergence', group='CVD Filter')
+
+// ─────────────────────────────────────────────
+// DI Filter settings
+// ─────────────────────────────────────────────
+useDI = input.bool(false, 'Use Dorsey inertia Filter', group='DI Filter')
+crossDI = input.bool(true, 'Cross confirmation? - DI', group='DI Filter')
+inverseDI = input.bool(false, 'Inverse? - DI', group='DI Filter')
+middleLineLong = input.float(50.0, 'Middle Line Long - DI', group='DI Filter')
+middleLineShort = input.float(50.0, 'Middle Line Short - DI', group='DI Filter')
+stdevLengthDI = input.int(12, 'Std Dev Length - DI', minval=1, group='DI Filter')
+rvIDISmoothLength = input.int(6, 'rvIDI Smoothing Length - DI', minval=1, group='DI Filter')
+smoothLengthDI = input.int(6, 'Inertia Smoothing Length - DI', minval=1, group='DI Filter')
+
+// Display toggles
+showT3Line = input.bool(true, 'Plot T3 line', group='Display')
+showBullSignals = input.bool(true, 'Show Bull Signals', group='Display')
+showBearSignals = input.bool(true, 'Show Bear Signals', group='Display')
+showBreakSignals = input.bool(true, 'Show Break Signals', group='Display')
+tintBackground = input.bool(true, 'Tint background on alignment', group='Display')
+showDebug = input.bool(false, 'Show debug columns', group='Display')
+
+// Volatility Stop settings
+useVolStop   = input.bool(true,  'Use Volatility Stop', group='Volatility Stop')
+vsLength     = input.int(20,     'Length', minval=2, group='Volatility Stop')
+vsFactor     = input.float(2.0,  'Multiplier', minval=0.25, step=0.25, group='Volatility Stop')
+vsSource     = input.source(close, 'Source', group='Volatility Stop')
+vsShowLine   = input.bool(false, 'Show Stop Line', group='Volatility Stop')
+vsShowDots   = input.bool(true,  'Show Stop Dots', group='Volatility Stop')
+vsLineWidth  = input.int(1,      'Stop Line Width', minval=1, maxval=5, group='Volatility Stop')
+vsDotColorUp = input.color(color.new(color.green, 0), 'Dot Color Bull', group='Volatility Stop')
+vsDotColorDown = input.color(color.new(color.red, 0), 'Dot Color Bear', group='Volatility Stop')
+vsDotStyle = input.string('Cross', 'Dot Style', options=['Cross','Circle'], group='Volatility Stop')
+vsDotWidth = input.int(3, 'Dot Width', minval=1, maxval=6, group='Volatility Stop')
+
+// ─────────────────────────────────────────────
+// Strategy rule inputs
+// ─────────────────────────────────────────────
+sessionTZ = input.string('America/New_York', 'Session timezone', group='Strategy Rules')
+manageSession = input.session('0700-0759', 'Manage trades window (EST)', group='Strategy Rules', tooltip='Open trades are managed (and forcibly closed) inside this window.')
+entrySession = input.session('0700-0729', 'Allowed entry window (EST)', group='Strategy Rules', tooltip='New positions are only allowed while this session is active.')
+contracts = input.float(1.0, 'Contracts (MGC)', minval=0.1, step=0.1, group='Strategy Rules')
+
+// Risk settings
+stopPts = input.float(3.0, 'Initial Stop (pts)', minval=0.25, step=0.25, group='Risk Management')
+targetPts = input.float(6.0, 'Take Profit (pts)', minval=0.5, step=0.5, group='Risk Management')
+beTriggerPts = input.float(3.0, 'Break-even trigger (pts)', minval=0.5, step=0.5, group='Risk Management', tooltip='When unrealized profit reaches this amount, the stop moves to lock +0.5 pts.')
+beStopPts = input.float(0.5, 'Stop after trigger (pts)', minval=0.25, step=0.25, group='Risk Management')
+
+// ─────────────────────────────────────────────
+// Helper functions (operate on HTF series)
+// ─────────────────────────────────────────────
+gdT3(src, len) =>
+    ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
+
+rvIDIOriginal(src, stdevLen, smoothLen) =>
+    stdev = ta.stdev(src, stdevLen)
+    change = ta.change(src)
+    upSum = ta.ema(change >= 0 ? stdev : 0.0, smoothLen)
+    downSum = ta.ema(change >= 0 ? 0.0 : stdev, smoothLen)
+    denom = upSum + downSum
+    denom == 0.0 ? 50.0 : 100.0 * upSum / denom
+
+volStop(src, atrlen, atrmult) =>
+    atr = ta.atr(atrlen)
+    if na(src) or na(atr)
+        [float(na), bool(na)]
+    else
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool uptrend = true
+        var float stop = src
+        atrM = atr * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = bar_index > 0 ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+// ─────────────────────────────────────────────
+// T3 filter on HTF
+// ─────────────────────────────────────────────
+srcT3_htf = request.security(syminfo.tickerid, htfResolution, srcT3, lookahead=lookaheadMode)
+t3HTF = gdT3(gdT3(gdT3(srcT3_htf, lengthT3), lengthT3), lengthT3)
+t3Dir = t3HTF > t3HTF[1] ? 1 : t3HTF < t3HTF[1] ? -1 : 0
+t3Color = highlightMovementsT3 ? (t3Dir > 0 ? color.green : color.red) : #6d1e7f
+
+basicLongT3 = t3Dir > 0 and htfClose > t3HTF
+basicShortT3 = t3Dir < 0 and htfClose < t3HTF
+longTriggerT3 = basicLongT3 and not basicLongT3[1]
+shortTriggerT3 = basicShortT3 and not basicShortT3[1]
+
+var bool t3StateLong = true
+var bool t3StateShort = true
+if barstate.isfirst
+    t3StateLong := not useT3 or basicLongT3
+    t3StateShort := not useT3 or basicShortT3
+else
+    if not useT3
+        t3StateLong := true
+        t3StateShort := true
+    else if crossT3
+        if longTriggerT3
+            t3StateLong := true
+            t3StateShort := false
+        else if shortTriggerT3
+            t3StateLong := false
+            t3StateShort := true
+        else
+            t3StateLong := t3StateLong[1]
+            t3StateShort := t3StateShort[1]
+    else
+        t3StateLong := basicLongT3
+        t3StateShort := basicShortT3
+
+if inverseT3
+    prevLong = t3StateLong
+    prevShort = t3StateShort
+    t3StateLong := prevShort
+    t3StateShort := prevLong
+
+// ─────────────────────────────────────────────
+// CVD filter on HTF
+// ─────────────────────────────────────────────
+upperWick = htfClose > htfOpen ? htfHigh - htfClose : htfHigh - htfOpen
+lowerWick = htfClose > htfOpen ? htfOpen - htfLow : htfClose - htfLow
+spread = math.max(htfHigh - htfLow, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+halfWicks = (percentUpper + percentLower) / 2
+
+buyVol = htfClose > htfOpen ? (percentBody + halfWicks) * htfVol : halfWicks * htfVol
+sellVol = htfClose < htfOpen ? (percentBody + halfWicks) * htfVol : halfWicks * htfVol
+
+cumBuy = ta.ema(buyVol, cumulationLength)
+cumSell = ta.ema(sellVol, cumulationLength)
+cvdDelta = cumBuy - cumSell
+
+bullCVD = not useCVD ? true : cvdDelta > cvdThreshold
+bearCVD = not useCVD ? true : cvdDelta < -cvdThreshold
+
+// ─────────────────────────────────────────────
+// DI filter on HTF
+// ─────────────────────────────────────────────
+rvIDI = math.avg(rvIDIOriginal(htfHigh, stdevLengthDI, rvIDISmoothLength), rvIDIOriginal(htfLow, stdevLengthDI, rvIDISmoothLength))
+inertiaDI = ta.linreg(rvIDI, smoothLengthDI, 0)
+
+baseLongDI = inertiaDI > middleLineLong
+baseShortDI = inertiaDI < middleLineShort
+longTriggerDI = baseLongDI and not baseLongDI[1]
+shortTriggerDI = baseShortDI and not baseShortDI[1]
+
+var bool diStateLong = true
+var bool diStateShort = true
+if barstate.isfirst
+    diStateLong := not useDI or baseLongDI
+    diStateShort := not useDI or baseShortDI
+else
+    if not useDI
+        diStateLong := true
+        diStateShort := true
+    else if crossDI
+        if longTriggerDI
+            diStateLong := true
+            diStateShort := false
+        else if shortTriggerDI
+            diStateLong := false
+            diStateShort := true
+        else
+            diStateLong := diStateLong[1]
+            diStateShort := diStateShort[1]
+    else
+        diStateLong := baseLongDI
+        diStateShort := baseShortDI
+
+if inverseDI
+    prevLongDI = diStateLong
+    prevShortDI = diStateShort
+    diStateLong := prevShortDI
+    diStateShort := prevLongDI
+
+// ─────────────────────────────────────────────
+// Alignment logic
+// ─────────────────────────────────────────────
+bullAligned = t3StateLong and bullCVD and diStateLong
+bearAligned = t3StateShort and bearCVD and diStateShort
+alignmentState = bullAligned ? 1 : bearAligned ? -1 : 0
+
+newBull = bullAligned and not bullAligned[1]
+newBear = bearAligned and not bearAligned[1]
+breakSignal = (bullAligned[1] and not bullAligned) or (bearAligned[1] and not bearAligned)
+
+bgcolor(tintBackground ? (alignmentState == 1 ? color.new(color.green, 85) : alignmentState == -1 ? color.new(color.red, 85) : na) : na)
+
+plot(showT3Line and useT3 ? t3HTF : na, title='T3', linewidth=2, color=t3Color)
+
+plotshape(showBullSignals and newBull, title='Bull Align', style=shape.triangleup, color=color.green, location=location.belowbar, size=size.tiny)
+plotshape(showBearSignals and newBear, title='Bear Align', style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny)
+plotshape(showBreakSignals and breakSignal, title='Momentum Break', style=shape.circle, color=color.orange, location=location.top, size=size.tiny, text='X')
+
+debugColor = alignmentState == 1 ? color.new(color.green, 60) : alignmentState == -1 ? color.new(color.red, 60) : color.new(color.gray, 60)
+plot(showDebug ? alignmentState : na, title='Alignment State', style=plot.style_columns, color=debugColor)
+
+// ─────────────────────────────────────────────
+// Volatility Stop overlay
+// ─────────────────────────────────────────────
+[vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
+vsLineColor = vsUp ? color.new(color.green, 0) : color.new(color.red, 0)
+plot(useVolStop and vsShowLine ? vsStop : na, title='Volatility Stop', color=vsLineColor, linewidth=vsLineWidth)
+dotSeries = useVolStop and vsShowDots ? vsStop : na
+dotColor = vsUp ? vsDotColorUp : vsDotColorDown
+plot(vsDotStyle == 'Cross' ? dotSeries : na, title='VS Dots Cross', style=plot.style_cross, linewidth=vsDotWidth, color=dotColor)
+plot(vsDotStyle == 'Circle' ? dotSeries : na, title='VS Dots Circle', style=plot.style_circles, linewidth=vsDotWidth, color=dotColor)
+
+// ─────────────────────────────────────────────
+// Trading session control
+// ─────────────────────────────────────────────
+sessionActive = not na(time(timeframe.period, manageSession, sessionTZ))
+entryWindowActive = not na(time(timeframe.period, entrySession, sessionTZ))
+sessionEnded = not sessionActive and nz(sessionActive[1], false)
+
+// Only take new trades on MGC 1m as requested (not enforced, just warn once if timeframe mismatches)
+var bool warnedTimeframe = false
+if not warnedTimeframe and timeframe.period != '1'
+    label.new(bar_index, high, 'Esta estrategia está diseñada para 1m.', color=color.new(color.orange, 75), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+    warnedTimeframe := true
+
+// ─────────────────────────────────────────────
+// Entry logic (first 30 min only)
+// ─────────────────────────────────────────────
+flat = strategy.position_size == 0
+allowEntries = entryWindowActive and sessionActive and flat
+
+if allowEntries and newBull
+    strategy.entry('Long', strategy.long, qty=contracts, comment='Bull Align')
+
+if allowEntries and newBear
+    strategy.entry('Short', strategy.short, qty=contracts, comment='Bear Align')
+
+// ─────────────────────────────────────────────
+// Exit management (initial SL/TP + BE adjustment)
+// ─────────────────────────────────────────────
+var float longStopPrice = na
+var float longTargetPrice = na
+var float shortStopPrice = na
+var float shortTargetPrice = na
+
+if strategy.position_size > 0
+    avgPrice = strategy.position_avg_price
+    longStopPrice := avgPrice - stopPts
+    longTargetPrice := avgPrice + targetPts
+    if high >= avgPrice + beTriggerPts
+        longStopPrice := math.max(longStopPrice, avgPrice + beStopPts)
+    strategy.exit('Long TP/SL', 'Long', stop=longStopPrice, limit=longTargetPrice)
+else
+    longStopPrice := na
+    longTargetPrice := na
+
+if strategy.position_size < 0
+    avgPriceShort = strategy.position_avg_price
+    shortStopPrice := avgPriceShort + stopPts
+    shortTargetPrice := avgPriceShort - targetPts
+    if low <= avgPriceShort - beTriggerPts
+        shortStopPrice := math.min(shortStopPrice, avgPriceShort - beStopPts)
+    strategy.exit('Short TP/SL', 'Short', stop=shortStopPrice, limit=shortTargetPrice)
+else
+    shortStopPrice := na
+    shortTargetPrice := na
+
+// Force close leftover trades when window ends
+if sessionEnded and strategy.position_size != 0
+    strategy.close_all(comment='07:59 Exit')
