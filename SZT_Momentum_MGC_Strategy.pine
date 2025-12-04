@@ -79,6 +79,8 @@ sessionTZ = input.string('America/New_York', 'Session timezone', group='Strategy
 manageSession = input.session('0700-0759', 'Manage trades window (EST)', group='Strategy Rules', tooltip='Open trades are managed (and forcibly closed) inside this window.')
 entrySession = input.session('0700-0729', 'Allowed entry window (EST)', group='Strategy Rules', tooltip='New positions are only allowed while this session is active.')
 contracts = input.float(1.0, 'Contracts (MGC)', minval=0.1, step=0.1, group='Strategy Rules')
+allowLongs = input.bool(true, 'Enable long trades', group='Strategy Rules')
+allowShorts = input.bool(true, 'Enable short trades', group='Strategy Rules')
 
 // Risk settings
 stopPts = input.float(3.0, 'Initial Stop (pts)', minval=0.25, step=0.25, group='Risk Management')
@@ -264,16 +266,14 @@ plot(vsDotStyle == 'Circle' ? dotSeries : na, title='VS Dots Circle', style=plot
 sessionActive = not na(time(timeframe.period, manageSession, sessionTZ))
 entryWindowActive = not na(time(timeframe.period, entrySession, sessionTZ))
 sessionActiveState = sessionActive ? 1 : 0
-sessionEnded = sessionActiveState[1] == 1 and sessionActiveState == 0
+prevSessionState = nz(sessionActiveState[1], 0)
+sessionStarted = prevSessionState == 0 and sessionActiveState == 1
+sessionEnded = prevSessionState == 1 and sessionActiveState == 0
 
-// Track trading days (EST) and enforce max 1 trade per day
-dayStamp = time(timeframe.period, '0000-2359', sessionTZ)
-var int prevDayStamp = na
+// Track trading days (reset at session start) and enforce max 1 trade per day
 var int tradesToday = 0
-if not na(dayStamp)
-    if na(prevDayStamp) or dayStamp != prevDayStamp
-        tradesToday := 0
-        prevDayStamp := dayStamp
+if sessionStarted
+    tradesToday := 0
 
 // Only take new trades on MGC 1m as requested (not enforced, just warn once if timeframe mismatches)
 var bool warnedTimeframe = false
@@ -288,11 +288,11 @@ flat = strategy.position_size == 0
 allowEntries = entryWindowActive and sessionActive and flat and tradesToday == 0
 tradePlaced = false
 
-if allowEntries and newBull
+if allowEntries and allowLongs and newBull
     strategy.entry('Long', strategy.long, qty=contracts, comment='Bull Align')
     tradePlaced := true
 
-if allowEntries and not tradePlaced and newBear
+if allowEntries and not tradePlaced and allowShorts and newBear
     strategy.entry('Short', strategy.short, qty=contracts, comment='Bear Align')
     tradePlaced := true
 
