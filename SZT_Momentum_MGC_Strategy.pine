@@ -85,8 +85,6 @@ allowShorts = input.bool(true, 'Enable short trades', group='Strategy Rules')
 // Risk settings
 stopPts = input.float(3.0, 'Initial Stop (pts)', minval=0.25, step=0.25, group='Risk Management')
 targetPts = input.float(6.0, 'Take Profit (pts)', minval=0.5, step=0.5, group='Risk Management')
-beTriggerPts = input.float(3.0, 'Break-even trigger (pts)', minval=0.5, step=0.5, group='Risk Management', tooltip='When unrealized profit reaches this amount, the stop moves to lock +0.5 pts.')
-beStopPts = input.float(0.5, 'Stop after trigger (pts)', minval=0.25, step=0.25, group='Risk Management')
 
 // ─────────────────────────────────────────────
 // Helper functions (operate on HTF series)
@@ -311,8 +309,6 @@ if strategy.position_size > 0
     avgPrice = strategy.position_avg_price
     longStopPrice := avgPrice - stopPts
     longTargetPrice := avgPrice + targetPts
-    if high >= avgPrice + beTriggerPts
-        longStopPrice := math.max(longStopPrice, avgPrice + beStopPts)
     strategy.exit('Long TP/SL', 'Long', stop=longStopPrice, limit=longTargetPrice)
 else
     longStopPrice := na
@@ -322,8 +318,6 @@ if strategy.position_size < 0
     avgPriceShort = strategy.position_avg_price
     shortStopPrice := avgPriceShort + stopPts
     shortTargetPrice := avgPriceShort - targetPts
-    if low <= avgPriceShort - beTriggerPts
-        shortStopPrice := math.min(shortStopPrice, avgPriceShort - beStopPts)
     strategy.exit('Short TP/SL', 'Short', stop=shortStopPrice, limit=shortTargetPrice)
 else
     shortStopPrice := na
