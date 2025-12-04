@@ -88,6 +88,8 @@ targetPts = input.float(6.0, 'Take Profit (pts)', minval=0.5, step=0.5, group='R
 useBreakEven = input.bool(false, 'Auto move stop after profit?', group='Risk Management')
 beTriggerPts = input.float(3.0, 'Break-even trigger (pts)', minval=0.5, step=0.5, group='Risk Management')
 beStopPts = input.float(0.5, 'Stop after trigger (pts)', minval=0.25, step=0.25, group='Risk Management')
+useVolStopTrail = input.bool(false, 'Trail stop with volatility stop?', group='Risk Management')
+vsTrailTriggerPts = input.float(6.0, 'Vol stop trigger (pts)', minval=0.5, step=0.5, group='Risk Management')
 
 // ─────────────────────────────────────────────
 // Helper functions (operate on HTF series)
@@ -314,6 +316,8 @@ if strategy.position_size > 0
     longTargetPrice := avgPrice + targetPts
     if useBreakEven and high >= avgPrice + beTriggerPts
         longStopPrice := math.max(longStopPrice, avgPrice + beStopPts)
+    if useVolStopTrail and not na(vsStop) and high >= avgPrice + vsTrailTriggerPts and vsStop < close
+        longStopPrice := math.max(longStopPrice, vsStop)
     strategy.exit('Long TP/SL', 'Long', stop=longStopPrice, limit=longTargetPrice)
 else
     longStopPrice := na
@@ -325,6 +329,8 @@ if strategy.position_size < 0
     shortTargetPrice := avgPriceShort - targetPts
     if useBreakEven and low <= avgPriceShort - beTriggerPts
         shortStopPrice := math.min(shortStopPrice, avgPriceShort - beStopPts)
+    if useVolStopTrail and not na(vsStop) and low <= avgPriceShort - vsTrailTriggerPts and vsStop > close
+        shortStopPrice := math.min(shortStopPrice, vsStop)
     strategy.exit('Short TP/SL', 'Short', stop=shortStopPrice, limit=shortTargetPrice)
 else
     shortStopPrice := na
