@@ -266,6 +266,15 @@ entryWindowActive = not na(time(timeframe.period, entrySession, sessionTZ))
 sessionActiveState = sessionActive ? 1 : 0
 sessionEnded = sessionActiveState[1] == 1 and sessionActiveState == 0
 
+// Track trading days (EST) and enforce max 1 trade per day
+dayStamp = time(timeframe.period, '0000-2359', sessionTZ)
+var int prevDayStamp = na
+var int tradesToday = 0
+if not na(dayStamp)
+    if na(prevDayStamp) or dayStamp != prevDayStamp
+        tradesToday := 0
+        prevDayStamp := dayStamp
+
 // Only take new trades on MGC 1m as requested (not enforced, just warn once if timeframe mismatches)
 var bool warnedTimeframe = false
 if not warnedTimeframe and timeframe.period != '1'
@@ -276,13 +285,19 @@ if not warnedTimeframe and timeframe.period != '1'
 // Entry logic (first 30 min only)
 // ─────────────────────────────────────────────
 flat = strategy.position_size == 0
-allowEntries = entryWindowActive and sessionActive and flat
+allowEntries = entryWindowActive and sessionActive and flat and tradesToday == 0
+tradePlaced = false
 
 if allowEntries and newBull
     strategy.entry('Long', strategy.long, qty=contracts, comment='Bull Align')
+    tradePlaced := true
 
-if allowEntries and newBear
+if allowEntries and not tradePlaced and newBear
     strategy.entry('Short', strategy.short, qty=contracts, comment='Bear Align')
+    tradePlaced := true
+
+if tradePlaced
+    tradesToday += 1
 
 // ─────────────────────────────────────────────
 // Exit management (initial SL/TP + BE adjustment)
