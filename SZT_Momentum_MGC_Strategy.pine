@@ -81,6 +81,7 @@ entrySession = input.session('0700-0729', 'Allowed entry window (EST)', group='S
 contracts = input.float(1.0, 'Contracts (MGC)', minval=0.1, step=0.1, group='Strategy Rules')
 allowLongs = input.bool(true, 'Enable long trades', group='Strategy Rules')
 allowShorts = input.bool(true, 'Enable short trades', group='Strategy Rules')
+maxTradesPerSession = input.int(1, 'Max trades per session', minval=1, step=1, group='Strategy Rules')
 
 // Risk settings
 stopPts = input.float(3.0, 'Initial Stop (pts)', minval=0.25, step=0.25, group='Risk Management')
@@ -288,7 +289,7 @@ if not warnedTimeframe and timeframe.period != '1'
 // Entry logic (first 30 min only)
 // ─────────────────────────────────────────────
 flat = strategy.position_size == 0
-allowEntries = entryWindowActive and sessionActive and flat and tradesToday == 0
+allowEntries = entryWindowActive and sessionActive and flat and tradesToday < maxTradesPerSession
 tradePlaced = false
 
 if allowEntries and allowLongs and newBull
