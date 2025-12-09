@@ -1,7 +1,7 @@
 // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © Ankit_1618 (original concept) | Modded for HTF CVD projection
 
-//@version=5
+//@version=6
 indicator("HTF CVD (5m on 1m)", "HTF CVD 5m", overlay = false, max_labels_count = 500)
 
 f_delta() =>
@@ -34,9 +34,4 @@ cvd_5m := new_htf_close ? cvd_5m + delta_5m : cvd_5m
 
 zero_line = 0.0
 plot(zero_line, title = "Zero", color = color.new(color.gray, 85))
-plot(
-    cvd_5m,
-    title = "HTF CVD (5m)",
-    color = cvd_5m >= 0 ? color.green : color.red,
-    linewidth = 2
-)
+plot(cvd_5m, title = "HTF CVD (5m)", color = cvd_5m >= 0 ? color.green : color.red, linewidth = 2)
