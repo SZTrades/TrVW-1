@@ -201,21 +201,23 @@ baseBearAligned = t3StateShort and bearCVD and diStateShort
 bullAligned = baseBullAligned and biasLong
 bearAligned = baseBearAligned and biasShort
 
-newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
-newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
+newBull = baseBullAligned and not baseBullAligned[1] and barstate.isconfirmed
+newBear = baseBearAligned and not baseBearAligned[1] and barstate.isconfirmed
 brokenMomentum = (baseBullAligned[1] and not baseBullAligned) or (baseBearAligned[1] and not baseBearAligned)
 
-bgcolor(
-    backgroundTint
-        ? (
-            baseBullAligned and biasLong
-                ? color.new(color.green, 85)
-                : baseBearAligned and biasShort
-                    ? color.new(color.red, 85)
-                    : na
-        )
-        : na
-)
+var bool bgLongState = false
+var bool bgShortState = false
+if baseBullAligned
+    bgLongState := true
+    bgShortState := false
+else if baseBearAligned
+    bgLongState := false
+    bgShortState := true
+else
+    bgLongState := false
+    bgShortState := false
+
+bgcolor(backgroundTint ? (bgLongState ? color.new(color.green, 85) : bgShortState ? color.new(color.red, 85) : na) : na)
 
 plot(showT3Line and useT3 ? t3 : na, title='T3', linewidth=2, color=t3Color)
 
