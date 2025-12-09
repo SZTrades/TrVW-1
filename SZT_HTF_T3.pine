@@ -36,7 +36,7 @@ gdT3_internal(src, len, a) =>
 // ─────────────────────────────────────────────
 // Request HTF data without lookahead
 // ─────────────────────────────────────────────
-[htfT3, htfCloseTime, htfClose] = request.security(syminfo.tickerid, htfResolution, [gdT3_internal(close, lengthT3, factorT3), time_close, close], lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+[htfT3, htfTime, htfClose] = request.security(syminfo.tickerid, htfResolution, [gdT3_internal(close, lengthT3, factorT3), time, close], lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 
 // ─────────────────────────────────────────────
 // Plotting via line segments anchored at HTF closes
@@ -56,15 +56,15 @@ if barstate.isnew and chartTf != timeframe.period
     prevTime := na
     chartTf := timeframe.period
 
-newPoint = ta.change(htfCloseTime) != 0
-if newPoint and na(prevT3) and not na(htfT3)
+if na(prevT3) and not na(htfT3)
     prevT3 := htfT3
-    prevTime := htfCloseTime
+    prevTime := htfTime
 
+newPoint = ta.change(htfTime) != 0
 if newPoint and not na(htfT3)
     currT3 = htfT3
-    currTime = htfCloseTime
-    if not na(prevT3) and not na(prevTime)
+    currTime = htfTime
+    if not na(prevT3) and not na(prevTime) and currTime != prevTime
         segmentColor = useHighlight ? (currT3 >= prevT3 ? colorUp : colorDown) : baseColor
         ln = line.new(x1=prevTime, y1=prevT3, x2=currTime, y2=currT3, xloc=xloc.bar_time, extend=extend.none, color=segmentColor, width=lineWidth)
         array.push(t3Segments, ln)
