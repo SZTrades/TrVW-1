@@ -48,10 +48,9 @@ var table infoTable = table.new(position.top_right, 1, 1)
 // Crear caja y etiquetas solo al cierre confirmado del HTF
 // ─────────────────────────────────────────────
 tfChanged = timeframe.period != _prevTf or ticker.standard(syminfo.tickerid) != _prevTicker
-if barstate.isfirst
-    infoTable := table.new(position.top_right, 1, 1)
-
 if barstate.isfirst or tfChanged
+    if barstate.isfirst
+        infoTable := table.new(position.top_right, 1, 1)
     boxCount = array.size(htfBoxes)
     if boxCount > 0
         for i = boxCount - 1 to 0
