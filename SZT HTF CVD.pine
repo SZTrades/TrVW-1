@@ -1,0 +1,100 @@
+//@version=6
+indicator("SZT HTF CVD", shorttitle="SZT HTF CVD", overlay=false, max_labels_count=500, max_lines_count=500, max_boxes_count=200)
+
+// ─────────────────────────────────────────────
+// Inputs
+// ─────────────────────────────────────────────
+htfResolution = input.timeframe("5", "HTF para CVD", confirm=true)
+cumeLength = input.int(14, "Longitud EMA CVD", minval=1)
+showBuy = input.bool(true, "Mostrar EMA Buying")
+showSell = input.bool(true, "Mostrar EMA Selling")
+showCvd = input.bool(true, "Mostrar HTF CVD")
+buyColor = input.color(color.new(color.teal, 0), "Color Buying")
+sellColor = input.color(color.new(color.red, 0), "Color Selling")
+cvdUpColor = input.color(color.new(color.green, 0), "Color CVD positivo")
+cvdDownColor = input.color(color.new(color.red, 0), "Color CVD negativo")
+
+// ─────────────────────────────────────────────
+// HTF series without lookahead
+// ─────────────────────────────────────────────
+htfOpen  = request.security(syminfo.tickerid, htfResolution, open,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfHigh  = request.security(syminfo.tickerid, htfResolution, high,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfLow   = request.security(syminfo.tickerid, htfResolution, low,   lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfVol   = request.security(syminfo.tickerid, htfResolution, volume, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfTime  = request.security(syminfo.tickerid, htfResolution, time,   lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+
+newHTF = ta.change(htfTime) != 0 and barstate.isconfirmed
+
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+var float buyEma = na
+var float sellEma = na
+var float cvd = 0.0
+var float buySeries = na
+var float sellSeries = na
+var float cvdSeries = na
+var string prevTf = timeframe.period
+var string prevTicker = ticker.standard(syminfo.tickerid)
+
+resetState() =>
+    buyEma := na
+    sellEma := na
+    cvd := 0.0
+    buySeries := na
+    sellSeries := na
+    cvdSeries := na
+
+tfChanged = timeframe.period != prevTf or ticker.standard(syminfo.tickerid) != prevTicker
+if barstate.isfirst or tfChanged
+    resetState()
+    prevTf := timeframe.period
+    prevTicker := ticker.standard(syminfo.tickerid)
+
+// ─────────────────────────────────────────────
+// HTF snapshot and calculations
+// ─────────────────────────────────────────────
+if newHTF
+    prevO = htfOpen[1]
+    prevH = htfHigh[1]
+    prevL = htfLow[1]
+    prevC = htfClose[1]
+    prevV = htfVol[1]
+    ready = not na(prevO) and not na(prevH) and not na(prevL) and not na(prevC) and not na(prevV) and prevH - prevL >= syminfo.mintick
+    if ready
+        spread = math.max(prevH - prevL, syminfo.mintick)
+        upperWick = prevC > prevO ? prevH - prevC : prevH - prevO
+        lowerWick = prevC > prevO ? prevO - prevL : prevC - prevL
+        bodyLen = spread - (upperWick + lowerWick)
+        percentUpper = upperWick / spread
+        percentLower = lowerWick / spread
+        percentBody = bodyLen / spread
+        halfWicks = (percentUpper + percentLower) * 0.5
+        buyingVol = prevC > prevO ? (percentBody + halfWicks) * prevV : halfWicks * prevV
+        sellingVol = prevC < prevO ? (percentBody + halfWicks) * prevV : halfWicks * prevV
+
+        alpha = 2.0 / (cumeLength + 1.0)
+        buyEma := na(buyEma) ? buyingVol : buyEma + alpha * (buyingVol - buyEma)
+        sellEma := na(sellEma) ? sellingVol : sellEma + alpha * (sellingVol - sellEma)
+        cvd += (buyingVol - sellingVol)
+
+        buySeries := buyEma
+        sellSeries := sellEma
+        cvdSeries := cvd
+
+    else
+        buySeries := buySeries[1]
+        sellSeries := sellSeries[1]
+        cvdSeries := cvdSeries[1]
+else
+    buySeries := buySeries[1]
+    sellSeries := sellSeries[1]
+    cvdSeries := cvdSeries[1]
+
+// ─────────────────────────────────────────────
+// Plots
+// ─────────────────────────────────────────────
+plot(showBuy ? buySeries : na, title="Buying EMA", color=buyColor, linewidth=2)
+plot(showSell ? sellSeries : na, title="Selling EMA", color=sellColor, linewidth=2)
+plot(showCvd ? cvdSeries : na, title="HTF CVD", style=plot.style_columns, color=cvdSeries >= 0 ? cvdUpColor : cvdDownColor)
