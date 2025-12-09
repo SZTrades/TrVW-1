@@ -35,10 +35,10 @@ f_cvd(emaLen) =>
     _buyVol = ready ? (_c > _o ? (_pctBody + _halfW) * _v : _halfW * _v) : na
     _sellVol = ready ? (_c < _o ? (_pctBody + _halfW) * _v : _halfW * _v) : na
 
-    _buyEma = ta.ema(_buyVol, emaLen)
-    _sellEma = ta.ema(_sellVol, emaLen)
-    _cvd = ta.cum(nz(_buyVol) - nz(_sellVol))
-    _wave = ta.ema(math.max(_buyEma, _sellEma), emaLen)
+    _buyEma := ta.ema(_buyVol, emaLen)
+    _sellEma := ta.ema(_sellVol, emaLen)
+    _cvd := ta.cum(nz(_buyVol) - nz(_sellVol))
+    _wave := ta.ema(math.max(_buyEma, _sellEma), emaLen)
 
     [_buyEma, _sellEma, _cvd, _wave, time]
 
