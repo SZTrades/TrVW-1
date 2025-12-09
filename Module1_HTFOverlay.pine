@@ -51,7 +51,8 @@ var table infoTable = table.new(position.top_right, 1, 1)
 tfChanged = timeframe.period != _prevTf or ticker.standard(syminfo.tickerid) != _prevTicker
 if barstate.isfirst or tfChanged
     for i = array.size(htfBoxes) - 1 to 0
-        box.delete(array.remove(htfBoxes, i))
+        if i >= 0
+            box.delete(array.remove(htfBoxes, i))
     lastO := na
     lastH := na
     lastL := na
