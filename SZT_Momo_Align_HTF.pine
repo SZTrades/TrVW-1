@@ -221,8 +221,8 @@ bgcolor(backgroundTint ? (bgLongState ? color.new(color.green, 85) : bgShortStat
 
 plot(showT3Line and useT3 ? t3 : na, title='T3', linewidth=2, color=t3Color)
 
-plotshape(showBullSignals and newBull, title='Bull Alignment', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny, text='Bull')
-plotshape(showBearSignals and newBear, title='Bear Alignment', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny, text='Bear')
+plotshape(showBullSignals and newBull, title='Bull Alignment', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.small)
+plotshape(showBearSignals and newBear, title='Bear Alignment', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.small)
 plotshape(showBreakSignals and brokenMomentum, title='Momentum Break', location=location.top, style=shape.circle, color=color.new(color.orange, 0), size=size.tiny, text='X')
 
 alignmentColor = bullAligned ? color.green : bearAligned ? color.red : color.gray
