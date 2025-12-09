@@ -205,10 +205,10 @@ newBull = baseBullAligned and biasLong and not (baseBullAligned[1] and biasLong[
 newBear = baseBearAligned and biasShort and not (baseBearAligned[1] and biasShort[1]) and barstate.isconfirmed
 var bool bgLongState = false
 var bool bgShortState = false
-if baseBullAligned
+if bullAligned
     bgLongState := true
     bgShortState := false
-else if baseBearAligned
+else if bearAligned
     bgLongState := false
     bgShortState := true
 else
