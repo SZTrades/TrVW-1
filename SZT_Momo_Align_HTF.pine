@@ -203,20 +203,19 @@ bearAligned = baseBearAligned and biasShort
 
 newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
 newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
-var bool bgLongState = false
-var bool bgShortState = false
-if bullAligned
-    bgLongState := true
-    bgShortState := false
-else if bearAligned
-    bgLongState := false
-    bgShortState := true
-else
-    bgLongState := false
-    bgShortState := false
 brokenMomentum = (baseBullAligned[1] and not baseBullAligned) or (baseBearAligned[1] and not baseBearAligned)
 
-bgcolor(backgroundTint ? (bgLongState ? color.new(color.green, 85) : bgShortState ? color.new(color.red, 85) : na) : na)
+bgcolor(
+    backgroundTint
+        ? (
+            baseBullAligned and biasLong
+                ? color.new(color.green, 85)
+                : baseBearAligned and biasShort
+                    ? color.new(color.red, 85)
+                    : na
+        )
+        : na
+)
 
 plot(showT3Line and useT3 ? t3 : na, title='T3', linewidth=2, color=t3Color)
 
