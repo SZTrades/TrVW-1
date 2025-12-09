@@ -18,7 +18,7 @@ waveColor = input.color(color.new(color.gray, 70), "Color wave EMA")
 // --- FUNCTION: run full CVD logic IN-HTF context (returns tuple)
 var float _buyEma = na
 var float _sellEma = na
-var float _cvd = 0.0
+var float _cvd = na
 var float _wave = na
 
 f_cvd(emaLen) =>
