@@ -46,6 +46,12 @@ showBreakSignals = input.bool(true, 'Show Break Signals', group='Display')
 backgroundTint = input.bool(true, 'Tint background on alignment', group='Display')
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HTF Filter Settings
+// ─────────────────────────────────────────────────────────────────────────────
+htfTimeframe = input.timeframe('60', 'HTF Timeframe', group='HTF Filter')
+htfT3Length = input.int(5, 'HTF T3 Length', minval=1, group='HTF Filter')
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Helper functions
 // ─────────────────────────────────────────────────────────────────────────────
 gdT3(src, len) =>
@@ -99,6 +105,14 @@ if inverseT3
     prevShort = t3StateShort
     t3StateLong := prevShort
     t3StateShort := prevLong
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTF T3 filter
+// ─────────────────────────────────────────────────────────────────────────────
+t3HTF = request.security(syminfo.tickerid, htfTimeframe, gdT3(close, htfT3Length), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+t3HTFDirection = nz(t3HTF > t3HTF[1] ? 1 : t3HTF < t3HTF[1] ? -1 : 0)
+htfLong = t3HTFDirection > 0
+htfShort = t3HTFDirection < 0
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CVD core calculation & filter
@@ -165,8 +179,8 @@ if inverseDI
 // ─────────────────────────────────────────────────────────────────────────────
 // Alignment logic & signalling
 // ─────────────────────────────────────────────────────────────────────────────
-bullAligned = t3StateLong and bullCVD and diStateLong
-bearAligned = t3StateShort and bearCVD and diStateShort
+bullAligned = t3StateLong and bullCVD and diStateLong and htfLong
+bearAligned = t3StateShort and bearCVD and diStateShort and htfShort
 
 newBull = bullAligned and not bullAligned[1]
 newBear = bearAligned and not bearAligned[1]
