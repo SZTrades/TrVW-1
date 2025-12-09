@@ -5,11 +5,13 @@ indicator("Módulo 1 — HTF 5m overlay (sin repaint)", shorttitle="HTF5 overlay
 // Inputs
 // ─────────────────────────────────────────────
 const string DEFAULT_HTF = "5"
+const int BOX_CAP = 495
 htfResolution = input.timeframe(DEFAULT_HTF, "Temporalidad superior (usar 5m)", confirm=true)
 showBoxes = input.bool(true, "Mostrar vela HTF confirmada")
 showBorders = input.bool(true, "Mostrar bordes")
 borderWidth = input.int(1, "Grosor borde", minval=0, maxval=4)
-maxSavedSegments = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
+maxSavedSegmentsInput = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
+boxBudget = math.min(maxSavedSegmentsInput, BOX_CAP)
 
 // ─────────────────────────────────────────────
 // Helper: número de barras LTF que forman un HTF
@@ -30,7 +32,8 @@ htfLow   = request.security(syminfo.tickerid, htfResolution, low,   lookahead=ba
 htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 htfTime  = request.security(syminfo.tickerid, htfResolution, time,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 
-newHTF = ta.change(htfTime) != 0
+rawHTFShift = ta.change(htfTime) != 0
+confirmedHTF = rawHTFShift and barstate.isconfirmed
 
 // Persistencia
 var box[] htfBoxes = array.new_box()
@@ -38,28 +41,43 @@ var float lastO = na
 var float lastH = na
 var float lastL = na
 var float lastC = na
+var string prevTf = timeframe.period
+var string prevTicker = syminfo.tickerid
 
 // ─────────────────────────────────────────────
 // Crear caja y etiquetas solo al cierre confirmado del HTF
 // ─────────────────────────────────────────────
-if newHTF
+resetState() =>
+    for i = 0 to array.size(htfBoxes) - 1
+        box.delete(array.get(htfBoxes, i))
+    array.clear(htfBoxes)
+    lastO := na
+    lastH := na
+    lastL := na
+    lastC := na
+
+stateNeedsReset = barstate.isfirst or timeframe.period != prevTf or syminfo.tickerid != prevTicker
+if stateNeedsReset
+    resetState()
+    prevTf := timeframe.period
+    prevTicker := syminfo.tickerid
+
+if confirmedHTF
     prevO = htfOpen[1]
     prevH = htfHigh[1]
     prevL = htfLow[1]
     prevC = htfClose[1]
-    ready = not na(prevO) and not na(prevH) and not na(prevL) and not na(prevC)
+    ready = not na(prevO) and not na(prevH) and not na(prevL) and not na(prevC) and not na(htfTime[1]) and not na(htfTime)
     if ready
-        hasTimeCoords = not na(htfTime[1]) and not na(htfTime)
-        leftCoord = hasTimeCoords ? htfTime[1] : bar_index - barsPerHTF
-        rightCoord = hasTimeCoords ? htfTime : bar_index - 1
-        xLocation = hasTimeCoords ? xloc.bar_time : xloc.bar_index
+        leftCoord = htfTime[1]
+        rightCoord = htfTime
         if showBoxes
             borderColorBase = prevC >= prevO ? color.teal : color.red
             borderColor = showBorders ? borderColorBase : color.new(borderColorBase, 100)
             borderW = showBorders ? borderWidth : 0
-            b = box.new(left=leftCoord, top=prevH, right=rightCoord, bottom=prevL, xloc=xLocation, border_width=borderW, border_color=borderColor, bgcolor=na)
+            b = box.new(left=leftCoord, top=prevH, right=rightCoord, bottom=prevL, xloc=xloc.bar_time, border_width=borderW, border_color=borderColor, bgcolor=na)
             array.push(htfBoxes, b)
-            if array.size(htfBoxes) > maxSavedSegments
+            if array.size(htfBoxes) > boxBudget
                 oldBox = array.shift(htfBoxes)
                 box.delete(oldBox)
         lastO := prevO
@@ -70,7 +88,12 @@ if newHTF
 // ─────────────────────────────────────────────
 // Información en pantalla de la última vela confirmada
 // ─────────────────────────────────────────────
-var table infoTable = table.new(position.top_right, 1, 1)
+var table infoTable = na
+if infoTable == na or stateNeedsReset
+    infoTable := table.new(position.top_right, 1, 1)
+else
+    table.clear(infoTable)
+
 infoTxt = na(lastO) ? "Esperando primera vela HTF confirmada…" : "HTF " + htfResolution + " | O:" + str.tostring(lastO, format.mintick) + " H:" + str.tostring(lastH, format.mintick) + " L:" + str.tostring(lastL, format.mintick) + " C:" + str.tostring(lastC, format.mintick)
 if barstate.islast
     table.cell(infoTable, 0, 0, infoTxt, bgcolor=color.new(color.black, 30), text_color=color.white)
