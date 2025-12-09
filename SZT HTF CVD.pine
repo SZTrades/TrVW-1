@@ -56,6 +56,8 @@ buySeries = htfBuyEma
 sellSeries = htfSellEma
 cvdSeries = htfCvd
 waveSeries = htfWave
+normBuy = buySeries / (buySeries + sellSeries)
+normSell = sellSeries / (buySeries + sellSeries)
 
 // Optional: detect first LTF bar after HTF close if needed
 htfNewPoint = ta.change(htfTime) != 0
@@ -63,6 +65,12 @@ htfNewPoint = ta.change(htfTime) != 0
 // Plots (same aesthetic)
 pb = plot(showBuy ? buySeries : na, title="EMA Compras", color=buyColor, linewidth=2)
 ps = plot(showSell ? sellSeries : na, title="EMA Ventas", color=sellColor, linewidth=2)
-fill(pb, ps, color=buySeries > sellSeries ? color.new(color.green, 60) : buySeries < sellSeries ? color.new(color.red, 60) : color.new(color.yellow, 60))
+fill(
+    pb, ps,
+    color =
+        normBuy > normSell ? color.new(color.green, 60) :
+        normBuy < normSell ? color.new(color.red, 60) :
+        color.new(color.yellow, 60)
+)
 plot(waveSeries, title="Wave EMA", color=waveColor, linewidth=2)
 plot(showCvd ? cvdSeries : na, title="HTF CVD", style=plot.style_columns, color=cvdSeries >= 0 ? cvdPosColor : cvdNegColor, linewidth=2)
