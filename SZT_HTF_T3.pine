@@ -20,8 +20,7 @@ maxSegments = input.int(300, "Max stored segments", minval=20, maxval=500, toolt
 // ─────────────────────────────────────────────
 // Helper
 // ─────────────────────────────────────────────
-gdT3(src, len) =>
-    a = factorT3
+gdT3_internal(src, len, a) =>
     e1 = ta.ema(src, len)
     e2 = ta.ema(e1, len)
     e3 = ta.ema(e2, len)
@@ -37,9 +36,7 @@ gdT3(src, len) =>
 // ─────────────────────────────────────────────
 // Request HTF data without lookahead
 // ─────────────────────────────────────────────
-htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
-htfCloseTime = request.security(syminfo.tickerid, htfResolution, time_close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
-htfT3 = gdT3(htfClose, lengthT3)
+[htfT3, htfCloseTime, htfClose] = request.security(syminfo.tickerid, htfResolution, [gdT3_internal(close, lengthT3, factorT3), time_close, close], lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 
 // ─────────────────────────────────────────────
 // Plotting via line segments anchored at HTF closes
@@ -60,7 +57,7 @@ if barstate.isnew and chartTf != timeframe.period
     chartTf := timeframe.period
 
 newPoint = ta.change(htfCloseTime) != 0
-if barstate.isfirst and not na(htfT3)
+if newPoint and na(prevT3) and not na(htfT3)
     prevT3 := htfT3
     prevTime := htfCloseTime
 
