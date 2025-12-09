@@ -32,7 +32,7 @@ htfLow   = request.security(syminfo.tickerid, htfResolution, low,   lookahead=ba
 htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 htfTime  = request.security(syminfo.tickerid, htfResolution, time,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 
-newHTF = ta.change(htfTime) != 0
+newHTF = ta.change(htfTime) != 0 and barstate.isconfirmed
 
 // Persistencia
 var box[] htfBoxes = array.new_box()
@@ -48,17 +48,19 @@ var table infoTable = table.new(position.top_right, 1, 1)
 // Crear caja y etiquetas solo al cierre confirmado del HTF
 // ─────────────────────────────────────────────
 tfChanged = timeframe.period != _prevTf or ticker.standard(syminfo.tickerid) != _prevTicker
+if barstate.isfirst
+    infoTable := table.new(position.top_right, 1, 1)
+
 if barstate.isfirst or tfChanged
     boxCount = array.size(htfBoxes)
     if boxCount > 0
-        for i = 0 to boxCount - 1
+        for i = boxCount - 1 to 0
             box.delete(array.get(htfBoxes, i))
     array.clear(htfBoxes)
     lastO := na
     lastH := na
     lastL := na
     lastC := na
-    infoTable := table.new(position.top_right, 1, 1)
     _prevTf := timeframe.period
     _prevTicker := ticker.standard(syminfo.tickerid)
 
@@ -90,6 +92,6 @@ if newHTF
 // ─────────────────────────────────────────────
 // Información en pantalla de la última vela confirmada
 // ─────────────────────────────────────────────
-infoTxt = na(lastO) ? "Esperando primera vela HTF confirmada…" : "HTF " + htfResolution + " | O:" + str.tostring(lastO, format.mintick) + " H:" + str.tostring(lastH, format.mintick) + " L:" + str.tostring(lastL, format.mintick) + " C:" + str.tostring(lastC, format.mintick)
+infoTxt = barsPerHTF <= 1 ? "HTF debe ser mayor a la LTF" : na(lastO) ? "Esperando primera vela HTF confirmada…" : "HTF " + htfResolution + " | O:" + str.tostring(lastO, format.mintick) + " H:" + str.tostring(lastH, format.mintick) + " L:" + str.tostring(lastL, format.mintick) + " C:" + str.tostring(lastC, format.mintick)
 if barstate.islast
     table.cell(infoTable, 0, 0, infoTxt, bgcolor=color.new(color.black, 30), text_color=color.white)
