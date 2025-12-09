@@ -200,8 +200,6 @@ baseBearAligned = t3StateShort and bearCVD and diStateShort
 
 bullAligned = baseBullAligned and biasLong
 bearAligned = baseBearAligned and biasShort
-bullAligned := bullAligned and biasLong
-bearAligned := bearAligned and biasShort
 
 newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
 newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
