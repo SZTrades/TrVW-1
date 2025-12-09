@@ -17,40 +17,28 @@ waveColor = input.color(color.new(color.gray, 70), "Color wave EMA")
 
 // --- FUNCTION: run full CVD logic IN-HTF context (returns tuple)
 f_cvd(emaLen) =>
-    // Local vars in HTF context
     _o = open
     _h = high
     _l = low
     _c = close
     _v = volume
-    ready = not na(_o) and not na(_h) and not na(_l) and not na(_c) and not na(_v) and _h - _l >= syminfo.mintick
+    ready = not na(_o) and not na(_h) and not na(_l) and not na(_c) and not na(_v) and (_h - _l) >= syminfo.mintick
+    _spread = math.max(_h - _l, syminfo.mintick)
+    _upper = _c > _o ? _h - _c : _h - _o
+    _lower = _c > _o ? _o - _l : _c - _l
+    _body = _spread - (_upper + _lower)
+    _pctUpper = _upper / _spread
+    _pctLower = _lower / _spread
+    _pctBody = _body / _spread
+    _halfW = (_pctUpper + _pctLower) * 0.5
 
-    // Persistent HTF state
-    var float _buyEma = na
-    var float _sellEma = na
-    var float _cvd = 0.0
-    var float _wave = na
+    _buyVol = ready ? (_c > _o ? (_pctBody + _halfW) * _v : _halfW * _v) : na
+    _sellVol = ready ? (_c < _o ? (_pctBody + _halfW) * _v : _halfW * _v) : na
 
-    if ready
-        _spread = math.max(_h - _l, syminfo.mintick)
-        _upper = _c > _o ? _h - _c : _h - _o
-        _lower = _c > _o ? _o - _l : _c - _l
-        _body = _spread - (_upper + _lower)
-        _pctUpper = _upper / _spread
-        _pctLower = _lower / _spread
-        _pctBody = _body / _spread
-        _halfW = (_pctUpper + _pctLower) * 0.5
-
-        _buyVol = _c > _o ? (_pctBody + _halfW) * _v : _halfW * _v
-        _sellVol = _c < _o ? (_pctBody + _halfW) * _v : _halfW * _v
-
-        _alpha = 2.0 / (emaLen + 1.0)
-        _buyEma := na(_buyEma) ? _buyVol : _buyEma + _alpha * (_buyVol - _buyEma)
-        _sellEma := na(_sellEma) ? _sellVol : _sellEma + _alpha * (_sellVol - _sellEma)
-        _cvd := nz(_cvd) + (_buyVol - _sellVol)
-
-        _strength = math.max(_buyEma, _sellEma)
-        _wave := na(_wave) ? _strength : _wave + _alpha * (_strength - _wave)
+    _buyEma = ta.ema(_buyVol, emaLen)
+    _sellEma = ta.ema(_sellVol, emaLen)
+    _cvd = ta.cum(nz(_buyVol) - nz(_sellVol))
+    _wave = ta.ema(math.max(_buyEma, _sellEma), emaLen)
 
     [_buyEma, _sellEma, _cvd, _wave, time]
 
