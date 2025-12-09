@@ -42,24 +42,23 @@ var float lastH = na
 var float lastL = na
 var float lastC = na
 var string _prevTf = timeframe.period
-var string _prevTicker = syminfo.tickerid
+var string _prevTicker = ticker.standard(syminfo.tickerid)
 var table infoTable = table.new(position.top_right, 1, 1)
 
 // ─────────────────────────────────────────────
 // Crear caja y etiquetas solo al cierre confirmado del HTF
 // ─────────────────────────────────────────────
-tfChanged = timeframe.period != _prevTf or syminfo.tickerid != _prevTicker
+tfChanged = timeframe.period != _prevTf or ticker.standard(syminfo.tickerid) != _prevTicker
 if barstate.isfirst or tfChanged
-    for i = 0 to array.size(htfBoxes) - 1
-        box.delete(array.get(htfBoxes, i))
-    array.clear(htfBoxes)
+    for i = array.size(htfBoxes) - 1 to 0
+        box.delete(array.remove(htfBoxes, i))
     lastO := na
     lastH := na
     lastL := na
     lastC := na
     infoTable := table.new(position.top_right, 1, 1)
     _prevTf := timeframe.period
-    _prevTicker := syminfo.tickerid
+    _prevTicker := ticker.standard(syminfo.tickerid)
 
 if newHTF
     prevO = htfOpen[1]
