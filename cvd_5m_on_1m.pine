@@ -14,9 +14,10 @@ f_delta() =>
     percent_lower_wick = lower_wick / spread
     percent_body_length = body_length / spread
 
-    wick_mix = (percent_upper_wick + percent_lower_wick) / 2.0
-    buying_volume = close > open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
-    selling_volume = close < open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
+    half_wicks = (percent_upper_wick + percent_lower_wick) / 2.0
+    wick_only = half_wicks * volume
+    buying_volume = close > open ? (percent_body_length + half_wicks) * volume : wick_only
+    selling_volume = close < open ? (percent_body_length + half_wicks) * volume : wick_only
 
     buying_volume - selling_volume
 
