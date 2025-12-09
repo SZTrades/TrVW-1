@@ -10,9 +10,8 @@ htfResolution = input.timeframe(DEFAULT_HTF, "Temporalidad superior (usar 5m)", 
 showBoxes = input.bool(true, "Mostrar vela HTF confirmada")
 showBorders = input.bool(true, "Mostrar bordes")
 borderWidth = input.int(1, "Grosor borde", minval=0, maxval=4)
-maxSavedSegmentsInput = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
-maxAllowedBoxes = MAX_BOX_COUNT - 5
-maxSavedSegments = math.min(maxSavedSegmentsInput, maxAllowedBoxes)
+maxSavedSegments = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
+maxSavedSegments := math.min(maxSavedSegments, MAX_BOX_COUNT - 5)
 
 // ─────────────────────────────────────────────
 // Helper: número de barras LTF que forman un HTF
@@ -33,7 +32,7 @@ htfLow   = request.security(syminfo.tickerid, htfResolution, low,   lookahead=ba
 htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 htfTime  = request.security(syminfo.tickerid, htfResolution, time,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 
-newHTF = ta.change(htfTime) != 0 and barstate.isconfirmed
+newHTF = ta.change(htfTime) != 0
 
 // Persistencia
 var box[] htfBoxes = array.new_box()
@@ -50,9 +49,9 @@ var table infoTable = table.new(position.top_right, 1, 1)
 // ─────────────────────────────────────────────
 tfChanged = timeframe.period != _prevTf or ticker.standard(syminfo.tickerid) != _prevTicker
 if barstate.isfirst or tfChanged
-    while array.size(htfBoxes) > 0
-        idx = array.size(htfBoxes) - 1
-        box.delete(array.remove(htfBoxes, idx))
+    for i = 0 to array.size(htfBoxes) - 1
+        box.delete(array.get(htfBoxes, i))
+    array.clear(htfBoxes)
     lastO := na
     lastH := na
     lastL := na
