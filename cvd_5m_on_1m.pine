@@ -6,20 +6,12 @@ indicator("HTF CVD (5m on 1m)", "HTF CVD 5m", overlay = false, max_labels_count 
 
 f_delta() =>
     spread = math.max(high - low, syminfo.mintick)
-    upper_wick = close > open ? high - close : high - open
-    lower_wick = close > open ? open - low : close - low
-    body_length = math.max(spread - (upper_wick + lower_wick), 0.0)
-
-    percent_upper_wick = upper_wick / spread
-    percent_lower_wick = lower_wick / spread
+    body_length = math.abs(close - open)
     percent_body_length = body_length / spread
 
-    half_wicks = (percent_upper_wick + percent_lower_wick) / 2.0
-    wick_only = half_wicks * volume
-    buying_volume = close > open ? (percent_body_length + half_wicks) * volume : wick_only
-    selling_volume = close < open ? (percent_body_length + half_wicks) * volume : wick_only
-
-    buying_volume - selling_volume
+    close > open ? percent_body_length * volume :
+         close < open ? -(percent_body_length * volume) :
+         0.0
 
 [delta_5m, htf_time] = request.security(
      syminfo.tickerid,
