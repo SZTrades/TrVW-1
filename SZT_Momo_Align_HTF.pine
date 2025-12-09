@@ -108,8 +108,8 @@ else
             t3StateLong := false
             t3StateShort := true
         else
-            t3StateLong := na(t3StateLong[1]) ? false : t3StateLong[1]
-            t3StateShort := na(t3StateShort[1]) ? false : t3StateShort[1]
+            t3StateLong := t3StateLong[1]
+            t3StateShort := t3StateShort[1]
     else
         t3StateLong := basicLongT3
         t3StateShort := basicShortT3
@@ -180,8 +180,8 @@ else
             diStateLong := false
             diStateShort := true
         else
-            diStateLong := na(diStateLong[1]) ? false : diStateLong[1]
-            diStateShort := na(diStateShort[1]) ? false : diStateShort[1]
+            diStateLong := diStateLong[1]
+            diStateShort := diStateShort[1]
     else
         diStateLong := baseLongDI
         diStateShort := baseShortDI
