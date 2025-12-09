@@ -108,8 +108,8 @@ else
             t3StateLong := false
             t3StateShort := true
         else
-            t3StateLong := nz(t3StateLong[1], false)
-            t3StateShort := nz(t3StateShort[1], false)
+            t3StateLong := nz(t3StateLong[1])
+            t3StateShort := nz(t3StateShort[1])
     else
         t3StateLong := basicLongT3
         t3StateShort := basicShortT3
@@ -180,8 +180,8 @@ else
             diStateLong := false
             diStateShort := true
         else
-            diStateLong := nz(diStateLong[1], false)
-            diStateShort := nz(diStateShort[1], false)
+            diStateLong := nz(diStateLong[1])
+            diStateShort := nz(diStateShort[1])
     else
         diStateLong := baseLongDI
         diStateShort := baseShortDI
