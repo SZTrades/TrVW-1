@@ -4,9 +4,7 @@
 //@version=6
 indicator("HTF CVD (5m on 1m)", "HTF CVD 5m", overlay = false, max_labels_count = 500)
 
-length = input.int(14, "Cumulation Length", minval = 1)
-
-f_cvd() =>
+f_delta() =>
     spread = math.max(high - low, syminfo.mintick)
     upper_wick = close > open ? high - close : high - open
     lower_wick = close > open ? open - low : close - low
@@ -17,37 +15,24 @@ f_cvd() =>
     percent_body_length = body_length / spread
 
     wick_mix = (percent_upper_wick + percent_lower_wick) / 2.0
-    buy_vol = close > open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
-    sell_vol = close < open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
+    buying_volume = close > open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
+    selling_volume = close < open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
 
-    buy_ema = ta.ema(buy_vol, length)
-    sell_ema = ta.ema(sell_vol, length)
-    volume_strength_wave = math.max(buy_ema, sell_ema)
-    wave = ta.ema(volume_strength_wave, length)
+    buying_volume - selling_volume
 
-    cvd = ta.cum(buy_vol - sell_vol)
-    [buy_ema, sell_ema, cvd, wave, time]
-
-[htf_buy_ema, htf_sell_ema, htf_cvd, htf_wave, htf_time] = request.security(
+[delta_5m, htf_time] = request.security(
      syminfo.tickerid,
      "5",
-     f_cvd(),
+     [f_delta(), time],
      lookahead = barmerge.lookahead_off,
      gaps = barmerge.gaps_off
  )
 
 htf_closed = ta.change(htf_time) != 0
 
-var float last_buy_ema = na
-var float last_sell_ema = na
-var float last_cvd = na
-var float last_wave = na
+var float cvd = 0.0
+if htf_closed and not na(delta_5m)
+    cvd += delta_5m
 
-if htf_closed
-    last_buy_ema := htf_buy_ema
-    last_sell_ema := htf_sell_ema
-    last_cvd := htf_cvd
-    last_wave := htf_wave
-
-column_color = last_cvd >= 0 ? color.new(color.green, 0) : color.new(color.red, 0)
-plot(last_cvd, title = "HTF CVD (5m)", style = plot.style_columns, color = column_color, linewidth = 2)
+column_color = cvd >= 0 ? color.new(color.green, 0) : color.new(color.red, 0)
+plot(cvd, title = "HTF CVD (5m)", style = plot.style_columns, color = column_color, linewidth = 2)
