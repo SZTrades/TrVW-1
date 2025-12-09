@@ -5,12 +5,8 @@
 indicator("HTF CVD (5m on 1m)", "HTF CVD 5m", overlay = false, max_labels_count = 500)
 
 f_delta() =>
-    spread = math.max(high - low, syminfo.mintick)
-    body_length = math.abs(close - open)
-    percent_body_length = body_length / spread
-
-    close > open ? percent_body_length * volume :
-         close < open ? -(percent_body_length * volume) :
+    close > open ? volume :
+         close < open ? -volume :
          0.0
 
 [delta_5m, htf_time] = request.security(
