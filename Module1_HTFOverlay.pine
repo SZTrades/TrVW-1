@@ -1,0 +1,96 @@
+//@version=6
+indicator("Módulo 1 — HTF 5m overlay (sin repaint)", shorttitle="HTF5 overlay", overlay=true, max_labels_count=500, max_boxes_count=500)
+
+// ─────────────────────────────────────────────
+// Inputs
+// ─────────────────────────────────────────────
+const string DEFAULT_HTF = "5"
+const int MAX_BOX_COUNT = 500
+htfResolution = input.timeframe(DEFAULT_HTF, "Temporalidad superior (usar 5m)", confirm=true)
+showBoxes = input.bool(true, "Mostrar vela HTF confirmada")
+showBorders = input.bool(true, "Mostrar bordes")
+borderWidth = input.int(1, "Grosor borde", minval=0, maxval=4)
+maxSavedSegments = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
+maxSavedSegments := math.min(maxSavedSegments, MAX_BOX_COUNT - 5)
+
+// ─────────────────────────────────────────────
+// Helper: número de barras LTF que forman un HTF
+// ─────────────────────────────────────────────
+calcBarsPerHTF(resHigher) =>
+    higherSec = timeframe.in_seconds(resHigher)
+    lowerSec = timeframe.in_seconds(timeframe.period)
+    higherSec <= 0 or lowerSec <= 0 ? 1 : math.max(int(math.round(higherSec / lowerSec)), 1)
+
+barsPerHTF = calcBarsPerHTF(htfResolution)
+
+// ─────────────────────────────────────────────
+// Series HTF sin lookahead
+// ─────────────────────────────────────────────
+htfOpen  = request.security(syminfo.tickerid, htfResolution, open,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfHigh  = request.security(syminfo.tickerid, htfResolution, high,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfLow   = request.security(syminfo.tickerid, htfResolution, low,   lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfTime  = request.security(syminfo.tickerid, htfResolution, time,  lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+
+newHTF = ta.change(htfTime) != 0 and barstate.isconfirmed
+
+// Persistencia
+var box[] htfBoxes = array.new_box()
+var float lastO = na
+var float lastH = na
+var float lastL = na
+var float lastC = na
+var string _prevTf = timeframe.period
+var string _prevTicker = ticker.standard(syminfo.tickerid)
+var table infoTable = table.new(position.top_right, 1, 1)
+
+// ─────────────────────────────────────────────
+// Crear caja y etiquetas solo al cierre confirmado del HTF
+// ─────────────────────────────────────────────
+tfChanged = timeframe.period != _prevTf or ticker.standard(syminfo.tickerid) != _prevTicker
+if barstate.isfirst or tfChanged
+    if barstate.isfirst
+        infoTable := table.new(position.top_right, 1, 1)
+    boxCount = array.size(htfBoxes)
+    if boxCount > 0
+        for i = boxCount - 1 to 0
+            box.delete(array.get(htfBoxes, i))
+    array.clear(htfBoxes)
+    lastO := na
+    lastH := na
+    lastL := na
+    lastC := na
+    _prevTf := timeframe.period
+    _prevTicker := ticker.standard(syminfo.tickerid)
+
+if newHTF
+    prevO = htfOpen[1]
+    prevH = htfHigh[1]
+    prevL = htfLow[1]
+    prevC = htfClose[1]
+    ready = not na(prevO) and not na(prevH) and not na(prevL) and not na(prevC) and not na(htfTime[1]) and not na(htfTime)
+    if ready
+        hasTimeCoords = not na(htfTime[1]) and not na(htfTime)
+        leftCoord = hasTimeCoords ? htfTime[1] : bar_index - barsPerHTF
+        rightCoord = hasTimeCoords ? htfTime : bar_index - 1
+        xLocation = hasTimeCoords ? xloc.bar_time : xloc.bar_index
+        if showBoxes
+            borderColorBase = prevC >= prevO ? color.teal : color.red
+            borderColor = showBorders ? borderColorBase : color.new(borderColorBase, 100)
+            borderW = showBorders ? borderWidth : 0
+            b = box.new(left=leftCoord, top=prevH, right=rightCoord, bottom=prevL, xloc=xLocation, border_width=borderW, border_color=borderColor, bgcolor=na)
+            array.push(htfBoxes, b)
+            if array.size(htfBoxes) > maxSavedSegments
+                oldBox = array.shift(htfBoxes)
+                box.delete(oldBox)
+        lastO := prevO
+        lastH := prevH
+        lastL := prevL
+        lastC := prevC
+
+// ─────────────────────────────────────────────
+// Información en pantalla de la última vela confirmada
+// ─────────────────────────────────────────────
+infoTxt = barsPerHTF <= 1 ? "HTF debe ser mayor a la LTF" : na(lastO) ? "Esperando primera vela HTF confirmada…" : "HTF " + htfResolution + " | O:" + str.tostring(lastO, format.mintick) + " H:" + str.tostring(lastH, format.mintick) + " L:" + str.tostring(lastL, format.mintick) + " C:" + str.tostring(lastC, format.mintick)
+if barstate.islast
+    table.cell(infoTable, 0, 0, infoTxt, bgcolor=color.new(color.black, 30), text_color=color.white)

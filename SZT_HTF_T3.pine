@@ -1,0 +1,87 @@
+//@version=6
+// SZT HTF T3 — computes the classic DaviddTech T3 filter strictly on higher-timeframe closes.
+// Original T3 concept © DaviddTech, licensed under CC BY-NC-SA 4.0.
+
+indicator("SZT HTF T3", shorttitle="SZT HTF T3", overlay=true, max_lines_count=500, max_labels_count=10)
+
+// ─────────────────────────────────────────────
+// Inputs
+// ─────────────────────────────────────────────
+htfResolution = input.timeframe("5", "Higher timeframe (minutes)", tooltip="All calculations use only confirmed bars from this resolution.")
+lengthT3 = input.int(5, "T3 length", minval=1, tooltip="Applies on the higher timeframe series.")
+factorT3 = input.float(0.7, "T3 factor", minval=0.0, maxval=1.0)
+useHighlight = input.bool(true, "Highlight slope direction")
+colorUp = input.color(color.new(color.teal, 0), "Rising color")
+colorDown = input.color(color.new(color.red, 0), "Falling color")
+baseColor = input.color(#6d1e7f, "Flat color")
+lineWidth = input.int(2, "Line width", minval=1, maxval=5)
+maxSegments = input.int(300, "Max stored segments", minval=20, maxval=500, tooltip="Limits how many HTF-to-HTF line segments stay on chart.")
+dataOnly = input.bool(false, "Data-only mode (no drawings)")
+
+// ─────────────────────────────────────────────
+// Helper
+// ─────────────────────────────────────────────
+gdT3_internal(src, len, a) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    e3 = ta.ema(e2, len)
+    e4 = ta.ema(e3, len)
+    e5 = ta.ema(e4, len)
+    e6 = ta.ema(e5, len)
+    c1 = -math.pow(a, 3)
+    c2 = 3 * math.pow(a, 2) + 3 * math.pow(a, 3)
+    c3 = -3 * a - 6 * math.pow(a, 2) - 3 * math.pow(a, 3)
+    c4 = 1 + 3 * a + 3 * math.pow(a, 2) + math.pow(a, 3)
+    c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3
+
+// ─────────────────────────────────────────────
+// Request HTF data without lookahead
+// ─────────────────────────────────────────────
+[htfT3, htfTime] = request.security(syminfo.tickerid, htfResolution, [gdT3_internal(close, lengthT3, factorT3), time], lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+
+// ─────────────────────────────────────────────
+// Plotting via line segments anchored at HTF closes
+// ─────────────────────────────────────────────
+var line[] t3Segments = array.new_line()
+var float prevT3 = na
+var int prevTime = na
+var string chartTf = timeframe.period
+
+if barstate.isfirst
+    segCount = array.size(t3Segments)
+    if segCount > 0
+        for i = 0 to segCount - 1
+            line.delete(array.get(t3Segments, i))
+    array.clear(t3Segments)
+    prevT3 := na
+    prevTime := na
+    chartTf := timeframe.period
+
+timeframeChanged = barstate.isnew and chartTf != timeframe.period
+if timeframeChanged
+    segCountTf = array.size(t3Segments)
+    if segCountTf > 0
+        for i = 0 to segCountTf - 1
+            line.delete(array.get(t3Segments, i))
+    array.clear(t3Segments)
+    prevT3 := na
+    prevTime := na
+    chartTf := timeframe.period
+
+newPoint = ta.change(htfTime) != 0
+if newPoint and not na(htfT3)
+    if na(prevT3) or na(prevTime)
+        prevT3 := htfT3
+        prevTime := htfTime
+    else
+        if not dataOnly and htfTime > prevTime
+            segmentColor = useHighlight ? (htfT3 >= prevT3 ? colorUp : colorDown) : baseColor
+            ln = line.new(x1=prevTime, y1=prevT3, x2=htfTime, y2=htfT3, xloc=xloc.bar_time, extend=extend.none, color=segmentColor, width=lineWidth)
+            array.push(t3Segments, ln)
+            if array.size(t3Segments) > maxSegments
+                old = array.shift(t3Segments)
+                line.delete(old)
+        prevT3 := htfT3
+        prevTime := htfTime
+
+plot(htfT3, title="HTF T3 (data)", color=na, display=display.data_window)
