@@ -27,9 +27,9 @@ gdT3(src, len) =>
 // ─────────────────────────────────────────────
 // Request HTF data without lookahead
 // ─────────────────────────────────────────────
-htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfClose = request.security(syminfo.tickerid, htfResolution, srcInput, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 htfCloseTime = request.security(syminfo.tickerid, htfResolution, time, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
-htfT3 = request.security(syminfo.tickerid, htfResolution, gdT3(gdT3(gdT3(srcInput, lengthT3), lengthT3), lengthT3), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfT3 = gdT3(gdT3(gdT3(htfClose, lengthT3), lengthT3), lengthT3)
 
 // ─────────────────────────────────────────────
 // Plotting via line segments anchored at HTF closes
