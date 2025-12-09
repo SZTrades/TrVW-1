@@ -7,7 +7,7 @@ indicator("Módulo 1 — HTF 5m overlay (sin repaint)", shorttitle="HTF5 overlay
 const string DEFAULT_HTF = "5"
 htfResolution = input.timeframe(DEFAULT_HTF, "Temporalidad superior (usar 5m)", confirm=true)
 showBoxes = input.bool(true, "Mostrar vela HTF confirmada")
-boxFillOpacity = input.int(80, "Opacidad relleno (0-100)", minval=0, maxval=100)
+boxFillOpacity = input.int(60, "Opacidad relleno (0-100)", minval=0, maxval=100)
 showBorders = input.bool(true, "Mostrar bordes")
 borderWidth = input.int(1, "Grosor borde", minval=0, maxval=4)
 maxSavedSegments = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
@@ -50,14 +50,17 @@ if newHTF
     prevC = htfClose[1]
     ready = not na(prevO) and not na(prevH) and not na(prevL) and not na(prevC)
     if ready
-        leftIdx = bar_index - barsPerHTF
-        rightIdx = bar_index - 1
-        // Caja HTF
+        hasTimeCoords = not na(htfTime[1]) and not na(htfTime)
+        leftCoord = hasTimeCoords ? htfTime[1] : bar_index - barsPerHTF
+        rightCoord = hasTimeCoords ? htfTime : bar_index - 1
+        xLocation = hasTimeCoords ? xloc.bar_time : xloc.bar_index
         if showBoxes
-            fillAlpha = math.round(boxFillOpacity / 100.0 * 255)
-            fillColor = prevC >= prevO ? color.new(color.teal, fillAlpha) : color.new(color.red, fillAlpha)
-            borderColor = prevC >= prevO ? color.teal : color.red
-            b = box.new(left=leftIdx, top=prevH, right=rightIdx, bottom=prevL, border_width=showBorders ? borderWidth : 0, border_color=showBorders ? borderColor : color.new(color.black, 100), bgcolor=fillColor)
+            fillColorBase = prevC >= prevO ? color.teal : color.red
+            borderColorBase = prevC >= prevO ? color.teal : color.red
+            fillColor = color.new(fillColorBase, boxFillOpacity)
+            borderColor = showBorders ? borderColorBase : color.new(borderColorBase, 100)
+            borderW = showBorders ? borderWidth : 0
+            b = box.new(left=leftCoord, top=prevH, right=rightCoord, bottom=prevL, xloc=xLocation, border_width=borderW, border_color=borderColor, bgcolor=fillColor)
             array.push(htfBoxes, b)
             if array.size(htfBoxes) > maxSavedSegments
                 oldBox = array.shift(htfBoxes)
