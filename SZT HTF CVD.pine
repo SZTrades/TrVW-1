@@ -37,7 +37,7 @@ f_cvd(emaLen) =>
 
     _buyEma = ta.ema(_buyVol, emaLen)
     _sellEma = ta.ema(_sellVol, emaLen)
-    _cvd = ta.cum(nz(_buyVol) - nz(_sellVol))
+    _cvd := nz(_cvd[1]) + nz(_buyVol) - nz(_sellVol)
     _wave = ta.ema(math.max(_buyEma, _sellEma), emaLen)
 
     [_buyEma, _sellEma, _cvd, _wave, time]
