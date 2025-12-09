@@ -86,10 +86,10 @@ t3 = gdT3(gdT3(gdT3(srcT3, lengthT3), lengthT3), lengthT3)
 t3Direction = t3 > t3[1] ? 1 : t3 < t3[1] ? -1 : 0
 t3Color = highlightMovementsT3 ? (t3Direction > 0 ? color.green : color.red) : #6d1e7f
 
-basicLongT3 = t3Direction > 0 and close > t3
-basicShortT3 = t3Direction < 0 and close < t3
-longTriggerT3 = basicLongT3 and not nz(basicLongT3[1])
-shortTriggerT3 = basicShortT3 and not nz(basicShortT3[1])
+basicLongT3 = not na(t3) and t3Direction > 0 and close > t3
+basicShortT3 = not na(t3) and t3Direction < 0 and close < t3
+longTriggerT3 = basicLongT3 and not basicLongT3[1]
+shortTriggerT3 = basicShortT3 and not basicShortT3[1]
 
 var bool t3StateLong = true
 var bool t3StateShort = true
@@ -158,10 +158,10 @@ bearCVD = not useCVD ? true : cvdDelta < -cvdThreshold
 rvIDI = math.avg(rvIDIOriginal(high, stdevLengthDI, rvIDISmoothLength), rvIDIOriginal(low, stdevLengthDI, rvIDISmoothLength))
 inertiaDI = ta.linreg(rvIDI, smoothLengthDI, 0)
 
-baseLongDI = inertiaDI > middleLineLong
-baseShortDI = inertiaDI < middleLineShort
-longTriggerDI = baseLongDI and not nz(baseLongDI[1])
-shortTriggerDI = baseShortDI and not nz(baseShortDI[1])
+baseLongDI = not na(inertiaDI) and inertiaDI > middleLineLong
+baseShortDI = not na(inertiaDI) and inertiaDI < middleLineShort
+longTriggerDI = baseLongDI and not baseLongDI[1]
+shortTriggerDI = baseShortDI and not baseShortDI[1]
 
 var bool diStateLong = true
 var bool diStateShort = true
