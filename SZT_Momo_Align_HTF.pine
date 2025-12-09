@@ -201,8 +201,8 @@ baseBearAligned = t3StateShort and bearCVD and diStateShort
 bullAligned = baseBullAligned and biasLong
 bearAligned = baseBearAligned and biasShort
 
-newBull = baseBullAligned and not baseBullAligned[1] and barstate.isconfirmed
-newBear = baseBearAligned and not baseBearAligned[1] and barstate.isconfirmed
+newBull = baseBullAligned and biasLong and not (baseBullAligned[1] and biasLong[1]) and barstate.isconfirmed
+newBear = baseBearAligned and biasShort and not (baseBearAligned[1] and biasShort[1]) and barstate.isconfirmed
 var bool bgLongState = false
 var bool bgShortState = false
 if baseBullAligned
