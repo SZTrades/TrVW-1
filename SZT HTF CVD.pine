@@ -15,98 +15,61 @@ cvdPosColor = input.color(color.new(color.green, 0), "Color CVD +")
 cvdNegColor = input.color(color.new(color.red, 0), "Color CVD -")
 waveColor = input.color(color.new(color.gray, 70), "Color wave EMA")
 
-// ─────────────────────────────────────────────
-// HTF series (lookahead ON para clonar la vela en el LTF)
-// ─────────────────────────────────────────────
-htfOpen  = request.security(syminfo.tickerid, htfRes, open,   lookahead=barmerge.lookahead_on)
-htfHigh  = request.security(syminfo.tickerid, htfRes, high,   lookahead=barmerge.lookahead_on)
-htfLow   = request.security(syminfo.tickerid, htfRes, low,    lookahead=barmerge.lookahead_on)
-htfClose = request.security(syminfo.tickerid, htfRes, close,  lookahead=barmerge.lookahead_on)
-htfVol   = request.security(syminfo.tickerid, htfRes, volume, lookahead=barmerge.lookahead_on)
-htfTime  = request.security(syminfo.tickerid, htfRes, time,   lookahead=barmerge.lookahead_on)
+// --- FUNCTION: run full CVD logic IN-HTF context (returns tuple)
+f_cvd(emaLen) =>
+    // Local variables in HTF context
+    _o = open
+    _h = high
+    _l = low
+    _c = close
+    _v = volume
+    ready = not na(_o) and not na(_h) and not na(_l) and not na(_c) and not na(_v) and _h - _l >= syminfo.mintick
 
-// Detectar cierre confirmado del HTF
-newHTF = ta.change(htfTime) != 0 and barstate.isconfirmed
+    // Persistent series exist inside HTF via request.security
+    var float _buyEma = na
+    var float _sellEma = na
+    var float _cvd = 0.0
+    var float _wave = na
 
-// ─────────────────────────────────────────────
-// Estado persistente + reset automático
-// ─────────────────────────────────────────────
-var float buyEma = na
-var float sellEma = na
-var float cvd = 0.0
-var float buySeries = na
-var float sellSeries = na
-var float cvdSeries = na
-var float waveSeries = na
-var string prevTf = timeframe.period
-var string prevTicker = ticker.standard(syminfo.tickerid)
-
-tfChanged = timeframe.period != prevTf or ticker.standard(syminfo.tickerid) != prevTicker
-if barstate.isfirst or tfChanged
-    buyEma := na
-    sellEma := na
-    cvd := 0.0
-    buySeries := na
-    sellSeries := na
-    cvdSeries := na
-    waveSeries := na
-    prevTf := timeframe.period
-    prevTicker := ticker.standard(syminfo.tickerid)
-
-// ─────────────────────────────────────────────
-// Snapshot del HTF cerrado y cálculo del CVD
-// ─────────────────────────────────────────────
-if newHTF
-    prevO = htfOpen[1]
-    prevH = htfHigh[1]
-    prevL = htfLow[1]
-    prevC = htfClose[1]
-    prevV = htfVol[1]
-
-    ready = not na(prevO) and not na(prevH) and not na(prevL) and not na(prevC) and not na(prevV) and prevH - prevL >= syminfo.mintick
     if ready
-        spread = math.max(prevH - prevL, syminfo.mintick)
-        upperWick = prevC > prevO ? prevH - prevC : prevH - prevO
-        lowerWick = prevC > prevO ? prevO - prevL : prevC - prevL
-        bodyLength = spread - (upperWick + lowerWick)
-        percentUpper = upperWick / spread
-        percentLower = lowerWick / spread
-        percentBody = bodyLength / spread
-        halfWicks = (percentUpper + percentLower) * 0.5
+        _spread = math.max(_h - _l, syminfo.mintick)
+        _upper = _c > _o ? _h - _c : _h - _o
+        _lower = _c > _o ? _o - _l : _c - _l
+        _body = _spread - (_upper + _lower)
+        _pctUpper = _upper / _spread
+        _pctLower = _lower / _spread
+        _pctBody = _body / _spread
+        _halfW = (_pctUpper + _pctLower) * 0.5
 
-        buyingVolume = prevC > prevO ? (percentBody + halfWicks) * prevV : halfWicks * prevV
-        sellingVolume = prevC < prevO ? (percentBody + halfWicks) * prevV : halfWicks * prevV
+        _buyVol = _c > _o ? (_pctBody + _halfW) * _v : _halfW * _v
+        _sellVol = _c < _o ? (_pctBody + _halfW) * _v : _halfW * _v
 
-        alpha = 2.0 / (emaLen + 1.0)
-        buyEma := na(buyEma) ? buyingVolume : buyEma + alpha * (buyingVolume - buyEma)
-        sellEma := na(sellEma) ? sellingVolume : sellEma + alpha * (sellingVolume - sellEma)
-        cvd += (buyingVolume - sellingVolume)
+        _alpha = 2.0 / (emaLen + 1.0)
+        _buyEma := na(_buyEma) ? _buyVol : _buyEma + _alpha * (_buyVol - _buyEma)
+        _sellEma := na(_sellEma) ? _sellVol : _sellEma + _alpha * (_sellVol - _sellEma)
+        _cvd := nz(_cvd) + (_buyVol - _sellVol)
 
-        strengthWave = math.max(buyEma, sellEma)
-        waveSeries := na(waveSeries) ? strengthWave : waveSeries + alpha * (strengthWave - waveSeries)
+        _strength = math.max(_buyEma, _sellEma)
+        _wave := na(_wave) ? _strength : _wave + _alpha * (_strength - _wave)
 
-        buySeries := buyEma
-        sellSeries := sellEma
-        cvdSeries := cvd
-    else
-        buySeries := buySeries[1]
-        sellSeries := sellSeries[1]
-        cvdSeries := cvdSeries[1]
-        waveSeries := waveSeries[1]
-else
-    buySeries := buySeries[1]
-    sellSeries := sellSeries[1]
-    cvdSeries := cvdSeries[1]
-    waveSeries := waveSeries[1]
+    [_buyEma, _sellEma, _cvd, _wave, time]
 
-// ─────────────────────────────────────────────
-// Plots (misma estética del original)
-// ─────────────────────────────────────────────
+// --- Request HTF-calculated series with lookahead OFF for exact timing
+[htfBuyEma, htfSellEma, htfCvd, htfWave, htfTime] =
+    request.security(syminfo.tickerid, htfRes, f_cvd(emaLen), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+
+// --- Freeze on LTF: just use the HTF outputs (update occurs when HTF closes)
+buySeries = htfBuyEma
+sellSeries = htfSellEma
+cvdSeries = htfCvd
+waveSeries = htfWave
+
+// Optional: detect first LTF bar after HTF close if needed
+htfNewPoint = ta.change(htfTime) != 0
+
+// Plots (same aesthetic)
 pb = plot(showBuy ? buySeries : na, title="EMA Compras", color=buyColor, linewidth=2)
 ps = plot(showSell ? sellSeries : na, title="EMA Ventas", color=sellColor, linewidth=2)
-
 fill(pb, ps, color=buySeries > sellSeries ? color.new(color.green, 60) : buySeries < sellSeries ? color.new(color.red, 60) : color.new(color.yellow, 60))
-
 plot(waveSeries, title="Wave EMA", color=waveColor, linewidth=2)
-
 plot(showCvd ? cvdSeries : na, title="HTF CVD", style=plot.style_columns, color=cvdSeries >= 0 ? cvdPosColor : cvdNegColor, linewidth=2)
