@@ -10,8 +10,6 @@ showBoxes = input.bool(true, "Mostrar vela HTF confirmada")
 boxFillOpacity = input.int(80, "Opacidad relleno (0-100)", minval=0, maxval=100)
 showBorders = input.bool(true, "Mostrar bordes")
 borderWidth = input.int(1, "Grosor borde", minval=0, maxval=4)
-showMarkers = input.bool(true, "Etiquetas inicio/fin")
-markerSize = input.string("small", "Tamaño etiqueta", options=["tiny", "small", "normal", "large"])
 maxSavedSegments = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
 
 // ─────────────────────────────────────────────
@@ -37,7 +35,6 @@ newHTF = ta.change(htfTime) != 0
 
 // Persistencia
 var box[] htfBoxes = array.new_box()
-var label[] htfLabels = array.new_label()
 var float lastO = na
 var float lastH = na
 var float lastL = na
@@ -65,15 +62,6 @@ if newHTF
             if array.size(htfBoxes) > maxSavedSegments
                 oldBox = array.shift(htfBoxes)
                 box.delete(oldBox)
-        // Etiquetas inicio/fin
-        if showMarkers
-            startLabel = label.new(x=leftIdx, y=prevL, text="HTF start", xloc=xloc.bar_index, style=label.style_label_up, size=markerSize, color=color.new(color.blue, 70))
-            endLabel = label.new(x=rightIdx, y=prevH, text="HTF end", xloc=xloc.bar_index, style=label.style_label_down, size=markerSize, color=color.new(color.blue, 70))
-            array.push(htfLabels, startLabel)
-            array.push(htfLabels, endLabel)
-            if array.size(htfLabels) > maxSavedSegments * 2
-                oldLab = array.shift(htfLabels)
-                label.delete(oldLab)
         lastO := prevO
         lastH := prevH
         lastL := prevL
