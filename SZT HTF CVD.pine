@@ -1,5 +1,5 @@
 //@version=6
-indicator("SZT HTF CVD", shorttitle="SZT HTF CVD", overlay=false, max_labels_count=500, max_lines_count=500, max_boxes_count=200)
+indicator("SZT HTF CVD", shorttitle="SZT HTF", overlay=false, max_labels_count=500, max_lines_count=500, max_boxes_count=200)
 
 // ─────────────────────────────────────────────
 // Inputs
@@ -38,17 +38,14 @@ var float cvdSeries = na
 var string prevTf = timeframe.period
 var string prevTicker = ticker.standard(syminfo.tickerid)
 
-resetState() =>
+tfChanged = timeframe.period != prevTf or ticker.standard(syminfo.tickerid) != prevTicker
+if barstate.isfirst or tfChanged
     buyEma := na
     sellEma := na
     cvd := 0.0
     buySeries := na
     sellSeries := na
     cvdSeries := na
-
-tfChanged = timeframe.period != prevTf or ticker.standard(syminfo.tickerid) != prevTicker
-if barstate.isfirst or tfChanged
-    resetState()
     prevTf := timeframe.period
     prevTicker := ticker.standard(syminfo.tickerid)
 
