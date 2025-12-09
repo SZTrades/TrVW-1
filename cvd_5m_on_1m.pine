@@ -1,0 +1,42 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ankit_1618 (original concept) | Modded for HTF CVD projection
+
+//@version=5
+indicator("HTF CVD (5m on 1m)", "HTF CVD 5m", overlay = false, max_labels_count = 500)
+
+f_delta() =>
+    spread = math.max(high - low, syminfo.mintick)
+    upper_wick = close > open ? high - close : high - open
+    lower_wick = close > open ? open - low : close - low
+    body_length = spread - (upper_wick + lower_wick)
+
+    percent_upper_wick = upper_wick / spread
+    percent_lower_wick = lower_wick / spread
+    percent_body_length = body_length / spread
+
+    wick_mix = (percent_upper_wick + percent_lower_wick) / 2.0
+    buying_volume = close > open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
+    selling_volume = close < open ? (percent_body_length + wick_mix) * volume : wick_mix * volume
+
+    buying_volume - selling_volume
+
+delta_5m = request.security(
+     syminfo.tickerid,
+     "5",
+     f_delta(),
+     lookahead = barmerge.lookahead_on,
+     gaps = barmerge.gaps_off
+ )
+
+var float cvd_5m = 0.0
+new_htf_close = not na(delta_5m) and (na(delta_5m[1]) or delta_5m != delta_5m[1])
+cvd_5m := new_htf_close ? cvd_5m + delta_5m : cvd_5m
+
+zero_line = 0.0
+plot(zero_line, title = "Zero", color = color.new(color.gray, 85))
+plot(
+    cvd_5m,
+    title = "HTF CVD (5m)",
+    color = cvd_5m >= 0 ? color.green : color.red,
+    linewidth = 2
+)
