@@ -6,13 +6,13 @@ indicator("Módulo 1 — HTF 5m overlay (sin repaint)", shorttitle="HTF5 overlay
 // ─────────────────────────────────────────────
 const string DEFAULT_HTF = "5"
 const int MAX_BOX_COUNT = 500
-const int BOX_GUARD = MAX_BOX_COUNT - 5
 htfResolution = input.timeframe(DEFAULT_HTF, "Temporalidad superior (usar 5m)", confirm=true)
 showBoxes = input.bool(true, "Mostrar vela HTF confirmada")
 showBorders = input.bool(true, "Mostrar bordes")
 borderWidth = input.int(1, "Grosor borde", minval=0, maxval=4)
-maxSavedSegmentsSetting = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
-maxSavedSegments = math.min(maxSavedSegmentsSetting, BOX_GUARD)
+maxSavedSegmentsInput = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
+maxAllowedBoxes = MAX_BOX_COUNT - 5
+maxSavedSegments = math.min(maxSavedSegmentsInput, maxAllowedBoxes)
 
 // ─────────────────────────────────────────────
 // Helper: número de barras LTF que forman un HTF
