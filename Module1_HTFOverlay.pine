@@ -7,7 +7,6 @@ indicator("Módulo 1 — HTF 5m overlay (sin repaint)", shorttitle="HTF5 overlay
 const string DEFAULT_HTF = "5"
 htfResolution = input.timeframe(DEFAULT_HTF, "Temporalidad superior (usar 5m)", confirm=true)
 showBoxes = input.bool(true, "Mostrar vela HTF confirmada")
-boxFillOpacity = input.int(60, "Opacidad relleno (0-100)", minval=0, maxval=100)
 showBorders = input.bool(true, "Mostrar bordes")
 borderWidth = input.int(1, "Grosor borde", minval=0, maxval=4)
 maxSavedSegments = input.int(150, "Máximo de segmentos guardados", minval=10, maxval=400)
@@ -55,12 +54,10 @@ if newHTF
         rightCoord = hasTimeCoords ? htfTime : bar_index - 1
         xLocation = hasTimeCoords ? xloc.bar_time : xloc.bar_index
         if showBoxes
-            fillColorBase = prevC >= prevO ? color.teal : color.red
             borderColorBase = prevC >= prevO ? color.teal : color.red
-            fillColor = color.new(fillColorBase, boxFillOpacity)
             borderColor = showBorders ? borderColorBase : color.new(borderColorBase, 100)
             borderW = showBorders ? borderWidth : 0
-            b = box.new(left=leftCoord, top=prevH, right=rightCoord, bottom=prevL, xloc=xLocation, border_width=borderW, border_color=borderColor, bgcolor=fillColor)
+            b = box.new(left=leftCoord, top=prevH, right=rightCoord, bottom=prevL, xloc=xLocation, border_width=borderW, border_color=borderColor, bgcolor=na)
             array.push(htfBoxes, b)
             if array.size(htfBoxes) > maxSavedSegments
                 oldBox = array.shift(htfBoxes)
