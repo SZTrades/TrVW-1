@@ -201,8 +201,8 @@ baseBearAligned = t3StateShort and bearCVD and diStateShort
 bullAligned = baseBullAligned and biasLong
 bearAligned = baseBearAligned and biasShort
 
-newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
-newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
+newBull = baseBullAligned and not baseBullAligned[1] and barstate.isconfirmed
+newBear = baseBearAligned and not baseBearAligned[1] and barstate.isconfirmed
 brokenMomentum = (baseBullAligned[1] and not baseBullAligned) or (baseBearAligned[1] and not baseBearAligned)
 
 bgcolor(backgroundTint ? (bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na) : na)
