@@ -4,18 +4,23 @@
 //@version=6
 indicator("HTF CVD (5m on 1m)", "HTF CVD 5m", overlay = false, max_labels_count = 500)
 
+htf_res = input.timeframe("5", "HTF Resolution", confirm = true)
+len = input.int(1, "Delta Length", minval = 1)
+
 f_delta() =>
     close > open ? volume :
          close < open ? -volume :
          0.0
 
-delta_5m = request.security(
+delta_htf = request.security(
      syminfo.tickerid,
-     "5",
+     htf_res,
      f_delta(),
      lookahead = barmerge.lookahead_off,
      gaps = barmerge.gaps_off
  )
 
-bar_color = delta_5m > 0 ? color.green : delta_5m < 0 ? color.red : color.gray
-plot(delta_5m, title = "HTF Delta (5m)", style = plot.style_columns, color = bar_color, linewidth = 2)
+delta_smoothed = ta.ema(delta_htf, len)
+
+bar_color = delta_smoothed > 0 ? color.green : delta_smoothed < 0 ? color.red : color.gray
+plot(delta_smoothed, title = "HTF Delta", style = plot.style_columns, color = bar_color, linewidth = 2)
