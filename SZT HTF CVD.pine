@@ -43,8 +43,13 @@ f_cvd(emaLen) =>
     [_buyEma, _sellEma, _cvd, _wave, time]
 
 // --- Request HTF-calculated series with lookahead OFF for exact timing
-[htfBuyEma, htfSellEma, htfCvd, htfWave, htfTime] =
-    request.security(syminfo.tickerid, htfRes, f_cvd(emaLen), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+[htfBuyEma, htfSellEma, htfCvd, htfWave, htfTime] = request.security(
+    syminfo.tickerid,
+    htfRes,
+    f_cvd(emaLen),
+    lookahead=barmerge.lookahead_off,
+    gaps=barmerge.gaps_off
+)
 
 // --- Freeze on LTF: just use the HTF outputs (update occurs when HTF closes)
 buySeries = htfBuyEma
