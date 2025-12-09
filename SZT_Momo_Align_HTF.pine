@@ -1,11 +1,11 @@
-// @version=5
+//@version=6
 // SZTrades Momentum Alignment Indicator + HTF Bias
 // Combines remastered T3, CVD, and DI filters to detect aligned momentum
 // while gating signals with a higher-timeframe (5m) DaviddTech T3 bias.
 // Derived from open-source works by DaviddTech (T3 & DI, CC BY-NC-SA 4.0)
 // and Ankit_1618 (Cumulative Volume Delta, MPL 2.0). Redistribution must honor originals.
 
-indicator('SZT Momo Align +HTF', shorttitle='SZT Momo+HTF', overlay=true, max_labels_count=500, max_lines_count=500)
+indicator('SZT Momo Align +HTF', shorttitle='SZTM+HTF', overlay=true, max_labels_count=500, max_lines_count=500)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // T3 Filter Settings
@@ -121,15 +121,9 @@ if inverseT3
     t3StateShort := prevLong
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HTF T3 bias (5m)
+// HTF T3 bias
 // ─────────────────────────────────────────────────────────────────────────────
-t3HTF = request.security(
-     syminfo.tickerid,
-     htfResolution,
-     gdT3HTF(close, lengthT3, factorT3),
-     lookahead=barmerge.lookahead_off,
-     gaps=barmerge.gaps_off
-)
+t3HTF = request.security(syminfo.tickerid, htfResolution, gdT3HTF(close, lengthT3, factorT3), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 t3HTFDirection = nz(t3HTF > t3HTF[1] ? 1 : t3HTF < t3HTF[1] ? -1 : 0)
 _trueBiasLong = t3HTFDirection > 0
 _trueBiasShort = t3HTFDirection < 0
