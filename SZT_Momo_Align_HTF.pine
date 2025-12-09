@@ -47,6 +47,12 @@ showBreakSignals = input.bool(true, 'Show Break Signals', group='Display')
 backgroundTint = input.bool(true, 'Tint background on alignment', group='Display')
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HTF Bias Settings
+// ─────────────────────────────────────────────────────────────────────────────
+htfResolution = input.timeframe('5', 'HTF for Bias', group='HTF Bias')
+invertHTF = input.bool(false, 'Inverse HTF Bias?', group='HTF Bias')
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Helper functions
 // ─────────────────────────────────────────────────────────────────────────────
 gdT3(src, len) =>
@@ -117,11 +123,18 @@ if inverseT3
 // ─────────────────────────────────────────────────────────────────────────────
 // HTF T3 bias (5m)
 // ─────────────────────────────────────────────────────────────────────────────
-const string htfResolution = '5'
-t3HTF = request.security(syminfo.tickerid, htfResolution, gdT3HTF(close, lengthT3, factorT3), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+t3HTF = request.security(
+     syminfo.tickerid,
+     htfResolution,
+     gdT3HTF(close, lengthT3, factorT3),
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_off
+)
 t3HTFDirection = nz(t3HTF > t3HTF[1] ? 1 : t3HTF < t3HTF[1] ? -1 : 0)
-biasLong = t3HTFDirection > 0
-biasShort = t3HTFDirection < 0
+_trueBiasLong = t3HTFDirection > 0
+_trueBiasShort = t3HTFDirection < 0
+biasLong = invertHTF ? _trueBiasShort : _trueBiasLong
+biasShort = invertHTF ? _trueBiasLong : _trueBiasShort
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CVD core calculation & filter
@@ -193,10 +206,12 @@ baseBearAligned = t3StateShort and bearCVD and diStateShort
 
 bullAligned = baseBullAligned and biasLong
 bearAligned = baseBearAligned and biasShort
+bullAligned := bullAligned and biasLong
+bearAligned := bearAligned and biasShort
 
-newBull = bullAligned and not bullAligned[1]
-newBear = bearAligned and not bearAligned[1]
-brokenMomentum = (bullAligned[1] and not bullAligned) or (bearAligned[1] and not bearAligned)
+newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
+newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
+brokenMomentum = (baseBullAligned[1] and not baseBullAligned) or (baseBearAligned[1] and not baseBearAligned)
 
 bgcolor(backgroundTint ? (bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na) : na)
 
@@ -207,3 +222,7 @@ plotshape(showBearSignals and newBear, title='Bear Alignment', location=location
 plotshape(showBreakSignals and brokenMomentum, title='Momentum Break', location=location.top, style=shape.circle, color=color.new(color.orange, 0), size=size.tiny, text='X')
 
 plot(showBullSignals or showBearSignals ? (bullAligned ? 1 : bearAligned ? -1 : 0) : na, title='Alignment State', style=plot.style_columns, color=bullAligned ? color.green : bearAligned ? color.red : color.gray, transp=70)
+
+alertcondition(newBull, 'Bullish Alignment', 'Bullish Alignment Detected')
+alertcondition(newBear, 'Bearish Alignment', 'Bearish Alignment Detected')
+alertcondition(brokenMomentum, 'Momentum Break', 'Momentum Broken')
