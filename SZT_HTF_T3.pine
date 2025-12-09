@@ -16,6 +16,7 @@ colorDown = input.color(color.new(color.red, 0), "Falling color")
 baseColor = input.color(#6d1e7f, "Flat color")
 lineWidth = input.int(2, "Line width", minval=1, maxval=5)
 maxSegments = input.int(300, "Max stored segments", minval=20, maxval=500, tooltip="Limits how many HTF-to-HTF line segments stay on chart.")
+dataOnly = input.bool(false, "Data-only mode (no drawings)")
 
 // ─────────────────────────────────────────────
 // Helper
@@ -36,7 +37,7 @@ gdT3_internal(src, len, a) =>
 // ─────────────────────────────────────────────
 // Request HTF data without lookahead
 // ─────────────────────────────────────────────
-[htfT3, htfTime, htfClose] = request.security(syminfo.tickerid, htfResolution, [gdT3_internal(close, lengthT3, factorT3), time, close], lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+[htfT3, htfTime] = request.security(syminfo.tickerid, htfResolution, [gdT3_internal(close, lengthT3, factorT3), time], lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 
 // ─────────────────────────────────────────────
 // Plotting via line segments anchored at HTF closes
@@ -56,23 +57,19 @@ if barstate.isnew and chartTf != timeframe.period
     prevTime := na
     chartTf := timeframe.period
 
-if na(prevT3) and not na(htfT3)
-    prevT3 := htfT3
-    prevTime := htfTime
-
 newPoint = ta.change(htfTime) != 0
-if newPoint and not na(htfT3)
-    currT3 = htfT3
-    currTime = htfTime
-    if not na(prevT3) and not na(prevTime) and currTime != prevTime
-        segmentColor = useHighlight ? (currT3 >= prevT3 ? colorUp : colorDown) : baseColor
-        ln = line.new(x1=prevTime, y1=prevT3, x2=currTime, y2=currT3, xloc=xloc.bar_time, extend=extend.none, color=segmentColor, width=lineWidth)
+if not dataOnly and newPoint and not na(htfT3)
+    if not na(prevT3) and not na(prevTime) and htfTime != prevTime
+        segmentColor = useHighlight ? (htfT3 >= prevT3 ? colorUp : colorDown) : baseColor
+        ln = line.new(x1=prevTime, y1=prevT3, x2=htfTime, y2=htfT3, xloc=xloc.bar_time, extend=extend.none, color=segmentColor, width=lineWidth)
         array.push(t3Segments, ln)
         if array.size(t3Segments) > maxSegments
             old = array.shift(t3Segments)
             line.delete(old)
-    prevT3 := currT3
-    prevTime := currTime
+    prevT3 := htfT3
+    prevTime := htfTime
+else if newPoint and not na(htfT3)
+    prevT3 := htfT3
+    prevTime := htfTime
 
 plot(htfT3, title="HTF T3 (data)", color=na, display=display.data_window)
-plot(htfClose, title="HTF Close (data)", color=na, display=display.data_window)
