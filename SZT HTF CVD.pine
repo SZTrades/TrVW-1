@@ -17,7 +17,7 @@ waveColor = input.color(color.new(color.gray, 70), "Color wave EMA")
 
 // --- FUNCTION: run full CVD logic IN-HTF context (returns tuple)
 f_cvd(emaLen) =>
-    // Local variables in HTF context
+    // Local vars in HTF context
     _o = open
     _h = high
     _l = low
@@ -25,7 +25,7 @@ f_cvd(emaLen) =>
     _v = volume
     ready = not na(_o) and not na(_h) and not na(_l) and not na(_c) and not na(_v) and _h - _l >= syminfo.mintick
 
-    // Persistent series exist inside HTF via request.security
+    // Persistent HTF state
     var float _buyEma = na
     var float _sellEma = na
     var float _cvd = 0.0
