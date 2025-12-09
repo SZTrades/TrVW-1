@@ -10,7 +10,6 @@ indicator("SZT HTF T3", shorttitle="SZT HTF T3", overlay=true, max_lines_count=5
 htfResolution = input.timeframe("5", "Higher timeframe (minutes)", tooltip="All calculations use only confirmed bars from this resolution.")
 lengthT3 = input.int(5, "T3 length", minval=1, tooltip="Applies on the higher timeframe series.")
 factorT3 = input.float(0.7, "T3 factor", minval=0.0, maxval=1.0)
-srcInput = input.source(close, "Source")
 useHighlight = input.bool(true, "Highlight slope direction")
 colorUp = input.color(color.new(color.teal, 0), "Rising color")
 colorDown = input.color(color.new(color.red, 0), "Falling color")
@@ -27,7 +26,7 @@ gdT3(src, len) =>
 // ─────────────────────────────────────────────
 // Request HTF data without lookahead
 // ─────────────────────────────────────────────
-htfClose = request.security(syminfo.tickerid, htfResolution, srcInput, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+htfClose = request.security(syminfo.tickerid, htfResolution, close, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 htfCloseTime = request.security(syminfo.tickerid, htfResolution, time, lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
 htfT3 = gdT3(gdT3(gdT3(htfClose, lengthT3), lengthT3), lengthT3)
 
