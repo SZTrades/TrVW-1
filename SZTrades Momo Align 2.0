@@ -44,6 +44,7 @@ showBullSignals = input.bool(true, 'Show Bull Signals', group='Display')
 showBearSignals = input.bool(true, 'Show Bear Signals', group='Display')
 showBreakSignals = input.bool(true, 'Show Break Signals', group='Display')
 backgroundTint = input.bool(true, 'Tint background on alignment', group='Display')
+bgHeightPts = input.float(5, 'Background height (points)', group='Display')
 
 // -----------------------------------------------------------------------------
 // Helper functions
@@ -171,9 +172,14 @@ bearAligned = t3StateShort and bearCVD and diStateShort
 newBull = bullAligned and not bullAligned[1]
 newBear = bearAligned and not bearAligned[1]
 brokenMomentum = (bullAligned[1] and not bullAligned) or (bearAligned[1] and not bearAligned)
+bgOffset = bgHeightPts * syminfo.mintick
+bgTop = close + bgOffset
+bgBottom = close - bgOffset
+bullBg = backgroundTint and bullAligned ? bgTop : na
+bearBg = backgroundTint and bearAligned ? bgBottom : na
 
-bgcolor(backgroundTint and bullAligned ? color.new(color.green, 85) : na)
-bgcolor(backgroundTint and bearAligned ? color.new(color.red, 85) : na)
+plot(bullBg, style=plot.style_columns, color=color.new(color.green, 85), linewidth=12)
+plot(bearBg, style=plot.style_columns, color=color.new(color.red, 85), linewidth=12)
 
 plot(showT3Line and useT3 ? t3 : na, title='T3', linewidth=2, color=t3Color)
 
