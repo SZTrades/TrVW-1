@@ -81,8 +81,8 @@ t3Color = highlightMovementsT3 ? (t3Direction > 0 ? color.green : color.red) : #
 
 basicLongT3 = t3Direction > 0 and close > t3
 basicShortT3 = t3Direction < 0 and close < t3
-longTriggerT3 = basicLongT3 and not nz(basicLongT3[1])
-shortTriggerT3 = basicShortT3 and not nz(basicShortT3[1])
+longTriggerT3 = basicLongT3 and not (na(basicLongT3[1]) ? false : basicLongT3[1])
+shortTriggerT3 = basicShortT3 and not (na(basicShortT3[1]) ? false : basicShortT3[1])
 
 var bool t3StateLong = true
 var bool t3StateShort = true
@@ -101,8 +101,8 @@ else
             t3StateLong := false
             t3StateShort := true
         else
-            t3StateLong := nz(t3StateLong[1], false)
-            t3StateShort := nz(t3StateShort[1], false)
+            t3StateLong := na(t3StateLong[1]) ? false : t3StateLong[1]
+            t3StateShort := na(t3StateShort[1]) ? false : t3StateShort[1]
     else
         t3StateLong := basicLongT3
         t3StateShort := basicShortT3
@@ -143,8 +143,8 @@ inertiaDI = ta.linreg(rvIDI, smoothLengthDI, 0)
 
 baseLongDI = inertiaDI > middleLineLong
 baseShortDI = inertiaDI < middleLineShort
-longTriggerDI = baseLongDI and not nz(baseLongDI[1])
-shortTriggerDI = baseShortDI and not nz(baseShortDI[1])
+longTriggerDI = baseLongDI and not (na(baseLongDI[1]) ? false : baseLongDI[1])
+shortTriggerDI = baseShortDI and not (na(baseShortDI[1]) ? false : baseShortDI[1])
 
 var bool diStateLong = true
 var bool diStateShort = true
@@ -163,8 +163,8 @@ else
             diStateLong := false
             diStateShort := true
         else
-            diStateLong := nz(diStateLong[1], false)
-            diStateShort := nz(diStateShort[1], false)
+            diStateLong := na(diStateLong[1]) ? false : diStateLong[1]
+            diStateShort := na(diStateShort[1]) ? false : diStateShort[1]
     else
         diStateLong := baseLongDI
         diStateShort := baseShortDI
