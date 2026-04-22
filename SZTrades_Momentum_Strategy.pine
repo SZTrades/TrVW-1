@@ -42,6 +42,9 @@ smoothLengthDI = input.int(14, 'Inertia Smoothing Length - DI', minval=1, group=
 tradeSession = input.session('1000-1200', 'Trading Block (HHMM-HHMM)', group='Strategy Rules')
 sessionTimezone = input.string('Etc/GMT+4', 'Trading Block Timezone', options=['Etc/GMT+4', 'America/New_York', 'Etc/UTC'], group='Strategy Rules')
 closeAtBlockEnd = input.bool(true, 'Close open trades when block ends', group='Strategy Rules')
+useEntryCutoff = input.bool(true, 'Use entry cutoff time', group='Strategy Rules')
+entryCutoffHour = input.int(11, 'Entry Cutoff Hour', minval=0, maxval=23, group='Strategy Rules')
+entryCutoffMinute = input.int(45, 'Entry Cutoff Minute', minval=0, maxval=59, group='Strategy Rules')
 
 stopMode = input.string('Points', 'Stop Mode', options=['Points', 'ATR'], group='Risk Management')
 stopPoints = input.float(20.0, 'Stop Buffer (Points)', minval=0.0, step=0.1, group='Risk Management')
@@ -195,6 +198,8 @@ sessionEndMinute = int(str.tonumber(str.substring(tradeSession, 7, 9)))
 sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
 barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
 lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
+entryCutoffMinuteOfDay = entryCutoffHour * 60 + entryCutoffMinute
+entryWindowOpen = not useEntryCutoff or barCloseMinuteOfDay <= entryCutoffMinuteOfDay
 
 var float tradeBlockOpen = na
 if inTradeBlock and na(tradeBlockOpen)
@@ -207,8 +212,8 @@ atrValue = ta.atr(atrLength)
 entryBullTrigger = newBull or (blockStarted and bullAligned)
 entryBearTrigger = newBear or (blockStarted and bearAligned)
 
-longSignal = inTradeBlock and not na(tradeBlockOpen) and entryBullTrigger and close > tradeBlockOpen
-shortSignal = inTradeBlock and not na(tradeBlockOpen) and entryBearTrigger and close < tradeBlockOpen
+longSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and entryBullTrigger and close > tradeBlockOpen
+shortSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and entryBearTrigger and close < tradeBlockOpen
 
 longStopFromSignal = stopMode == 'ATR' ? low - atrValue * atrMultiplier : low - stopPoints
 shortStopFromSignal = stopMode == 'ATR' ? high + atrValue * atrMultiplier : high + stopPoints
