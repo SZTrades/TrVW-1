@@ -4,7 +4,7 @@
 // Derived from open-source works by DaviddTech (T3 & DI, CC BY-NC-SA 4.0)
 // and Ankit_1618 (Cumulative Volume Delta, MPL 2.0). Redistribution must honor originals.
 
-strategy('SZTrades Momentum Alignment Strategy', shorttitle='SZTStrat', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, initial_capital=10000)
+strategy('SZTrades Momentum Alignment Strategy', shorttitle='SZTStrat', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // T3 Filter Settings
@@ -191,22 +191,19 @@ inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
 
-sessionEndHour = int(str.tonumber(str.substring(tradeSession, 5, 7)))
-sessionEndMinute = int(str.tonumber(str.substring(tradeSession, 7, 9)))
-sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
-barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
-lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
-
 var float tradeBlockOpen = na
-if blockStarted
+if inTradeBlock and na(tradeBlockOpen)
     tradeBlockOpen := open
 if blockEnded
     tradeBlockOpen := na
 
 atrValue = ta.atr(atrLength)
 
-longSignal = inTradeBlock and not na(tradeBlockOpen) and newBull and close > tradeBlockOpen
-shortSignal = inTradeBlock and not na(tradeBlockOpen) and newBear and close < tradeBlockOpen
+entryBullTrigger = newBull or (blockStarted and bullAligned)
+entryBearTrigger = newBear or (blockStarted and bearAligned)
+
+longSignal = inTradeBlock and not na(tradeBlockOpen) and entryBullTrigger and close > tradeBlockOpen
+shortSignal = inTradeBlock and not na(tradeBlockOpen) and entryBearTrigger and close < tradeBlockOpen
 
 longStopFromSignal = stopMode == 'ATR' ? low - atrValue * atrMultiplier : low - stopPoints
 shortStopFromSignal = stopMode == 'ATR' ? high + atrValue * atrMultiplier : high + stopPoints
@@ -245,7 +242,7 @@ if strategy.position_size == 0
     activeLongStop := na
     activeShortStop := na
 
-if closeAtBlockEnd and lastBarOfBlock and strategy.position_size != 0
+if closeAtBlockEnd and blockEnded and strategy.position_size != 0
     strategy.close_all(comment='Block end close')
     pendingLongStop := na
     pendingShortStop := na
