@@ -1,10 +1,10 @@
-// @version=5
+//@version=6
 // SZTrades Momentum Alignment Strategy
 // Converts the momentum alignment indicator into a backtestable strategy.
 // Derived from open-source works by DaviddTech (T3 & DI, CC BY-NC-SA 4.0)
 // and Ankit_1618 (Cumulative Volume Delta, MPL 2.0). Redistribution must honor originals.
 
-strategy('SZTrades Momentum Alignment Strategy', shorttitle='SZT Momentum Strat', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, initial_capital=10000)
+strategy('SZTrades Momentum Alignment Strategy', shorttitle='SZTStrat', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, initial_capital=10000)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // T3 Filter Settings
@@ -263,4 +263,5 @@ plotshape(showBullSignals and newBull, title='Bull Alignment', location=location
 plotshape(showBearSignals and newBear, title='Bear Alignment', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
 plotshape(showBreakSignals and brokenMomentum, title='Momentum Break', location=location.top, style=shape.circle, color=color.new(color.orange, 0), size=size.tiny, text='X')
 
-plot(showBullSignals or showBearSignals ? (bullAligned ? 1 : bearAligned ? -1 : 0) : na, title='Alignment State', style=plot.style_columns, color=bullAligned ? color.green : bearAligned ? color.red : color.gray, transp=70)
+alignmentColor = bullAligned ? color.new(color.green, 70) : bearAligned ? color.new(color.red, 70) : color.new(color.gray, 70)
+plot(showBullSignals or showBearSignals ? (bullAligned ? 1 : bearAligned ? -1 : 0) : na, title='Alignment State', style=plot.style_columns, color=alignmentColor)
