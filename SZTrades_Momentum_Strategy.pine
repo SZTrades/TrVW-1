@@ -190,6 +190,11 @@ brokenMomentum = (bullAligned[1] and not bullAligned) or (bearAligned[1] and not
 inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
+sessionEndHour = int(str.tonumber(str.substring(tradeSession, 5, 7)))
+sessionEndMinute = int(str.tonumber(str.substring(tradeSession, 7, 9)))
+sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
+barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
+lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
 
 var float tradeBlockOpen = na
 if inTradeBlock and na(tradeBlockOpen)
@@ -242,8 +247,8 @@ if strategy.position_size == 0
     activeLongStop := na
     activeShortStop := na
 
-if closeAtBlockEnd and blockEnded and strategy.position_size != 0
-    strategy.close_all(comment='Block end close')
+if closeAtBlockEnd and lastBarOfBlock and strategy.position_size != 0
+    strategy.close_all(comment='Block end close', immediately=true)
     pendingLongStop := na
     pendingShortStop := na
 
