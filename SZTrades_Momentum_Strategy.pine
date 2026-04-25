@@ -42,9 +42,6 @@ smoothLengthDI = input.int(14, 'Inertia Smoothing Length - DI', minval=1, group=
 tradeSession = input.session('1000-1200', 'Trading Block (HHMM-HHMM)', group='Strategy Rules')
 sessionTimezone = input.string('Etc/GMT+4', 'Trading Block Timezone', options=['Etc/GMT+4', 'America/New_York', 'Etc/UTC'], group='Strategy Rules')
 closeAtBlockEnd = input.bool(true, 'Close open trades when block ends', group='Strategy Rules')
-useEntryCutoff = input.bool(true, 'Use entry cutoff time', group='Strategy Rules')
-entryCutoffHour = input.int(11, 'Entry Cutoff Hour', minval=0, maxval=23, group='Strategy Rules')
-entryCutoffMinute = input.int(45, 'Entry Cutoff Minute', minval=0, maxval=59, group='Strategy Rules')
 
 stopMode = input.string('Points', 'Stop Mode', options=['Points', 'ATR'], group='Risk Management')
 stopPoints = input.float(20.0, 'Stop Buffer (Points)', minval=0.0, step=0.1, group='Risk Management')
@@ -198,19 +195,13 @@ sessionEndMinute = int(str.tonumber(str.substring(tradeSession, 7, 9)))
 sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
 barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
 lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
-entryCutoffMinuteOfDay = entryCutoffHour * 60 + entryCutoffMinute
-entryWindowOpen = not useEntryCutoff or barCloseMinuteOfDay <= entryCutoffMinuteOfDay
-
-var float tradeBlockOpen = na
-if inTradeBlock and na(tradeBlockOpen)
-    tradeBlockOpen := open
-if blockEnded
-    tradeBlockOpen := na
 
 atrValue = ta.atr(atrLength)
 
-longSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and newBull and close > tradeBlockOpen
-shortSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and newBear and close < tradeBlockOpen
+// Entry is allowed only on the first candle of the configured block
+// and only when a fresh buy/sell signal appears there.
+longSignal = blockStarted and newBull
+shortSignal = blockStarted and newBear
 
 longStopFromSignal = stopMode == 'ATR' ? low - atrValue * atrMultiplier : low - stopPoints
 shortStopFromSignal = stopMode == 'ATR' ? high + atrValue * atrMultiplier : high + stopPoints
@@ -257,7 +248,6 @@ if closeAtBlockEnd and lastBarOfBlock and strategy.position_size != 0
 bgcolor(backgroundTint ? (bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na) : na)
 
 plot(showT3Line and useT3 ? t3 : na, title='T3', linewidth=2, color=t3Color)
-plot(tradeBlockOpen, title='Block Open Price', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
 
 plotshape(showBullSignals and newBull, title='Bull Alignment', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(showBearSignals and newBear, title='Bear Alignment', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
