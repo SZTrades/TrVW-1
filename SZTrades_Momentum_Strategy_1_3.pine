@@ -5,12 +5,12 @@
 strategy('SZTrades Momentum Alignment Strategy v1.3', shorttitle='SZT1.3', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
 
 // Optimization factors
-lengthT3 = input.int(4, 'T3 Length', minval=4, maxval=8, step=2, group='T3')
-factorT3 = input.float(0.7, 'T3 Factor', minval=0.5, maxval=0.9, step=0.2, group='T3')
-cumulationLength = input.int(16, 'CVD Cumulation Length', minval=8, maxval=24, step=8, group='CVD')
-cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, maxval=60.0, step=20.0, group='CVD')
-stopPoints = input.float(4.0, 'Stop Points', minval=2.0, maxval=8.0, step=2.0, group='Risk')
-takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=2.0, maxval=5.0, step=0.5, group='Risk')
+lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
+factorT3 = input.float(0.7, 'T3 Factor', minval=0.0, maxval=1.0, group='T3')
+cumulationLength = input.int(16, 'CVD Cumulation Length', minval=1, group='CVD')
+cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
+stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
+takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
 
 // Session controls
 tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
