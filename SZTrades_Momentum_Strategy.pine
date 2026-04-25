@@ -198,15 +198,15 @@ lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
 
 atrValue = ta.atr(atrLength)
 
-// Take only the first valid signal that appears inside each block.
+// Take only the first fresh buy/sell signal that appears inside each block.
 var bool enteredThisBlock = false
 if blockStarted
     enteredThisBlock := false
 if blockEnded
     enteredThisBlock := false
 
-bullSignalInBlock = (inTradeBlock and newBull) or (blockStarted and bullAligned and not bearAligned)
-bearSignalInBlock = (inTradeBlock and newBear) or (blockStarted and bearAligned and not bullAligned)
+bullSignalInBlock = inTradeBlock and newBull
+bearSignalInBlock = inTradeBlock and newBear
 longSignal = not enteredThisBlock and bullSignalInBlock and not bearSignalInBlock
 shortSignal = not enteredThisBlock and bearSignalInBlock and not bullSignalInBlock
 
