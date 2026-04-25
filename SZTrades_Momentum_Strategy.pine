@@ -216,13 +216,13 @@ var float pendingShortStop = na
 var float activeLongStop = na
 var float activeShortStop = na
 
-if longSignal and strategy.position_size <= 0
+if longSignal and strategy.position_size == 0
     pendingLongStop := longStopFromSignal
     pendingShortStop := na
     strategy.entry('Long', strategy.long, comment='Long aligned')
     enteredThisBlock := true
 
-if shortSignal and strategy.position_size >= 0
+if shortSignal and strategy.position_size == 0
     pendingShortStop := shortStopFromSignal
     pendingLongStop := na
     strategy.entry('Short', strategy.short, comment='Short aligned')
