@@ -198,15 +198,17 @@ lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
 
 atrValue = ta.atr(atrLength)
 
-// Take only the first fresh signal that appears inside each block.
+// Take only the first aligned condition that appears inside each block.
 var bool enteredThisBlock = false
 if blockStarted
     enteredThisBlock := false
 if blockEnded
     enteredThisBlock := false
 
-longSignal = inTradeBlock and not enteredThisBlock and newBull
-shortSignal = inTradeBlock and not enteredThisBlock and newBear
+bullEntryCondition = bullAligned and not bearAligned
+bearEntryCondition = bearAligned and not bullAligned
+longSignal = inTradeBlock and not enteredThisBlock and bullEntryCondition
+shortSignal = inTradeBlock and not enteredThisBlock and bearEntryCondition
 
 longStopFromSignal = stopMode == 'ATR' ? low - atrValue * atrMultiplier : low - stopPoints
 shortStopFromSignal = stopMode == 'ATR' ? high + atrValue * atrMultiplier : high + stopPoints
