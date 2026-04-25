@@ -209,11 +209,8 @@ if blockEnded
 
 atrValue = ta.atr(atrLength)
 
-entryBullTrigger = newBull or (blockStarted and bullAligned)
-entryBearTrigger = newBear or (blockStarted and bearAligned)
-
-longSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and entryBullTrigger and close > tradeBlockOpen
-shortSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and entryBearTrigger and close < tradeBlockOpen
+longSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and newBull and close > tradeBlockOpen
+shortSignal = inTradeBlock and entryWindowOpen and not na(tradeBlockOpen) and newBear and close < tradeBlockOpen
 
 longStopFromSignal = stopMode == 'ATR' ? low - atrValue * atrMultiplier : low - stopPoints
 shortStopFromSignal = stopMode == 'ATR' ? high + atrValue * atrMultiplier : high + stopPoints
