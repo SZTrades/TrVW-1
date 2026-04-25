@@ -198,10 +198,15 @@ lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
 
 atrValue = ta.atr(atrLength)
 
-// Entry is allowed only on the first candle of the configured block
-// and only when a fresh buy/sell signal appears there.
-longSignal = blockStarted and newBull
-shortSignal = blockStarted and newBear
+// Take only the first fresh signal that appears inside each block.
+var bool enteredThisBlock = false
+if blockStarted
+    enteredThisBlock := false
+if blockEnded
+    enteredThisBlock := false
+
+longSignal = inTradeBlock and not enteredThisBlock and newBull
+shortSignal = inTradeBlock and not enteredThisBlock and newBear
 
 longStopFromSignal = stopMode == 'ATR' ? low - atrValue * atrMultiplier : low - stopPoints
 shortStopFromSignal = stopMode == 'ATR' ? high + atrValue * atrMultiplier : high + stopPoints
@@ -215,11 +220,13 @@ if longSignal and strategy.position_size <= 0
     pendingLongStop := longStopFromSignal
     pendingShortStop := na
     strategy.entry('Long', strategy.long, comment='Long aligned')
+    enteredThisBlock := true
 
 if shortSignal and strategy.position_size >= 0
     pendingShortStop := shortStopFromSignal
     pendingLongStop := na
     strategy.entry('Short', strategy.short, comment='Short aligned')
+    enteredThisBlock := true
 
 newLongPosition = strategy.position_size > 0 and strategy.position_size[1] <= 0
 newShortPosition = strategy.position_size < 0 and strategy.position_size[1] >= 0
