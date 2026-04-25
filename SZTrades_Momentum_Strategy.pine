@@ -190,11 +190,23 @@ brokenMomentum = (bullAligned[1] and not bullAligned) or (bearAligned[1] and not
 inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
-sessionEndHour = int(str.tonumber(str.substring(tradeSession, 5, 7)))
-sessionEndMinute = int(str.tonumber(str.substring(tradeSession, 7, 9)))
+
+// Parse session end time defensively so custom session strings don't break runtime.
+sessionCore = array.get(str.split(tradeSession, ":"), 0)
+sessionRanges = str.split(sessionCore, ",")
+lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ''
+rangeParts = str.split(lastRange, "-")
+endToken = array.size(rangeParts) > 1 ? array.get(rangeParts, 1) : ''
+endTokenClean = str.replace_all(endToken, ":", "")
+hasValidEnd = str.length(endTokenClean) >= 4
+endHourRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
+endMinuteRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
+sessionEndHour = (hasValidEnd and not na(endHourRaw)) ? int(endHourRaw) : 0
+sessionEndMinute = (hasValidEnd and not na(endMinuteRaw)) ? int(endMinuteRaw) : 0
 sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
 barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
-lastBarOfBlock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
+lastBarOfBlockByClock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
+lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : blockEnded
 
 atrValue = ta.atr(atrLength)
 
