@@ -77,8 +77,17 @@ if blockStarted
 if blockEnded
     enteredThisBlock := false
 
-longSignal = inTradeBlock and not enteredThisBlock and newBull
-shortSignal = inTradeBlock and not enteredThisBlock and newBear
+var float blockOpenPrice = na
+if blockStarted
+    blockOpenPrice := open
+if blockEnded
+    blockOpenPrice := na
+
+allowLongByBlockOpen = not na(blockOpenPrice) and close > blockOpenPrice
+allowShortByBlockOpen = not na(blockOpenPrice) and close < blockOpenPrice
+
+longSignal = inTradeBlock and not enteredThisBlock and newBull and allowLongByBlockOpen
+shortSignal = inTradeBlock and not enteredThisBlock and newBear and allowShortByBlockOpen
 longStopFromSignal = low - stopPoints
 shortStopFromSignal = high + stopPoints
 
@@ -126,5 +135,6 @@ if lastBarOfBlock and strategy.position_size != 0
 
 bgcolor(bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na)
 plot(t3, title='T3', linewidth=2, color=t3Color)
+plot(blockOpenPrice, title='Block Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
 plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
