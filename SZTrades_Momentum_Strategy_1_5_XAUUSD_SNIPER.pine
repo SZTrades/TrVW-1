@@ -134,7 +134,7 @@ trendShortOk = close < trendEma
 
 effectiveRangeBaseline = na(avgBaselineRange) ? barRange : avgBaselineRange
 narrowBar = barRange <= effectiveRangeBaseline * narrowRangeFactor
-narrowBarCount = ta.sum(narrowBar ? 1.0 : 0.0, narrowBarsLen)
+narrowBarCount = math.sum(narrowBar ? 1.0 : 0.0, narrowBarsLen)
 liquidityCleanOk = not na(avgBaselineRange) and narrowBarCount < narrowBarsLen
 
 // ---------------------------------------------------------------------------
