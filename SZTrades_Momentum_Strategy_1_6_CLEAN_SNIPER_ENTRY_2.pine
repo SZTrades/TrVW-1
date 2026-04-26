@@ -34,12 +34,6 @@ sessionTimezone = input.string("Etc/GMT+4", "Timezone", group="Session")
 // Clean sniper filters
 // ---------------------------------------------------------------------------
 trendEmaLen = input.int(50, "Trend EMA Length", minval=1, group="Sniper - Trend")
-htfRegimeTf = input.timeframe("15", "HTF Regime Timeframe", group="Sniper - Trend")
-htfEmaLen = input.int(100, "HTF EMA Length", minval=1, group="Sniper - Trend")
-
-confirmBreakLookback = input.int(3, "Entry Break Lookback", minval=2, group="Sniper - Entry")
-breakoutBufferAtrFrac = input.float(0.05, "Breakout Buffer ATR %", minval=0.0, step=0.01, group="Sniper - Entry")
-qualityMinScore = input.float(4.0, "Min Quality Score", minval=1.0, maxval=6.0, step=0.5, group="Sniper - Entry")
 debugMode = input.bool(false, "Enable Filter Stage Debug", group="Sniper - Entry")
 
 cooldownBars = input.int(4, "Cooldown Bars Between Trades", minval=0, group="Sniper - Frequency")
@@ -48,15 +42,6 @@ maxTradesPerBlock = input.int(1, "Max Trades Per Session Block", minval=1, group
 rangeFastLen = input.int(20, "Range Fast Length", minval=2, group="Sniper - Volatility")
 rangeSlowLen = input.int(60, "Range Slow Length", minval=5, group="Sniper - Volatility")
 rangeExpansionMin = input.float(0.9, "Range Expansion Min", minval=0.1, step=0.05, group="Sniper - Volatility")
-regimeAtrLen = input.int(14, "Regime ATR Length", minval=1, group="Sniper - Volatility")
-regimeAtrMaLen = input.int(20, "Regime ATR MA Length", minval=1, group="Sniper - Volatility")
-regimeSlopeBars = input.int(5, "Regime EMA Slope Bars", minval=1, group="Sniper - Volatility")
-breakoutRangeMult = input.float(1.05, "Breakout Range Mult", minval=0.5, step=0.05, group="Sniper - Volatility")
-
-chopMinAtrCompression = input.float(0.95, "Min ATR Compression", minval=0.1, step=0.05, group="Sniper - Chop")
-chopMinBodyToRange = input.float(0.35, "Min Body/Range", minval=0.05, maxval=1.0, step=0.05, group="Sniper - Chop")
-chopMinBodyToAtr = input.float(0.2, "Min Body/ATR", minval=0.05, step=0.05, group="Sniper - Chop")
-chopMinRangeToAtr = input.float(0.6, "Min Range/ATR", minval=0.1, step=0.05, group="Sniper - Chop")
 
 // ---------------------------------------------------------------------------
 // Helper / core functions
@@ -110,8 +95,6 @@ if ta.change(time("D")) != 0
 
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
-biasLongScore = na(open6am) ? 0.5 : allowLongBySixOpen ? 1.0 : 0.0
-biasShortScore = na(open6am) ? 0.5 : allowShortBySixOpen ? 1.0 : 0.0
 
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
 sessionRanges = str.split(sessionCore, ",")
@@ -140,59 +123,16 @@ rangeExpansionOk = not na(avgRecentRange) and not na(avgBaselineRange) and avgRe
 trendEma = ta.ema(close, trendEmaLen)
 trendLongOk = close > trendEma
 trendShortOk = close < trendEma
-trendSlope = not na(trendEma[regimeSlopeBars]) ? trendEma - trendEma[regimeSlopeBars] : 0
+volatilityOk = rangeExpansionOk
+volatilityRegimeOkLong = volatilityOk
+volatilityRegimeOkShort = volatilityOk
 
-htfEma = request.security(syminfo.tickerid, htfRegimeTf, ta.ema(close, htfEmaLen), barmerge.gaps_off, barmerge.lookahead_off)
-htfLongOk = close > htfEma
-htfShortOk = close < htfEma
-
-regimeAtr = ta.atr(regimeAtrLen)
-regimeAtrMa = ta.sma(regimeAtr, regimeAtrMaLen)
-atrTrendOk = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
-
-volatilityOk = atrTrendOk or rangeExpansionOk
-volatilityRegimeOkLong = volatilityOk and trendSlope > 0
-volatilityRegimeOkShort = volatilityOk and trendSlope < 0
-
-bodyAbs = math.abs(close - open)
-bodyToRange = barRange > 0 ? bodyAbs / barRange : 0.0
-bodyToAtr = regimeAtr > 0 ? bodyAbs / regimeAtr : 0.0
-rangeToAtr = regimeAtr > 0 ? barRange / regimeAtr : 0.0
-atrCompression = not na(regimeAtrMa) and regimeAtrMa > 0 ? regimeAtr / regimeAtrMa : na
-chopFilterOk = not na(atrCompression) and atrCompression >= chopMinAtrCompression and bodyToRange >= chopMinBodyToRange and bodyToAtr >= chopMinBodyToAtr and rangeToAtr >= chopMinRangeToAtr
-
-breakConfirmLookback = math.max(2, confirmBreakLookback - 1)
-breakoutLiteBuffer = math.max(syminfo.mintick, nz(regimeAtr, barRange) * breakoutBufferAtrFrac * 0.5)
-breakoutLongLevel = ta.highest(high, breakConfirmLookback)[1]
-breakoutShortLevel = ta.lowest(low, breakConfirmLookback)[1]
-breakConfirmLong = high >= breakoutLongLevel - breakoutLiteBuffer
-breakConfirmShort = low <= breakoutShortLevel + breakoutLiteBuffer
-
-// Regime confirmation (2 of 3 confluence)
-atrExpansionRegime = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
-trendSlopeLongConsistent = trendSlope != 0 and trendSlope > 0 and trendSlope[1] > 0
-trendSlopeShortConsistent = trendSlope != 0 and trendSlope < 0 and trendSlope[1] < 0
-breakoutRealLong = close >= breakoutLongLevel - breakoutLiteBuffer
-breakoutRealShort = close <= breakoutShortLevel + breakoutLiteBuffer
-regimeConfirmLongScore = (atrExpansionRegime ? 1 : 0) + (trendSlopeLongConsistent ? 1 : 0) + (breakoutRealLong ? 1 : 0)
-regimeConfirmShortScore = (atrExpansionRegime ? 1 : 0) + (trendSlopeShortConsistent ? 1 : 0) + (breakoutRealShort ? 1 : 0)
-regimeConfirmOkLong = regimeConfirmLongScore >= 2
-regimeConfirmOkShort = regimeConfirmShortScore >= 2
-
-// Micro-structure chop killer
-microRangeAvg = ta.sma(barRange, 20)
-microVolatilityOk = not na(microRangeAvg) and barRange > microRangeAvg * 0.7
-microBodyDirectionOk = bodyToRange > 0.6
-microWickOk = upperWick < 0.6 * barRange or lowerWick < 0.6 * barRange
-smallBodyCount5 = ta.sum(bodyToRange < 0.4 ? 1.0 : 0.0, 5)
-microAntiChopOk = smallBodyCount5 <= 3
-microChopOk = microVolatilityOk and microBodyDirectionOk and microWickOk and microAntiChopOk
+breakoutTriggerLong = close > high[2]
+breakoutTriggerShort = close < low[2]
 
 // ---------------------------------------------------------------------------
 // Final clean signals
 // ---------------------------------------------------------------------------
-isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
-
 var bool enteredThisBlock = false
 var bool orderPlaced = false
 var int lastTradeBarIndex = na
@@ -218,18 +158,18 @@ if barstate.isfirst
 cooldownOk = cooldownBars == 0 or na(lastTradeBarIndex) or (bar_index - lastTradeBarIndex) >= cooldownBars
 blockQuotaOk = tradesThisBlock < maxTradesPerBlock
 
-baseLongSignal = isFiveMinuteChart and inTradeBlock and newBull
-baseShortSignal = isFiveMinuteChart and inTradeBlock and newBear
+baseLongSignal = inTradeBlock and newBull
+baseShortSignal = inTradeBlock and newBear
 
-emaLongOk = baseLongSignal and trendLongOk and htfLongOk
-emaShortOk = baseShortSignal and trendShortOk and htfShortOk
+emaLongOk = baseLongSignal and trendLongOk
+emaShortOk = baseShortSignal and trendShortOk
 volatilityLongOk = emaLongOk and volatilityRegimeOkLong
 volatilityShortOk = emaShortOk and volatilityRegimeOkShort
-breakLongOk = volatilityLongOk and breakConfirmLong
-breakShortOk = volatilityShortOk and breakConfirmShort
+breakLongOk = volatilityLongOk and breakoutTriggerLong
+breakShortOk = volatilityShortOk and breakoutTriggerShort
 
-longQualityScore = (trendLongOk ? 1.0 : 0.0) + (htfLongOk ? 1.0 : 0.0) + (volatilityRegimeOkLong ? 1.0 : 0.0) + (breakConfirmLong ? 1.0 : 0.0) + (regimeConfirmOkLong ? 1.0 : 0.0) + (chopFilterOk and microChopOk ? 1.0 : 0.0) + biasLongScore
-shortQualityScore = (trendShortOk ? 1.0 : 0.0) + (htfShortOk ? 1.0 : 0.0) + (volatilityRegimeOkShort ? 1.0 : 0.0) + (breakConfirmShort ? 1.0 : 0.0) + (regimeConfirmOkShort ? 1.0 : 0.0) + (chopFilterOk and microChopOk ? 1.0 : 0.0) + biasShortScore
+longQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBull ? 1.0 : 0.0) + (trendLongOk ? 1.0 : 0.0) + (rangeExpansionOk ? 1.0 : 0.0) + (breakoutTriggerLong ? 1.0 : 0.0)
+shortQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBear ? 1.0 : 0.0) + (trendShortOk ? 1.0 : 0.0) + (rangeExpansionOk ? 1.0 : 0.0) + (breakoutTriggerShort ? 1.0 : 0.0)
 
 if debugMode
     if baseLongSignal
@@ -255,8 +195,8 @@ if debugMode
     if breakShortOk
         afterBreakConfirm += 1
 
-longSignalFinal = baseLongSignal and blockQuotaOk and longQualityScore >= qualityMinScore
-shortSignalFinal = baseShortSignal and blockQuotaOk and shortQualityScore >= qualityMinScore
+longSignalFinal = breakLongOk
+shortSignalFinal = breakShortOk
 
 if debugMode
     if longSignalFinal
@@ -264,8 +204,8 @@ if debugMode
     if shortSignalFinal
         finalSignals += 1
 
-longSignal = longSignalFinal and cooldownOk
-shortSignal = shortSignalFinal and cooldownOk
+longSignal = longSignalFinal and blockQuotaOk and cooldownOk
+shortSignal = shortSignalFinal and blockQuotaOk and cooldownOk
 
 // ---------------------------------------------------------------------------
 // Order / position management
