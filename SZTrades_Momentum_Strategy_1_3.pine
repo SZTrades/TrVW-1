@@ -24,10 +24,12 @@ cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
 stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
 takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
 slippageTicks = input.int(1, "Slippage Ticks", group="Risk")
+atrLen = input.int(14, "ATR Length", group="ATR")
+atrMaLen = input.int(50, "ATR MA Length", group="ATR")
+atrCompressionThreshold = input.float(0.8, "ATR Compression Threshold", group="ATR")
 
 // Session controls
 tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
-preSession = input.session("0600-0800", "Pre-Session Window", group='Session')
 sessionTimezone = input.string("Etc/GMT+4", "Timezone", group='Session')
 
 gdT3(src, len) =>
@@ -65,19 +67,20 @@ newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
 
 // Session state
 inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
-inPreSession = not na(time(timeframe.period, preSession, sessionTimezone))
+inPreSession = not na(time(timeframe.period, "0600-0800", sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
 
-var bool preBullAligned = false
-var bool preBearAligned = false
-if inPreSession and bullAligned
-    preBullAligned := true
-if inPreSession and bearAligned
-    preBearAligned := true
+atr = ta.atr(atrLen)
+atrMA = ta.sma(atr, atrMaLen)
+isCompressed = atr < atrMA * atrCompressionThreshold
+isExpanding = atr > atr[1]
+
+var bool preSessionCompression = false
+if inPreSession and isCompressed
+    preSessionCompression := true
 if blockStarted
-    preBullAligned := false
-    preBearAligned := false
+    preSessionCompression := false
 
 // Parse session end time defensively.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
@@ -105,14 +108,10 @@ showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
 
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
-validBullContext = bullAligned or preBullAligned
-validBearContext = bearAligned or preBearAligned
-validLong = validBullContext and close > open6am
-validShort = validBearContext and close < open6am
-pullbackLong = preBullAligned and close <= t3
-reclaimLong = pullbackLong[1] and newBull and close > t3
-pullbackShort = preBearAligned and close >= t3
-reclaimShort = pullbackShort[1] and newBear and close < t3
+pullbackLong = basicLongT3 and close < t3
+reclaimLong = basicLongT3 and close > t3 and close[1] < t3
+pullbackShort = basicShortT3 and close > t3
+reclaimShort = basicShortT3 and close < t3 and close[1] > t3
 
 // Only execute on 5-minute charts.
 isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
@@ -127,8 +126,25 @@ if blockEnded
     enteredThisBlock := false
     orderPlaced := false
 
-longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and reclaimLong and allowLongBySixOpen
-shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and reclaimShort and allowShortBySixOpen
+longSignal =
+    isFiveMinuteChart and
+    inTradeBlock and
+    not enteredThisBlock and
+    reclaimLong and
+    bullCVD and
+    allowLongBySixOpen and
+    preSessionCompression and
+    isExpanding
+
+shortSignal =
+    isFiveMinuteChart and
+    inTradeBlock and
+    not enteredThisBlock and
+    reclaimShort and
+    bearCVD and
+    allowShortBySixOpen and
+    preSessionCompression and
+    isExpanding
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
@@ -180,5 +196,7 @@ plot(t3, title='T3', linewidth=2, color=t3Color)
 plot(showSixOpenLine ? open6am : na, title='06:00 Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
 plot(strategy.position_size > 0 ? activeLongStop : na, "Long SL", color=color.red)
 plot(strategy.position_size > 0 ? activeLongTP : na, "Long TP", color=color.green)
+plot(atr, "ATR", color=color.blue)
+plot(atrMA, "ATR MA", color=color.orange)
 plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
