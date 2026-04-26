@@ -28,7 +28,9 @@ tz = input.string("Etc/GMT+4", "Timezone")
 // Core T3
 //────────────────────────────────────────────
 t3(src, len) =>
-    ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
+    ema1 = ta.ema(src, len)
+    ema2 = ta.ema(ema1, len)
+    ema1 * (1 + factorT3) - ema2 * factorT3
 
 t3v = t3(t3(t3(close, t3Len), t3Len), t3Len)
 t3Up = t3v > t3v[1]
