@@ -5,8 +5,8 @@
 strategy('SZTrades Momentum Alignment Strategy v1.3', shorttitle='SZT1.3', overlay=true,
      max_labels_count=500, max_lines_count=500, pyramiding=0,
      default_qty_type=strategy.percent_of_equity, default_qty_value=100,
-     use_bar_magnifier=true, calc_on_every_tick=true, process_orders_on_close=false,
-     commission_type=strategy.commission.percent, commission_value=0.01, slippage=1)
+     use_bar_magnifier=true, calc_on_every_tick=false, process_orders_on_close=true,
+     commission_type=strategy.commission.percent, commission_value=0.01)
 
 // Optimization factors
 lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
@@ -15,10 +15,11 @@ cumulationLength = input.int(16, 'CVD Cumulation Length', minval=1, group='CVD')
 cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
 stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
 takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
+slippageTicks = input.int(1, 'Slippage (ticks)', minval=0, group='Risk')
 
 // Session controls
 tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
-sessionTimezone = 'Etc/GMT+4'
+sessionTimezone = input.string("Etc/GMT+4", "Timezone", group='Session')
 
 gdT3(src, len) =>
     ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
@@ -118,19 +119,22 @@ if shortSignal and not orderPlaced and strategy.position_size == 0
 
 newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
 newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
+newPositionOpened = strategy.position_size != 0 and strategy.position_size[1] == 0
+stopBuffer = slippageTicks * syminfo.mintick
+
+if newPositionOpened
+    enteredThisBlock := true
 
 if newLong and na(activeLongStop)
     entryPrice = strategy.position_avg_price
-    activeLongStop := entryPrice - stopPoints
+    activeLongStop := entryPrice - stopPoints - stopBuffer
     activeLongTP := entryPrice + stopPoints * takeProfitMultiplier
-    enteredThisBlock := true
     strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
 
 if newShort and na(activeShortStop)
     entryPrice = strategy.position_avg_price
-    activeShortStop := entryPrice + stopPoints
+    activeShortStop := entryPrice + stopPoints + stopBuffer
     activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
-    enteredThisBlock := true
     strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
 
 if strategy.position_size == 0
