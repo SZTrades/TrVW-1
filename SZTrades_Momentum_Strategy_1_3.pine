@@ -1,0 +1,229 @@
+//@version=6
+// SZTrades Momentum Alignment Strategy v1.3 (T3 + CVD only)
+// 5m scalping variant with 6:00 open directional bias and 08:00-09:00 execution window.
+
+strategy(
+    'SZTrades Momentum Alignment Strategy v1.3',
+    shorttitle='SZT1.3',
+    overlay=true,
+    pyramiding=0,
+    default_qty_type=strategy.percent_of_equity,
+    default_qty_value=100,
+    calc_on_every_tick=false,
+    process_orders_on_close=true,
+    commission_type=strategy.commission.percent,
+    commission_value=0.01,
+    slippage=1
+)
+
+// Optimization factors
+lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
+factorT3 = input.float(0.7, 'T3 Factor', minval=0.0, maxval=1.0, group='T3')
+cumulationLength = input.int(16, 'CVD Cumulation Length', minval=1, group='CVD')
+stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
+takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
+slippageTicks = input.int(1, "Slippage Ticks", group="Risk")
+
+// Session controls
+tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
+sessionTimezone = input.string("Etc/GMT+4", "Timezone", group='Session')
+
+gdT3(src, len) =>
+    ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
+
+// T3 core
+t3 = gdT3(gdT3(gdT3(close, lengthT3), lengthT3), lengthT3)
+t3Direction = t3 > t3[1] ? 1 : t3 < t3[1] ? -1 : 0
+t3Color = t3Direction > 0 ? color.green : color.red
+basicLongT3 = t3Direction > 0 and close > t3
+basicShortT3 = t3Direction < 0 and close < t3
+
+// CVD core
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+halfWicks = (percentUpper + percentLower) / 2
+buyingVolume = close > open ? (percentBody + halfWicks) * volume : halfWicks * volume
+sellingVolume = close < open ? (percentBody + halfWicks) * volume : halfWicks * volume
+cumBuy = ta.ema(buyingVolume, cumulationLength)
+cumSell = ta.ema(sellingVolume, cumulationLength)
+cvdDelta = cumBuy - cumSell
+cvdStd = ta.stdev(cvdDelta, 20)
+cvdThreshold = cvdStd * 0.5
+bullCVD = cvdDelta > cvdThreshold
+bearCVD = cvdDelta < -cvdThreshold
+
+// Buy/sell signals only when T3 and CVD are aligned.
+bullAligned = basicLongT3 and bullCVD
+bearAligned = basicShortT3 and bearCVD
+newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
+newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
+
+// Session state
+inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
+inPreSession = not na(time(timeframe.period, "0600-0800", sessionTimezone))
+preSession = not na(time(timeframe.period, '0600-0759', sessionTimezone))
+blockStarted = inTradeBlock and not inTradeBlock[1]
+blockEnded = not inTradeBlock and inTradeBlock[1]
+isNewDay = ta.change(time("D")) != 0
+
+var float open6am = na
+var float preHigh = na
+var float preLow = na
+var bool sweptHigh = false
+var bool sweptLow = false
+var bool reclaimedLong = false
+var bool reclaimedShort = false
+var bool preAlignedBull = false
+var bool preAlignedBear = false
+
+if isNewDay
+    open6am := na
+    preHigh := na
+    preLow := na
+    sweptHigh := false
+    sweptLow := false
+    reclaimedLong := false
+    reclaimedShort := false
+
+if inPreSession
+    preHigh := na(preHigh) ? high : math.max(preHigh, high)
+    preLow := na(preLow) ? low : math.min(preLow, low)
+if preSession and bullAligned
+    preAlignedBull := true
+if preSession and bearAligned
+    preAlignedBear := true
+if blockStarted
+    sweptHigh := false
+    sweptLow := false
+    reclaimedLong := false
+    reclaimedShort := false
+    preAlignedBull := false
+    preAlignedBear := false
+
+sweepHigh = not na(preHigh) and high > preHigh and close < preHigh
+sweepLow = not na(preLow) and low < preLow and close > preLow
+if sweepHigh
+    sweptHigh := true
+if sweepLow
+    sweptLow := true
+
+reclaimLong = sweptLow and close > preLow
+reclaimShort = sweptHigh and close < preHigh
+
+if reclaimLong
+    reclaimedLong := true
+if reclaimShort
+    reclaimedShort := true
+
+atr = ta.atr(14)
+atrMA = ta.sma(atr, 20)
+validVolatility = atr > atrMA
+minDistance = atr * 0.5
+farFromOpen = not na(open6am) and math.abs(close - open6am) > minDistance
+
+minuteOfDay = hour(time, sessionTimezone) * 60 + minute(time, sessionTimezone)
+sessionStart = 8 * 60
+allowEarly = minuteOfDay <= (sessionStart + 30)
+
+// Parse session end time defensively.
+sessionCore = array.get(str.split(tradeSession, ":"), 0)
+sessionRanges = str.split(sessionCore, ",")
+lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ''
+rangeParts = str.split(lastRange, "-")
+endToken = array.size(rangeParts) > 1 ? array.get(rangeParts, 1) : ''
+endTokenClean = str.replace_all(endToken, ":", "")
+hasValidEnd = str.length(endTokenClean) >= 4
+endHourRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
+endMinuteRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
+sessionEndHour = (hasValidEnd and not na(endHourRaw)) ? int(endHourRaw) : 0
+sessionEndMinute = (hasValidEnd and not na(endMinuteRaw)) ? int(endMinuteRaw) : 0
+sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
+barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
+lastBarOfBlockByClock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
+lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : blockEnded
+
+// Directional bias from 06:00 open (same timezone).
+isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) == 0
+if isSixAMBar
+    open6am := open
+showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
+allowLongBySixOpen = not na(open6am) and close > open6am
+allowShortBySixOpen = not na(open6am) and close < open6am
+
+// Only execute on 5-minute charts.
+isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
+
+// Only first fresh signal inside each block. No re-entry until close.
+var bool enteredThisBlock = false
+var bool orderPlaced = false
+if blockStarted
+    enteredThisBlock := false
+    orderPlaced := false
+if blockEnded
+    enteredThisBlock := false
+    orderPlaced := false
+
+longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen and validVolatility and farFromOpen and allowEarly
+shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen and validVolatility and farFromOpen and allowEarly
+longSignal := longSignal and barstate.isconfirmed
+shortSignal := shortSignal and barstate.isconfirmed
+
+var float activeLongStop = na
+var float activeShortStop = na
+var float activeLongTP = na
+var float activeShortTP = na
+
+if longSignal and not orderPlaced and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+    orderPlaced := true
+
+if shortSignal and not orderPlaced and strategy.position_size == 0
+    strategy.entry("Short", strategy.short)
+    orderPlaced := true
+
+newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
+newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
+newPositionOpened = strategy.position_size != 0 and strategy.position_size[1] == 0
+stopBuffer = slippageTicks * syminfo.mintick
+
+if newPositionOpened
+    enteredThisBlock := true
+
+if newLong and na(activeLongStop)
+    entryPrice = strategy.position_avg_price
+    activeLongStop := entryPrice - stopPoints - stopBuffer
+    activeLongTP := entryPrice + stopPoints * takeProfitMultiplier
+    strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
+
+if newShort and na(activeShortStop)
+    entryPrice = strategy.position_avg_price
+    activeShortStop := entryPrice + stopPoints + stopBuffer
+    activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
+    strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
+
+if strategy.position_size == 0
+    activeLongStop := na
+    activeShortStop := na
+    activeLongTP := na
+    activeShortTP := na
+
+// Forced close at block end, always on.
+if lastBarOfBlock and strategy.position_size != 0
+    strategy.close_all(comment='Block end close')
+
+bgcolor(bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na)
+plot(t3, title='T3', linewidth=2, color=t3Color)
+plot(showSixOpenLine ? open6am : na, title='06:00 Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
+plot(strategy.position_size > 0 ? activeLongStop : na, "Long SL", color=color.red)
+plot(strategy.position_size > 0 ? activeLongTP : na, "Long TP", color=color.green)
+plot(preHigh, "Pre High", color=color.red)
+plot(preLow, "Pre Low", color=color.green)
+plot(atr, "ATR", color=color.blue)
+plot(atrMA, "ATR MA", color=color.orange)
+plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
+plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
