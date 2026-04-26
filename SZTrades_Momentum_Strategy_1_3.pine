@@ -67,6 +67,12 @@ inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
 
+var bool preBullAligned = false
+var bool preBearAligned = false
+if not inTradeBlock
+    preBullAligned := bullAligned
+    preBearAligned := bearAligned
+
 // Parse session end time defensively.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
 sessionRanges = str.split(sessionCore, ",")
@@ -93,6 +99,12 @@ showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
 
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
+validBullContext = bullAligned or preBullAligned
+validBearContext = bearAligned or preBearAligned
+validLong = validBullContext and close > open6am
+validShort = validBearContext and close < open6am
+pullbackLong = close[1] < t3 and close > t3
+pullbackShort = close[1] > t3 and close < t3
 
 // Only execute on 5-minute charts.
 isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
@@ -107,8 +119,8 @@ if blockEnded
     enteredThisBlock := false
     orderPlaced := false
 
-longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen
-shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen
+longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and validLong and pullbackLong
+shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and validShort and pullbackShort
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
