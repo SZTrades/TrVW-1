@@ -104,11 +104,11 @@ var float activeLongTP = na
 var float activeShortTP = na
 
 if longSignal and strategy.position_size == 0
-    strategy.entry('Long', strategy.long)
+    strategy.entry("Long", strategy.long)
     enteredThisBlock := true
 
 if shortSignal and strategy.position_size == 0
-    strategy.entry('Short', strategy.short)
+    strategy.entry("Short", strategy.short)
     enteredThisBlock := true
 
 newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
@@ -125,9 +125,9 @@ if newShort
     activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
 
 if strategy.position_size > 0
-    strategy.exit('Long Exit', 'Long', stop=activeLongStop, limit=activeLongTP)
+    strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
 if strategy.position_size < 0
-    strategy.exit('Short Exit', 'Short', stop=activeShortStop, limit=activeShortTP)
+    strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
 
 maeLong = strategy.position_size > 0 ? strategy.position_avg_price - low : na
 maeShort = strategy.position_size < 0 ? high - strategy.position_avg_price : na
