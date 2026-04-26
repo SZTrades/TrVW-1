@@ -90,10 +90,13 @@ isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
 
 // Only first fresh signal inside each block. No re-entry until close.
 var bool enteredThisBlock = false
+var bool orderPlaced = false
 if blockStarted
     enteredThisBlock := false
+    orderPlaced := false
 if blockEnded
     enteredThisBlock := false
+    orderPlaced := false
 
 longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen
 shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen
@@ -105,23 +108,25 @@ var float activeShortStop = na
 var float activeLongTP = na
 var float activeShortTP = na
 
-if longSignal and strategy.position_size == 0
+if longSignal and not orderPlaced and strategy.position_size == 0
     strategy.entry("Long", strategy.long)
+    orderPlaced := true
 
-if shortSignal and strategy.position_size == 0
+if shortSignal and not orderPlaced and strategy.position_size == 0
     strategy.entry("Short", strategy.short)
+    orderPlaced := true
 
 newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
 newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
 
-if newLong
+if newLong and na(activeLongStop)
     entryPrice = strategy.position_avg_price
     activeLongStop := entryPrice - stopPoints
     activeLongTP := entryPrice + stopPoints * takeProfitMultiplier
     enteredThisBlock := true
     strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
 
-if newShort
+if newShort and na(activeShortStop)
     entryPrice = strategy.position_avg_price
     activeShortStop := entryPrice + stopPoints
     activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
