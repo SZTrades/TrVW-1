@@ -196,6 +196,12 @@ var int winStreak = 0
 var int maxWinStreak = 0
 var int firstBarTime = na
 var int tradesThisBlock = 0
+var int trackedClosedTrades = 0
+var int trackedWins = 0
+var int trackedLosses = 0
+var float trackedGrossProfit = 0.0
+var float trackedGrossLoss = 0.0
+var float trackedNetProfit = 0.0
 
 if barstate.isfirst
     firstBarTime := time
@@ -230,20 +236,28 @@ if blockEnded
     orderPlaced := false
     tradesThisBlock := 0
 
-closedTradesPrev = bar_index > 0 ? strategy.closedtrades[1] : 0
-netProfitPrev = bar_index > 0 ? strategy.netprofit[1] : strategy.netprofit
-closedTradeNow = strategy.closedtrades > closedTradesPrev
-tradePnlDelta = strategy.netprofit - netProfitPrev
+closedTradesNow = int(strategy.closedtrades)
+newClosedTrades = closedTradesNow - trackedClosedTrades
+if newClosedTrades > 0
+    for tradeIdx = trackedClosedTrades to closedTradesNow - 1
+        tradePnl = strategy.closedtrades.profit(tradeIdx)
+        trackedNetProfit += tradePnl
 
-if closedTradeNow
-    if tradePnlDelta > 0
-        winStreak += 1
-        maxWinStreak := math.max(maxWinStreak, winStreak)
-    else
-        winStreak := 0
+        if tradePnl > 0
+            trackedWins += 1
+            trackedGrossProfit += tradePnl
+            winStreak += 1
+            maxWinStreak := math.max(maxWinStreak, winStreak)
+        else
+            if tradePnl < 0
+                trackedLosses += 1
+                trackedGrossLoss += tradePnl
+            winStreak := 0
 
-    if tradePnlDelta >= 0
-        lastTradeBarIndex := na
+        if tradePnl >= 0
+            lastTradeBarIndex := na
+
+    trackedClosedTrades := closedTradesNow
 
 if strategy.position_size == 0 and strategy.position_size[1] != 0
     orderPlaced := false
@@ -309,10 +323,10 @@ plotshape(newBear, title="Bear Alignment", location=location.abovebar, style=sha
 // ---------------------------------------------------------------------------
 var table stats = table.new(position.top_right, 2, 11, border_width=1)
 if barstate.islast
-    closedTrades = strategy.closedtrades
-    winRate = closedTrades > 0 ? (strategy.wintrades * 100.0) / closedTrades : na
-    profitFactor = strategy.grossloss != 0 ? strategy.grossprofit / math.abs(strategy.grossloss) : na
-    netProfit = strategy.netprofit
+    closedTrades = trackedClosedTrades
+    winRate = closedTrades > 0 ? (trackedWins * 100.0) / closedTrades : na
+    profitFactor = trackedGrossLoss != 0 ? trackedGrossProfit / math.abs(trackedGrossLoss) : na
+    netProfit = trackedNetProfit
     maxDrawdown = strategy.max_drawdown
     riskUnit = math.max(strategy.initial_capital * 0.01, 1.0)
     expectancy = netProfit / riskUnit
