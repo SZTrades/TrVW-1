@@ -134,8 +134,8 @@ trendShortOk = close < trendEma
 
 effectiveRangeBaseline = na(avgBaselineRange) ? barRange : avgBaselineRange
 narrowBar = barRange <= effectiveRangeBaseline * narrowRangeFactor
-narrowBarCount = math.sum(narrowBar ? 1.0 : 0.0, narrowBarsLen)
-liquidityCleanOk = not na(avgBaselineRange) and narrowBarCount < narrowBarsLen
+narrowBarCount = ta.sma(narrowBar ? 1.0 : 0.0, narrowBarsLen) * narrowBarsLen
+liquidityCleanOk = not na(avgBaselineRange) and not na(narrowBarCount) and narrowBarCount < narrowBarsLen
 
 // ---------------------------------------------------------------------------
 // Final v1.5 sniper signals
