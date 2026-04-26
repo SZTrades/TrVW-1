@@ -137,7 +137,7 @@ rangeExpansionOk = not na(avgRecentRange) and not na(avgBaselineRange) and avgRe
 trendEma = ta.ema(close, trendEmaLen)
 trendLongOk = close > trendEma
 trendShortOk = close < trendEma
-trendSlope = trendEma - trendEma[regimeSlopeBars]
+trendSlope = not na(trendEma[regimeSlopeBars]) ? trendEma - trendEma[regimeSlopeBars] : 0
 
 htfEma = request.security(syminfo.tickerid, htfRegimeTf, ta.ema(close, htfEmaLen), barmerge.gaps_off, barmerge.lookahead_off)
 htfLongOk = close > htfEma
@@ -267,13 +267,15 @@ var float activeShortStop = na
 var float activeLongTP = na
 var float activeShortTP = na
 
-if longSignal and not orderPlaced and strategy.position_size == 0
+if longSignal and not enteredThisBlock and not orderPlaced and strategy.position_size == 0
     strategy.entry("Long", strategy.long)
     orderPlaced := true
+    lastTradeBarIndex := bar_index
 
-if shortSignal and not orderPlaced and strategy.position_size == 0
+if shortSignal and not enteredThisBlock and not orderPlaced and strategy.position_size == 0
     strategy.entry("Short", strategy.short)
     orderPlaced := true
+    lastTradeBarIndex := bar_index
 
 newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
 newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
@@ -284,6 +286,10 @@ if newPositionOpened
     enteredThisBlock := true
     tradesThisBlock += 1
     lastTradeBarIndex := bar_index
+    activeLongStop := na
+    activeShortStop := na
+    activeLongTP := na
+    activeShortTP := na
 
 if newLong and na(activeLongStop)
     entryPrice = strategy.position_avg_price
