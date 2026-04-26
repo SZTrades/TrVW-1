@@ -105,19 +105,40 @@ var float activeShortTP = na
 if longSignal and strategy.position_size == 0
     strategy.entry('Long', strategy.long, comment='Buy signal')
     enteredThisBlock := true
-    activeLongStop := strategy.position_avg_price - stopPoints
-    activeLongTP := strategy.position_avg_price + stopPoints * takeProfitMultiplier
 
 if shortSignal and strategy.position_size == 0
     strategy.entry('Short', strategy.short, comment='Sell signal')
     enteredThisBlock := true
-    activeShortStop := strategy.position_avg_price + stopPoints
-    activeShortTP := strategy.position_avg_price - stopPoints * takeProfitMultiplier
+
+newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
+newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
+
+if newLong
+    entry = strategy.position_avg_price
+    activeLongStop := entry - stopPoints
+    activeLongTP := entry + stopPoints * takeProfitMultiplier
+    activeShortStop := na
+    activeShortTP := na
+
+if newShort
+    entry = strategy.position_avg_price
+    activeShortStop := entry + stopPoints
+    activeShortTP := entry - stopPoints * takeProfitMultiplier
+    activeLongStop := na
+    activeLongTP := na
 
 if strategy.position_size > 0 and not na(activeLongStop)
     strategy.exit('Long Exit', 'Long', stop=activeLongStop, limit=activeLongTP)
 if strategy.position_size < 0 and not na(activeShortStop)
     strategy.exit('Short Exit', 'Short', stop=activeShortStop, limit=activeShortTP)
+
+maeLong = strategy.position_size > 0 ? strategy.position_avg_price - low : na
+maeShort = strategy.position_size < 0 ? high - strategy.position_avg_price : na
+
+if strategy.position_size > 0 and maeLong > stopPoints
+    strategy.close('Long', comment='Hard SL')
+if strategy.position_size < 0 and maeShort > stopPoints
+    strategy.close('Short', comment='Hard SL')
 
 if strategy.position_size == 0
     activeLongStop := na
