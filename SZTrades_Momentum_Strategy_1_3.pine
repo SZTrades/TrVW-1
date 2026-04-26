@@ -65,6 +65,7 @@ newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
 // Session state
 inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
 inPreSession = not na(time(timeframe.period, "0600-0800", sessionTimezone))
+preSession = not na(time(timeframe.period, '0600-0759', sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
 isNewDay = ta.change(time("D")) != 0
@@ -76,6 +77,8 @@ var bool sweptHigh = false
 var bool sweptLow = false
 var bool reclaimedLong = false
 var bool reclaimedShort = false
+var bool preAlignedBull = false
+var bool preAlignedBear = false
 
 if isNewDay
     open6am := na
@@ -89,11 +92,17 @@ if isNewDay
 if inPreSession
     preHigh := na(preHigh) ? high : math.max(preHigh, high)
     preLow := na(preLow) ? low : math.min(preLow, low)
+if preSession and bullAligned
+    preAlignedBull := true
+if preSession and bearAligned
+    preAlignedBear := true
 if blockStarted
     sweptHigh := false
     sweptLow := false
     reclaimedLong := false
     reclaimedShort := false
+    preAlignedBull := false
+    preAlignedBear := false
 
 sweepHigh = not na(preHigh) and high > preHigh and close < preHigh
 sweepLow = not na(preLow) and low < preLow and close > preLow
@@ -169,6 +178,10 @@ showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
 
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
+pullbackLong = close < t3
+pullbackShort = close > t3
+reclaimBull = bullAligned and pullbackLong[1]
+reclaimBear = bearAligned and pullbackShort[1]
 
 // Only execute on 5-minute charts.
 isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
@@ -183,23 +196,12 @@ if blockEnded
     enteredThisBlock := false
     orderPlaced := false
 
-longSignal =
-    isFiveMinuteChart and
-    inTradeBlock and
-    not enteredThisBlock and
-    triggerLong and
-    allowLongBySixOpen and
-    validTimingLong and
-    validPreSession
-
-shortSignal =
-    isFiveMinuteChart and
-    inTradeBlock and
-    not enteredThisBlock and
-    triggerShort and
-    allowShortBySixOpen and
-    validTimingShort and
-    validPreSession
+longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and preAlignedBull and reclaimBull and allowLongBySixOpen
+shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and preAlignedBear and reclaimBear and allowShortBySixOpen
+tooFarLong = close > t3 * 1.002
+tooFarShort = close < t3 * 0.998
+longSignal := longSignal and not tooFarLong
+shortSignal := shortSignal and not tooFarShort
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
