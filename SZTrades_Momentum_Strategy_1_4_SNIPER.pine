@@ -1,0 +1,270 @@
+//@version=6
+// SZTrades Momentum Alignment Strategy v1.4 SNIPER
+// Layered-filter variant built on the existing T3 + CVD core.
+
+strategy(
+    "SZTrades Momentum Alignment Strategy v1.4 SNIPER",
+    shorttitle="SZT1.4S",
+    overlay=true,
+    pyramiding=0,
+    default_qty_type=strategy.percent_of_equity,
+    default_qty_value=100,
+    calc_on_every_tick=false,
+    process_orders_on_close=true,
+    commission_type=strategy.commission.percent,
+    commission_value=0.01,
+    slippage=1
+)
+
+// ---------------------------------------------------------------------------
+// Base optimization inputs
+// ---------------------------------------------------------------------------
+lengthT3 = input.int(4, "T3 Length", minval=1, group="Base - T3")
+factorT3 = input.float(0.7, "T3 Factor", minval=0.0, maxval=1.0, group="Base - T3")
+cumulationLength = input.int(16, "CVD Cumulation Length", minval=1, group="Base - CVD")
+baseCvdThreshold = input.float(0.0, "Base CVD Threshold", minval=0.0, group="Base - CVD")
+
+stopPoints = input.float(4.0, "Stop Points", minval=0.0, group="Risk")
+takeProfitMultiplier = input.float(2.0, "Take Profit Multiplier", minval=0.1, group="Risk")
+slippageTicks = input.int(1, "Slippage Ticks", minval=0, group="Risk")
+
+tradeSession = input.session("0800-0900", "Trading Window (HHMM-HHMM)", group="Session")
+sessionTimezone = input.string("Etc/GMT+4", "Timezone", group="Session")
+
+// ---------------------------------------------------------------------------
+// SNIPER filter inputs
+// ---------------------------------------------------------------------------
+htfTrendTf = input.timeframe("15", "HTF Trend Timeframe", group="Sniper - HTF Trend")
+htfEmaLen = input.int(200, "HTF EMA Length", minval=1, group="Sniper - HTF Trend")
+
+regimeMode = input.string("ADX + EMA Slope", "Regime Mode", options=["ADX", "EMA Slope", "ADX + EMA Slope"], group="Sniper - Regime")
+adxLen = input.int(14, "ADX Length", minval=1, group="Sniper - Regime")
+adxThreshold = input.float(20.0, "ADX Threshold", minval=1.0, group="Sniper - Regime")
+regimeEmaLen = input.int(50, "Regime EMA Length", minval=1, group="Sniper - Regime")
+regimeSlopeBars = input.int(5, "Regime Slope Bars", minval=1, group="Sniper - Regime")
+regimeSlopeMin = input.float(0.0, "Regime Slope Min", step=0.01, group="Sniper - Regime")
+
+atrLen = input.int(14, "ATR Length", minval=1, group="Sniper - Volatility")
+atrMaLen = input.int(20, "ATR MA Length", minval=1, group="Sniper - Volatility")
+atrMinThreshold = input.float(0.0, "ATR Min Threshold", minval=0.0, group="Sniper - Volatility")
+
+sweepLookback = input.int(15, "Sweep Lookback", minval=2, group="Sniper - Liquidity")
+bodyRatioMin = input.float(0.55, "Min Body Ratio", minval=0.1, maxval=1.0, step=0.01, group="Sniper - Execution Quality")
+
+// ---------------------------------------------------------------------------
+// Helper / core functions
+// ---------------------------------------------------------------------------
+gdT3(src, len) =>
+    ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
+
+// ---------------------------------------------------------------------------
+// Base core logic (kept intact)
+// ---------------------------------------------------------------------------
+t3 = gdT3(gdT3(gdT3(close, lengthT3), lengthT3), lengthT3)
+t3Direction = t3 > t3[1] ? 1 : t3 < t3[1] ? -1 : 0
+t3Color = t3Direction > 0 ? color.green : color.red
+basicLongT3 = t3Direction > 0 and close > t3
+basicShortT3 = t3Direction < 0 and close < t3
+
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+halfWicks = (percentUpper + percentLower) / 2
+buyingVolume = close > open ? (percentBody + halfWicks) * volume : halfWicks * volume
+sellingVolume = close < open ? (percentBody + halfWicks) * volume : halfWicks * volume
+cumBuy = ta.ema(buyingVolume, cumulationLength)
+cumSell = ta.ema(sellingVolume, cumulationLength)
+cvdDelta = cumBuy - cumSell
+bullCVD = cvdDelta > baseCvdThreshold
+bearCVD = cvdDelta < -baseCvdThreshold
+
+bullAligned = basicLongT3 and bullCVD
+bearAligned = basicShortT3 and bearCVD
+newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
+newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
+
+// ---------------------------------------------------------------------------
+// Session + 06:00 bias + one-trade-per-block
+// ---------------------------------------------------------------------------
+inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
+blockStarted = inTradeBlock and not inTradeBlock[1]
+blockEnded = not inTradeBlock and inTradeBlock[1]
+
+isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) == 0
+var float open6am = na
+if isSixAMBar
+    open6am := open
+if ta.change(time("D")) != 0
+    open6am := na
+
+allowLongBySixOpen = not na(open6am) and close > open6am
+allowShortBySixOpen = not na(open6am) and close < open6am
+
+// Parse session end time defensively for force-close logic.
+sessionCore = array.get(str.split(tradeSession, ":"), 0)
+sessionRanges = str.split(sessionCore, ",")
+lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ""
+rangeParts = str.split(lastRange, "-")
+endToken = array.size(rangeParts) > 1 ? array.get(rangeParts, 1) : ""
+endTokenClean = str.replace_all(endToken, ":", "")
+hasValidEnd = str.length(endTokenClean) >= 4
+endHourRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
+endMinuteRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
+sessionEndHour = (hasValidEnd and not na(endHourRaw)) ? int(endHourRaw) : 0
+sessionEndMinute = (hasValidEnd and not na(endMinuteRaw)) ? int(endMinuteRaw) : 0
+sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
+barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
+lastBarOfBlockByClock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
+lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : blockEnded
+
+// ---------------------------------------------------------------------------
+// SNIPER layered filters
+// ---------------------------------------------------------------------------
+// 1) HTF trend filter (EMA200)
+htfEma = request.security(syminfo.tickerid, htfTrendTf, ta.ema(close, htfEmaLen), lookahead=barmerge.lookahead_off)
+htfLongOk = close > htfEma
+htfShortOk = close < htfEma
+
+// 2) Regime filter (ADX and/or EMA slope)
+adxValue = ta.adx(adxLen)
+adxOk = adxValue > adxThreshold
+regimeEma = ta.ema(close, regimeEmaLen)
+regimeSlope = regimeEma - regimeEma[regimeSlopeBars]
+slopeLongOk = regimeSlope > regimeSlopeMin
+slopeShortOk = regimeSlope < -regimeSlopeMin
+
+regimeLongOk = regimeMode == "ADX" ? adxOk : regimeMode == "EMA Slope" ? slopeLongOk : adxOk and slopeLongOk
+regimeShortOk = regimeMode == "ADX" ? adxOk : regimeMode == "EMA Slope" ? slopeShortOk : adxOk and slopeShortOk
+
+// 3) ATR volatility filter
+atrValue = ta.atr(atrLen)
+atrMA = ta.sma(atrValue, atrMaLen)
+validVolatility = atrValue > atrMA and atrValue > atrMinThreshold
+
+// 4) Liquidity sweep filter (simple form)
+var bool longSweepSeen = false
+var bool shortSweepSeen = false
+if blockStarted
+    longSweepSeen := false
+    shortSweepSeen := false
+
+if inTradeBlock and low < ta.lowest(low[1], sweepLookback)
+    longSweepSeen := true
+if inTradeBlock and high > ta.highest(high[1], sweepLookback)
+    shortSweepSeen := true
+
+// 5) Execution quality filter (body/wick quality)
+bodyRatio = math.abs(close - open) / math.max(high - low, syminfo.mintick)
+qualityOk = bodyRatio >= bodyRatioMin
+
+// ---------------------------------------------------------------------------
+// Final SNIPER signals
+// ---------------------------------------------------------------------------
+isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
+baseLongSignal = isFiveMinuteChart and inTradeBlock and newBull and allowLongBySixOpen
+baseShortSignal = isFiveMinuteChart and inTradeBlock and newBear and allowShortBySixOpen
+
+longSignal = baseLongSignal and htfLongOk and regimeLongOk and validVolatility and longSweepSeen and qualityOk
+shortSignal = baseShortSignal and htfShortOk and regimeShortOk and validVolatility and shortSweepSeen and qualityOk
+
+// ---------------------------------------------------------------------------
+// Order / position management (base behavior preserved)
+// ---------------------------------------------------------------------------
+var bool enteredThisBlock = false
+var bool orderPlaced = false
+if blockStarted
+    enteredThisBlock := false
+    orderPlaced := false
+if blockEnded
+    enteredThisBlock := false
+    orderPlaced := false
+
+var float activeLongStop = na
+var float activeShortStop = na
+var float activeLongTP = na
+var float activeShortTP = na
+
+if longSignal and not enteredThisBlock and not orderPlaced and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+    orderPlaced := true
+
+if shortSignal and not enteredThisBlock and not orderPlaced and strategy.position_size == 0
+    strategy.entry("Short", strategy.short)
+    orderPlaced := true
+
+newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
+newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
+newPositionOpened = strategy.position_size != 0 and strategy.position_size[1] == 0
+stopBuffer = slippageTicks * syminfo.mintick
+
+if newPositionOpened
+    enteredThisBlock := true
+
+if newLong and na(activeLongStop)
+    entryPrice = strategy.position_avg_price
+    activeLongStop := entryPrice - stopPoints - stopBuffer
+    activeLongTP := entryPrice + stopPoints * takeProfitMultiplier
+    strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
+
+if newShort and na(activeShortStop)
+    entryPrice = strategy.position_avg_price
+    activeShortStop := entryPrice + stopPoints + stopBuffer
+    activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
+    strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
+
+if strategy.position_size == 0
+    activeLongStop := na
+    activeShortStop := na
+    activeLongTP := na
+    activeShortTP := na
+
+if lastBarOfBlock and strategy.position_size != 0
+    strategy.close_all(comment="Block end close")
+
+// ---------------------------------------------------------------------------
+// Visuals
+// ---------------------------------------------------------------------------
+bgcolor(bullAligned ? color.new(color.green, 88) : bearAligned ? color.new(color.red, 88) : na)
+plot(t3, title="T3", linewidth=2, color=t3Color)
+plot(open6am, title="06:00 Open", color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
+plot(htfEma, title="HTF EMA200", color=color.new(color.purple, 0), linewidth=1)
+
+plotshape(newBull, title="Bull Alignment", location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
+plotshape(newBear, title="Bear Alignment", location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
+
+// ---------------------------------------------------------------------------
+// Metrics table (real-time)
+// ---------------------------------------------------------------------------
+var table stats = table.new(position.top_right, 2, 7, border_width=1)
+if barstate.islast
+    closedTrades = strategy.closedtrades
+    winRate = closedTrades > 0 ? (strategy.wintrades * 100.0) / closedTrades : na
+    profitFactor = strategy.grossloss != 0 ? strategy.grossprofit / math.abs(strategy.grossloss) : na
+    avgTrade = closedTrades > 0 ? strategy.netprofit / closedTrades : na
+    maxDrawdown = strategy.max_drawdown
+    netProfit = strategy.netprofit
+
+    table.cell(stats, 0, 0, "Total trades", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 0, str.tostring(closedTrades), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 1, "Win rate %", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 1, str.tostring(winRate, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 2, "Profit factor", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 2, str.tostring(profitFactor, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 3, "Avg trade", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 3, str.tostring(avgTrade, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 4, "Max drawdown", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 4, str.tostring(maxDrawdown, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 5, "Net profit", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 5, str.tostring(netProfit, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 6, "Regime", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 6, regimeMode, text_color=color.white, bgcolor=color.new(color.black, 0))
