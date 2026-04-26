@@ -71,6 +71,28 @@ inPreSession = not na(time(timeframe.period, "0600-0800", sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
 
+var float preHigh = na
+var float preLow = na
+if inPreSession
+    preHigh := na(preHigh) ? high : math.max(preHigh, high)
+    preLow := na(preLow) ? low : math.min(preLow, low)
+if blockStarted
+    preHigh := na
+    preLow := na
+
+sweepHigh = high > preHigh and close < preHigh
+sweepLow = low < preLow and close > preLow
+
+var bool sweptHigh = false
+var bool sweptLow = false
+if sweepHigh
+    sweptHigh := true
+if sweepLow
+    sweptLow := true
+if blockStarted
+    sweptHigh := false
+    sweptLow := false
+
 atr = ta.atr(atrLen)
 atrMA = ta.sma(atr, atrMaLen)
 isCompressed = atr < atrMA * atrCompressionThreshold
@@ -134,7 +156,8 @@ longSignal =
     bullCVD and
     allowLongBySixOpen and
     preSessionCompression and
-    isExpanding
+    isExpanding and
+    sweptLow
 
 shortSignal =
     isFiveMinuteChart and
@@ -144,7 +167,8 @@ shortSignal =
     bearCVD and
     allowShortBySixOpen and
     preSessionCompression and
-    isExpanding
+    isExpanding and
+    sweptHigh
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
@@ -196,6 +220,8 @@ plot(t3, title='T3', linewidth=2, color=t3Color)
 plot(showSixOpenLine ? open6am : na, title='06:00 Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
 plot(strategy.position_size > 0 ? activeLongStop : na, "Long SL", color=color.red)
 plot(strategy.position_size > 0 ? activeLongTP : na, "Long TP", color=color.green)
+plot(preHigh, "Pre High", color=color.red)
+plot(preLow, "Pre Low", color=color.green)
 plot(atr, "ATR", color=color.blue)
 plot(atrMA, "ATR MA", color=color.orange)
 plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
