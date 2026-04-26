@@ -76,6 +76,7 @@ isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) 
 var float open6am = na
 if isSixAMBar
     open6am := open
+showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
 
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
@@ -150,6 +151,6 @@ if lastBarOfBlock and strategy.position_size != 0
 
 bgcolor(bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na)
 plot(t3, title='T3', linewidth=2, color=t3Color)
-plot(open6am, title='06:00 Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
+plot(showSixOpenLine ? open6am : na, title='06:00 Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
 plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
