@@ -20,7 +20,6 @@ strategy(
 lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
 factorT3 = input.float(0.7, 'T3 Factor', minval=0.0, maxval=1.0, group='T3')
 cumulationLength = input.int(16, 'CVD Cumulation Length', minval=1, group='CVD')
-cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
 stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
 takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
 slippageTicks = input.int(1, "Slippage Ticks", group="Risk")
@@ -53,6 +52,8 @@ sellingVolume = close < open ? (percentBody + halfWicks) * volume : halfWicks * 
 cumBuy = ta.ema(buyingVolume, cumulationLength)
 cumSell = ta.ema(sellingVolume, cumulationLength)
 cvdDelta = cumBuy - cumSell
+cvdStd = ta.stdev(cvdDelta, 20)
+cvdThreshold = cvdStd * 0.5
 bullCVD = cvdDelta > cvdThreshold
 bearCVD = cvdDelta < -cvdThreshold
 
@@ -119,39 +120,15 @@ if reclaimLong
 if reclaimShort
     reclaimedShort := true
 
-atrLen = 14
-atr = ta.atr(atrLen)
-preRange = preHigh - preLow
-validPreSession = not na(preHigh) and not na(preLow)
-isCompressed = validPreSession and preRange < atr
-isExpanding = (high - low) > atr
-validBullSignal = newBull and reclaimedLong
-validBearSignal = newBear and reclaimedShort
+atr = ta.atr(14)
+atrMA = ta.sma(atr, 20)
+validVolatility = atr > atrMA
+minDistance = atr * 0.5
+farFromOpen = not na(open6am) and math.abs(close - open6am) > minDistance
 
-// 1. Sweep already occurred.
-hasSweepLong = sweptLow
-hasSweepShort = sweptHigh
-
-// 2. Reclaim.
-hasReclaimLong = reclaimedLong
-hasReclaimShort = reclaimedShort
-
-// 3. Pullback.
-hasPullbackLong = hasReclaimLong and low <= t3
-hasPullbackShort = hasReclaimShort and high >= t3
-
-// 4. Expansion.
-hasExpansion = isCompressed and isExpanding
-
-barsSinceSweepLow = ta.barssince(sweepLow)
-barsSinceSweepHigh = ta.barssince(sweepHigh)
-validTimingLong = barsSinceSweepLow > 1
-validTimingShort = barsSinceSweepHigh > 1
-strongBody = math.abs(close - open) > (high - low) * 0.6
-
-// 5. Final trigger.
-triggerLong = hasSweepLong and hasPullbackLong and hasExpansion and validBullSignal and strongBody
-triggerShort = hasSweepShort and hasPullbackShort and hasExpansion and validBearSignal and strongBody
+minuteOfDay = hour(time, sessionTimezone) * 60 + minute(time, sessionTimezone)
+sessionStart = 8 * 60
+allowEarly = minuteOfDay <= (sessionStart + 30)
 
 // Parse session end time defensively.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
@@ -175,13 +152,8 @@ isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) 
 if isSixAMBar
     open6am := open
 showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
-
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
-pullbackLong = close < t3
-pullbackShort = close > t3
-reclaimBull = bullAligned and pullbackLong[1]
-reclaimBear = bearAligned and pullbackShort[1]
 
 // Only execute on 5-minute charts.
 isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
@@ -196,12 +168,8 @@ if blockEnded
     enteredThisBlock := false
     orderPlaced := false
 
-longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and preAlignedBull and reclaimBull and allowLongBySixOpen
-shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and preAlignedBear and reclaimBear and allowShortBySixOpen
-tooFarLong = close > t3 * 1.002
-tooFarShort = close < t3 * 0.998
-longSignal := longSignal and not tooFarLong
-shortSignal := shortSignal and not tooFarShort
+longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen and validVolatility and farFromOpen and allowEarly
+shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen and validVolatility and farFromOpen and allowEarly
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
@@ -256,5 +224,6 @@ plot(strategy.position_size > 0 ? activeLongTP : na, "Long TP", color=color.gree
 plot(preHigh, "Pre High", color=color.red)
 plot(preLow, "Pre Low", color=color.green)
 plot(atr, "ATR", color=color.blue)
+plot(atrMA, "ATR MA", color=color.orange)
 plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
