@@ -23,7 +23,7 @@ cumulationLength = input.int(16, 'CVD Cumulation Length', minval=1, group='CVD')
 cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
 stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
 takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
-slippageTicks = input.int(1, "Slippage Ticks", minval=0, group='Risk')
+slippageTicks = input.int(1, "Slippage Ticks", group="Risk")
 
 // Session controls
 tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
