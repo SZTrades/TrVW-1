@@ -130,7 +130,7 @@ htfLongOk = close > htfEma
 htfShortOk = close < htfEma
 
 // 2) Regime filter (ADX and/or EMA slope)
-adxValue = ta.adx(adxLen)
+[_, _, adxValue] = ta.dmi(adxLen, adxLen)
 adxOk = adxValue > adxThreshold
 regimeEma = ta.ema(close, regimeEmaLen)
 regimeSlope = regimeEma - regimeEma[regimeSlopeBars]
@@ -152,9 +152,12 @@ if blockStarted
     longSweepSeen := false
     shortSweepSeen := false
 
-if inTradeBlock and low < ta.lowest(low[1], sweepLookback)
+sweepLowRef = ta.lowest(low, sweepLookback)[1]
+sweepHighRef = ta.highest(high, sweepLookback)[1]
+
+if inTradeBlock and low < sweepLowRef
     longSweepSeen := true
-if inTradeBlock and high > ta.highest(high[1], sweepLookback)
+if inTradeBlock and high > sweepHighRef
     shortSweepSeen := true
 
 // 5) Execution quality filter (body/wick quality)
