@@ -1,9 +1,9 @@
 //@version=6
-// SZTrades Momentum Alignment Strategy (CLEAN SNIPER)
-
+// SZTrades Momentum Alignment Strategy v1.6 CLEAN SNIPER (XAUUSD) ENTRY 2
+// Production-ready cleanup from v1.5.1 HARDENED.
 strategy(
-    "SZTrades Momentum Alignment Strategy (CLEAN SNIPER)",
-    shorttitle="SZT-CLEAN",
+    "SZTrades Momentum Alignment Strategy v1.6 CLEAN SNIPER (XAUUSD) - ENTRY 2",
+    shorttitle="SZT1.6C-E2",
     overlay=true,
     pyramiding=0,
     default_qty_type=strategy.percent_of_equity,
@@ -14,41 +14,36 @@ strategy(
     commission_value=0.01,
     slippage=1
 )
-
 // ---------------------------------------------------------------------------
-// Base inputs
+// Base optimization inputs
 // ---------------------------------------------------------------------------
 lengthT3 = input.int(4, "T3 Length", minval=1, group="Base - T3")
 factorT3 = input.float(0.7, "T3 Factor", minval=0.0, maxval=1.0, group="Base - T3")
 cumulationLength = input.int(16, "CVD Cumulation Length", minval=1, group="Base - CVD")
 baseCvdThreshold = input.float(0.0, "Base CVD Threshold", minval=0.0, group="Base - CVD")
-
 stopPoints = input.float(4.0, "Stop Points", minval=0.0, group="Risk")
 takeProfitMultiplier = input.float(2.0, "Take Profit Multiplier", minval=0.1, group="Risk")
 slippageTicks = input.int(1, "Slippage Ticks", minval=0, group="Risk")
-
 tradeSession = input.session("0800-0900", "Trading Window (HHMM-HHMM)", group="Session")
 sessionTimezone = input.string("Etc/GMT+4", "Timezone", group="Session")
-
 // ---------------------------------------------------------------------------
-// Clean sniper filters
+// v1.6 clean filters
 // ---------------------------------------------------------------------------
 trendEmaLen = input.int(50, "Trend EMA Length", minval=1, group="Sniper - Trend")
-debugMode = input.bool(false, "Enable Filter Stage Debug", group="Sniper - Entry")
-
+confirmBreakLookback = input.int(3, "Entry Break Lookback", minval=2, group="Sniper - Entry")
 cooldownBars = input.int(4, "Cooldown Bars Between Trades", minval=0, group="Sniper - Frequency")
-maxTradesPerBlock = input.int(1, "Max Trades Per Session Block", minval=1, group="Sniper - Frequency")
-
 rangeFastLen = input.int(20, "Range Fast Length", minval=2, group="Sniper - Volatility")
 rangeSlowLen = input.int(60, "Range Slow Length", minval=5, group="Sniper - Volatility")
 rangeExpansionMin = input.float(0.9, "Range Expansion Min", minval=0.1, step=0.05, group="Sniper - Volatility")
-
+regimeAtrLen = input.int(14, "Regime ATR Length", minval=1, group="Sniper - Volatility")
+regimeAtrMaLen = input.int(20, "Regime ATR MA Length", minval=1, group="Sniper - Volatility")
+regimeSlopeBars = input.int(5, "Regime EMA Slope Bars", minval=1, group="Sniper - Volatility")
+breakoutRangeMult = input.float(1.05, "Breakout Range Mult", minval=0.5, step=0.05, group="Sniper - Volatility")
 // ---------------------------------------------------------------------------
 // Helper / core functions
 // ---------------------------------------------------------------------------
 gdT3(src, len) =>
     ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
-
 // ---------------------------------------------------------------------------
 // Base core logic (kept intact)
 // ---------------------------------------------------------------------------
@@ -57,7 +52,6 @@ t3Direction = t3 > t3[1] ? 1 : t3 < t3[1] ? -1 : 0
 t3Color = t3Direction > 0 ? color.green : color.red
 basicLongT3 = t3Direction > 0 and close > t3
 basicShortT3 = t3Direction < 0 and close < t3
-
 upperWick = close > open ? high - close : high - open
 lowerWick = close > open ? open - low : close - low
 spread = math.max(high - low, syminfo.mintick)
@@ -73,29 +67,25 @@ cumSell = ta.ema(sellingVolume, cumulationLength)
 cvdDelta = cumBuy - cumSell
 bullCVD = cvdDelta > baseCvdThreshold
 bearCVD = cvdDelta < -baseCvdThreshold
-
 bullAligned = basicLongT3 and bullCVD
 bearAligned = basicShortT3 and bearCVD
 newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
 newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
-
 // ---------------------------------------------------------------------------
-// Session + 06:00 bias + block controls
+// Session + 06:00 bias + one-trade-per-block
 // ---------------------------------------------------------------------------
 inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
-
 isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) == 0
 var float open6am = na
 if isSixAMBar
     open6am := open
 if ta.change(time("D")) != 0
     open6am := na
-
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
-
+// Parse session end time defensively for force-close logic.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
 sessionRanges = str.split(sessionCore, ",")
 lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ""
@@ -111,262 +101,135 @@ sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
 barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
 lastBarOfBlockByClock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
 lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : blockEnded
-
 // ---------------------------------------------------------------------------
-// Gate stack
+// v1.6 clean gate stack
 // ---------------------------------------------------------------------------
 barRange = math.max(high - low, syminfo.mintick)
 avgRecentRange = ta.sma(barRange, rangeFastLen)
 avgBaselineRange = ta.sma(barRange, rangeSlowLen)
 rangeExpansionOk = not na(avgRecentRange) and not na(avgBaselineRange) and avgRecentRange >= avgBaselineRange * rangeExpansionMin
-
 trendEma = ta.ema(close, trendEmaLen)
 trendLongOk = close > trendEma
 trendShortOk = close < trendEma
-regimeAtr = ta.atr(14)
-regimeAtrMa = ta.sma(regimeAtr, 20)
+trendSlope = trendEma - trendEma[regimeSlopeBars]
+regimeAtr = ta.atr(regimeAtrLen)
+regimeAtrMa = ta.sma(regimeAtr, regimeAtrMaLen)
 atrTrendOk = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
-volatilityOk = atrTrendOk or rangeExpansionOk
-
-momentumImpulseLong = close > high[1]
-momentumImpulseShort = close < low[1]
-
+breakoutRangeExpansion = rangeExpansionOk and not na(avgRecentRange) and barRange >= avgRecentRange * breakoutRangeMult
+volatilityRegimeOkLong = (atrTrendOk and trendSlope > 0) or breakoutRangeExpansion
+volatilityRegimeOkShort = (atrTrendOk and trendSlope < 0) or breakoutRangeExpansion
+breakConfirmLong = high > ta.highest(high, confirmBreakLookback)[1]
+breakConfirmShort = low < ta.lowest(low, confirmBreakLookback)[1]
 // ---------------------------------------------------------------------------
-// Final clean signals
+// Final v1.6 clean signals
 // ---------------------------------------------------------------------------
+isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
 var bool enteredThisBlock = false
 var bool orderPlaced = false
 var int lastTradeBarIndex = na
 var int winStreak = 0
 var int maxWinStreak = 0
 var int firstBarTime = na
-var int tradesThisBlock = 0
-var int trackedClosedTrades = 0
-var int trackedWins = 0
-var int trackedLosses = 0
-var float trackedGrossProfit = 0.0
-var float trackedGrossLoss = 0.0
-var float trackedNetProfit = 0.0
-var int baseSignals = 0
-var int afterEMA = 0
-var int afterVolatility = 0
-var int afterBreakConfirm = 0
-var int finalSignals = 0
-
 if barstate.isfirst
     firstBarTime := time
-
 cooldownOk = cooldownBars == 0 or na(lastTradeBarIndex) or (bar_index - lastTradeBarIndex) >= cooldownBars
-blockQuotaOk = tradesThisBlock < maxTradesPerBlock
-
-baseLongSignal = inTradeBlock and newBull
-baseShortSignal = inTradeBlock and newBear
-
-emaLongOk = baseLongSignal and trendLongOk
-emaShortOk = baseShortSignal and trendShortOk
-volatilityLongOk = emaLongOk and volatilityOk
-volatilityShortOk = emaShortOk and volatilityOk
-impulseLongOk = volatilityLongOk and momentumImpulseLong
-impulseShortOk = volatilityShortOk and momentumImpulseShort
-
-longQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBull ? 1.0 : 0.0) + (trendLongOk ? 1.0 : 0.0) + (volatilityOk ? 1.0 : 0.0) + (momentumImpulseLong ? 1.0 : 0.0)
-shortQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBear ? 1.0 : 0.0) + (trendShortOk ? 1.0 : 0.0) + (volatilityOk ? 1.0 : 0.0) + (momentumImpulseShort ? 1.0 : 0.0)
-
-if debugMode
-    if baseLongSignal
-        baseSignals += 1
-    if baseShortSignal
-        baseSignals += 1
-
-if debugMode
-    if emaLongOk
-        afterEMA += 1
-    if emaShortOk
-        afterEMA += 1
-
-if debugMode
-    if volatilityLongOk
-        afterVolatility += 1
-    if volatilityShortOk
-        afterVolatility += 1
-
-if debugMode
-    if impulseLongOk
-        afterBreakConfirm += 1
-    if impulseShortOk
-        afterBreakConfirm += 1
-
-longSignalFinal = baseLongSignal and trendLongOk and volatilityOk and momentumImpulseLong
-shortSignalFinal = baseShortSignal and trendShortOk and volatilityOk and momentumImpulseShort
-
-if debugMode
-    if longSignalFinal
-        finalSignals += 1
-    if shortSignalFinal
-        finalSignals += 1
-
-longSignal = longSignalFinal and blockQuotaOk and cooldownOk
-shortSignal = shortSignalFinal and blockQuotaOk and cooldownOk
-
+baseLongSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen
+baseShortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen
+longSignalFinal = baseLongSignal and trendLongOk and volatilityRegimeOkLong and breakConfirmLong
+shortSignalFinal = baseShortSignal and trendShortOk and volatilityRegimeOkShort and breakConfirmShort
+longSignal = longSignalFinal and cooldownOk
+shortSignal = shortSignalFinal and cooldownOk
 // ---------------------------------------------------------------------------
-// Order / position management
+// Order / position management (base behavior preserved)
 // ---------------------------------------------------------------------------
 if blockStarted
     enteredThisBlock := false
     orderPlaced := false
-    tradesThisBlock := 0
 if blockEnded
     enteredThisBlock := false
     orderPlaced := false
-    tradesThisBlock := 0
-
-closedTradesNow = int(strategy.closedtrades)
-newClosedTrades = closedTradesNow - trackedClosedTrades
-if newClosedTrades > 0
-    for tradeIdx = trackedClosedTrades to closedTradesNow - 1
-        tradePnl = strategy.closedtrades.profit(tradeIdx)
-        trackedNetProfit += tradePnl
-
-        if tradePnl > 0
-            trackedWins += 1
-            trackedGrossProfit += tradePnl
-            winStreak += 1
-            maxWinStreak := math.max(maxWinStreak, winStreak)
-        else
-            if tradePnl < 0
-                trackedLosses += 1
-                trackedGrossLoss += tradePnl
-            winStreak := 0
-
-        if tradePnl >= 0
-            lastTradeBarIndex := na
-
-    trackedClosedTrades := closedTradesNow
-
-if strategy.position_size == 0 and strategy.position_size[1] != 0
-    orderPlaced := false
-
+closedTradesPrev = bar_index > 0 ? strategy.closedtrades[1] : 0
+netProfitPrev = bar_index > 0 ? strategy.netprofit[1] : strategy.netprofit
+closedTradeNow = strategy.closedtrades > closedTradesPrev
+tradePnlDelta = strategy.netprofit - netProfitPrev
+if closedTradeNow
+    if tradePnlDelta > 0
+        winStreak += 1
+        maxWinStreak := math.max(maxWinStreak, winStreak)
+    else
+        winStreak := 0
+    if tradePnlDelta >= 0
+        lastTradeBarIndex := na
 var float activeLongStop = na
 var float activeShortStop = na
 var float activeLongTP = na
 var float activeShortTP = na
-
 if longSignal and not enteredThisBlock and not orderPlaced and strategy.position_size == 0
     strategy.entry("Long", strategy.long)
     orderPlaced := true
-    lastTradeBarIndex := bar_index
-
 if shortSignal and not enteredThisBlock and not orderPlaced and strategy.position_size == 0
     strategy.entry("Short", strategy.short)
     orderPlaced := true
-    lastTradeBarIndex := bar_index
-
 newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
 newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
 newPositionOpened = strategy.position_size != 0 and strategy.position_size[1] == 0
 stopBuffer = slippageTicks * syminfo.mintick
-
 if newPositionOpened
     enteredThisBlock := true
-    tradesThisBlock += 1
     lastTradeBarIndex := bar_index
-    activeLongStop := na
-    activeShortStop := na
-    activeLongTP := na
-    activeShortTP := na
-
 if newLong and na(activeLongStop)
     entryPrice = strategy.position_avg_price
     activeLongStop := entryPrice - stopPoints - stopBuffer
     activeLongTP := entryPrice + stopPoints * takeProfitMultiplier
     strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
-
 if newShort and na(activeShortStop)
     entryPrice = strategy.position_avg_price
     activeShortStop := entryPrice + stopPoints + stopBuffer
     activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
     strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
-
 if strategy.position_size == 0
     activeLongStop := na
     activeShortStop := na
     activeLongTP := na
     activeShortTP := na
-
 if lastBarOfBlock and strategy.position_size != 0
     strategy.close_all(comment="Block end close")
-
 // ---------------------------------------------------------------------------
 // Visuals
 // ---------------------------------------------------------------------------
 bgcolor(bullAligned ? color.new(color.green, 88) : bearAligned ? color.new(color.red, 88) : na)
 plot(t3, title="T3", linewidth=2, color=t3Color)
 plot(open6am, title="06:00 Open", color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
-plot(trendEma, title="Trend EMA", color=color.new(color.aqua, 0), linewidth=1)
-
+plot(trendEma, title="Trend EMA 50", color=color.new(color.aqua, 0), linewidth=1)
 plotshape(newBull, title="Bull Alignment", location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title="Bear Alignment", location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
-
 // ---------------------------------------------------------------------------
-// Metrics table
+// Metrics table (clean)
 // ---------------------------------------------------------------------------
-var table stats = table.new(position.top_right, 2, 16, border_width=1)
+var table stats = table.new(position.top_right, 2, 8, border_width=1)
 if barstate.islast
-    closedTrades = trackedClosedTrades
-    winRate = closedTrades > 0 ? (trackedWins * 100.0) / closedTrades : na
-    profitFactor = trackedGrossLoss != 0 ? trackedGrossProfit / math.abs(trackedGrossLoss) : na
-    netProfit = trackedNetProfit
+    closedTrades = strategy.closedtrades
+    winRate = closedTrades > 0 ? (strategy.wintrades * 100.0) / closedTrades : na
+    profitFactor = strategy.grossloss != 0 ? strategy.grossprofit / math.abs(strategy.grossloss) : na
+    netProfit = strategy.netprofit
     maxDrawdown = strategy.max_drawdown
     riskUnit = math.max(strategy.initial_capital * 0.01, 1.0)
     expectancy = netProfit / riskUnit
     elapsedDays = not na(firstBarTime) ? math.max((time - firstBarTime) / 86400000.0, 1.0) : 1.0
     tradesPerDay = closedTrades / elapsedDays
-    avgPnlPerTrade = closedTrades > 0 ? netProfit / closedTrades : na
-
     table.cell(stats, 0, 0, "Trades", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 0, str.tostring(closedTrades), text_color=color.white, bgcolor=color.new(color.black, 0))
-
     table.cell(stats, 0, 1, "Winrate %", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 1, str.tostring(winRate, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
     table.cell(stats, 0, 2, "PF", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 2, str.tostring(profitFactor, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
     table.cell(stats, 0, 3, "Net profit", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 3, str.tostring(netProfit, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
     table.cell(stats, 0, 4, "Expectancy", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 4, str.tostring(expectancy, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
     table.cell(stats, 0, 5, "Max DD", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 5, str.tostring(maxDrawdown, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
     table.cell(stats, 0, 6, "Trades/day", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 6, str.tostring(tradesPerDay, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
     table.cell(stats, 0, 7, "Win streak max", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(stats, 1, 7, str.tostring(maxWinStreak), text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 8, "Avg PnL/trade", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 8, str.tostring(avgPnlPerTrade, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 9, "Block trades", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 9, str.tostring(tradesThisBlock), text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 10, "QScore L/S", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 10, str.tostring(longQualityScore, "#.##") + "/" + str.tostring(shortQualityScore, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 11, "Debug base", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 11, debugMode ? str.tostring(baseSignals) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 12, "Debug after EMA", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 12, debugMode ? str.tostring(afterEMA) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 13, "Debug after Vol", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 13, debugMode ? str.tostring(afterVolatility) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 14, "Debug after Brk", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 14, debugMode ? str.tostring(afterBreakConfirm) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
-
-    table.cell(stats, 0, 15, "Debug final", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 15, debugMode ? str.tostring(finalSignals) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
