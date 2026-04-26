@@ -67,49 +67,82 @@ inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
 inPreSession = not na(time(timeframe.period, "0600-0800", sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
+isNewDay = ta.change(time("D")) != 0
 
+var float open6am = na
 var float preHigh = na
 var float preLow = na
+var bool sweptHigh = false
+var bool sweptLow = false
+var bool reclaimedLong = false
+var bool reclaimedShort = false
+
+if isNewDay
+    open6am := na
+    preHigh := na
+    preLow := na
+    sweptHigh := false
+    sweptLow := false
+    reclaimedLong := false
+    reclaimedShort := false
+
 if inPreSession
     preHigh := na(preHigh) ? high : math.max(preHigh, high)
     preLow := na(preLow) ? low : math.min(preLow, low)
 if blockStarted
-    preHigh := na
-    preLow := na
+    sweptHigh := false
+    sweptLow := false
+    reclaimedLong := false
+    reclaimedShort := false
 
-sweepHigh = high > preHigh and close < preHigh
-sweepLow = low < preLow and close > preLow
-
-var bool sweptHigh = false
-var bool sweptLow = false
+sweepHigh = not na(preHigh) and high > preHigh and close < preHigh
+sweepLow = not na(preLow) and low < preLow and close > preLow
 if sweepHigh
     sweptHigh := true
 if sweepLow
     sweptLow := true
-if blockStarted
-    sweptHigh := false
-    sweptLow := false
 
 reclaimLong = sweptLow and close > preLow
 reclaimShort = sweptHigh and close < preHigh
 
-var bool reclaimedLong = false
-var bool reclaimedShort = false
 if reclaimLong
     reclaimedLong := true
 if reclaimShort
     reclaimedShort := true
-if blockStarted
-    reclaimedLong := false
-    reclaimedShort := false
 
 atrLen = 14
 atr = ta.atr(atrLen)
 preRange = preHigh - preLow
-isCompressed = preRange < atr
+validPreSession = not na(preHigh) and not na(preLow)
+isCompressed = validPreSession and preRange < atr
 isExpanding = (high - low) > atr
-validExpansionLong = isCompressed and isExpanding
-validExpansionShort = isCompressed and isExpanding
+validBullSignal = newBull and reclaimedLong
+validBearSignal = newBear and reclaimedShort
+
+// 1. Sweep already occurred.
+hasSweepLong = sweptLow
+hasSweepShort = sweptHigh
+
+// 2. Reclaim.
+hasReclaimLong = reclaimedLong
+hasReclaimShort = reclaimedShort
+
+// 3. Pullback.
+hasPullbackLong = hasReclaimLong and low <= t3
+hasPullbackShort = hasReclaimShort and high >= t3
+
+// 4. Expansion.
+hasExpansion = isCompressed and isExpanding
+
+barsSinceSweepLow = ta.barssince(sweepLow)
+barsSinceSweepHigh = ta.barssince(sweepHigh)
+validTimingLong = barsSinceSweepLow > 1
+validTimingShort = barsSinceSweepHigh > 1
+strongBody = math.abs(close - open) > (high - low) * 0.6
+
+// 5. Final trigger.
+triggerLong = hasSweepLong and hasPullbackLong and hasExpansion and validBullSignal and strongBody
+triggerShort = hasSweepShort and hasPullbackShort and hasExpansion and validBearSignal and strongBody
 
 // Parse session end time defensively.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
@@ -130,17 +163,12 @@ lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : blockEnded
 
 // Directional bias from 06:00 open (same timezone).
 isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) == 0
-var float open6am = na
 if isSixAMBar
     open6am := open
 showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
 
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
-pullbackLong = reclaimedLong and low <= t3
-pullbackShort = reclaimedShort and high >= t3
-triggerLong = pullbackLong and newBull
-triggerShort = pullbackShort and newBear
 
 // Only execute on 5-minute charts.
 isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
@@ -161,7 +189,8 @@ longSignal =
     not enteredThisBlock and
     triggerLong and
     allowLongBySixOpen and
-    validExpansionLong
+    validTimingLong and
+    validPreSession
 
 shortSignal =
     isFiveMinuteChart and
@@ -169,7 +198,8 @@ shortSignal =
     not enteredThisBlock and
     triggerShort and
     allowShortBySixOpen and
-    validExpansionShort
+    validTimingShort and
+    validPreSession
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
