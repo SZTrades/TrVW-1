@@ -27,6 +27,7 @@ slippageTicks = input.int(1, "Slippage Ticks", group="Risk")
 
 // Session controls
 tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
+preSession = input.session("0600-0800", "Pre-Session Window", group='Session')
 sessionTimezone = input.string("Etc/GMT+4", "Timezone", group='Session')
 
 gdT3(src, len) =>
@@ -64,14 +65,19 @@ newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
 
 // Session state
 inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
+inPreSession = not na(time(timeframe.period, preSession, sessionTimezone))
 blockStarted = inTradeBlock and not inTradeBlock[1]
 blockEnded = not inTradeBlock and inTradeBlock[1]
 
 var bool preBullAligned = false
 var bool preBearAligned = false
-if not inTradeBlock
-    preBullAligned := bullAligned
-    preBearAligned := bearAligned
+if inPreSession and bullAligned
+    preBullAligned := true
+if inPreSession and bearAligned
+    preBearAligned := true
+if blockStarted
+    preBullAligned := false
+    preBearAligned := false
 
 // Parse session end time defensively.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
@@ -103,8 +109,10 @@ validBullContext = bullAligned or preBullAligned
 validBearContext = bearAligned or preBearAligned
 validLong = validBullContext and close > open6am
 validShort = validBearContext and close < open6am
-pullbackLong = close[1] < t3 and close > t3
-pullbackShort = close[1] > t3 and close < t3
+pullbackLong = preBullAligned and close <= t3
+reclaimLong = pullbackLong[1] and newBull and close > t3
+pullbackShort = preBearAligned and close >= t3
+reclaimShort = pullbackShort[1] and newBear and close < t3
 
 // Only execute on 5-minute charts.
 isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
@@ -119,8 +127,8 @@ if blockEnded
     enteredThisBlock := false
     orderPlaced := false
 
-longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and validLong and pullbackLong
-shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and validShort and pullbackShort
+longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and reclaimLong and allowLongBySixOpen
+shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and reclaimShort and allowShortBySixOpen
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
