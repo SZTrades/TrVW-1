@@ -2,7 +2,7 @@
 // SZTrades Momentum Alignment Strategy v1.3 (T3 + CVD only)
 // 5m scalping variant with 6:00 open directional bias and 08:00-09:00 execution window.
 
-strategy('SZTrades Momentum Alignment Strategy v1.3', shorttitle='SZT1.3', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100, use_bar_magnifier=true)
+strategy('SZTrades Momentum Alignment Strategy v1.3', shorttitle='SZT1.3', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100, use_bar_magnifier=true, calc_on_every_tick=true, process_orders_on_close=false)
 
 // Optimization factors
 lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
@@ -93,25 +93,17 @@ if blockEnded
 
 longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen
 shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen
-longStopFromSignal = low - stopPoints
-shortStopFromSignal = high + stopPoints
 
-var float pendingLongStop = na
-var float pendingShortStop = na
 var float activeLongStop = na
 var float activeShortStop = na
 var float activeLongTP = na
 var float activeShortTP = na
 
 if longSignal and strategy.position_size == 0
-    pendingLongStop := longStopFromSignal
-    pendingShortStop := na
     strategy.entry('Long', strategy.long, comment='Buy signal')
     enteredThisBlock := true
 
 if shortSignal and strategy.position_size == 0
-    pendingShortStop := shortStopFromSignal
-    pendingLongStop := na
     strategy.entry('Short', strategy.short, comment='Sell signal')
     enteredThisBlock := true
 
@@ -119,17 +111,15 @@ newLongPosition = strategy.position_size > 0 and strategy.position_size[1] <= 0
 newShortPosition = strategy.position_size < 0 and strategy.position_size[1] >= 0
 
 if newLongPosition
-    activeLongStop := pendingLongStop
+    activeLongStop := strategy.position_avg_price - stopPoints
     activeShortStop := na
-    longRisk = strategy.position_avg_price - activeLongStop
-    activeLongTP := longRisk > 0 ? strategy.position_avg_price + longRisk * takeProfitMultiplier : na
+    activeLongTP := strategy.position_avg_price + stopPoints * takeProfitMultiplier
     activeShortTP := na
 
 if newShortPosition
-    activeShortStop := pendingShortStop
+    activeShortStop := strategy.position_avg_price + stopPoints
     activeLongStop := na
-    shortRisk = activeShortStop - strategy.position_avg_price
-    activeShortTP := shortRisk > 0 ? strategy.position_avg_price - shortRisk * takeProfitMultiplier : na
+    activeShortTP := strategy.position_avg_price - stopPoints * takeProfitMultiplier
     activeLongTP := na
 
 if strategy.position_size > 0 and not na(activeLongStop)
@@ -146,8 +136,6 @@ if strategy.position_size == 0
 // Forced close at block end, always on.
 if lastBarOfBlock and strategy.position_size != 0
     strategy.close_all(comment='Block end close', immediately=true)
-    pendingLongStop := na
-    pendingShortStop := na
 
 bgcolor(bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na)
 plot(t3, title='T3', linewidth=2, color=t3Color)
