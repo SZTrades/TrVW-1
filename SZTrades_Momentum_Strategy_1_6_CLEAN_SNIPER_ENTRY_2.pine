@@ -30,15 +30,10 @@ sessionTimezone = input.string("Etc/GMT+4", "Timezone", group="Session")
 // v1.6 clean filters
 // ---------------------------------------------------------------------------
 trendEmaLen = input.int(50, "Trend EMA Length", minval=1, group="Sniper - Trend")
-confirmBreakLookback = input.int(3, "Entry Break Lookback", minval=2, group="Sniper - Entry")
 cooldownBars = input.int(4, "Cooldown Bars Between Trades", minval=0, group="Sniper - Frequency")
 rangeFastLen = input.int(20, "Range Fast Length", minval=2, group="Sniper - Volatility")
 rangeSlowLen = input.int(60, "Range Slow Length", minval=5, group="Sniper - Volatility")
 rangeExpansionMin = input.float(0.9, "Range Expansion Min", minval=0.1, step=0.05, group="Sniper - Volatility")
-regimeAtrLen = input.int(14, "Regime ATR Length", minval=1, group="Sniper - Volatility")
-regimeAtrMaLen = input.int(20, "Regime ATR MA Length", minval=1, group="Sniper - Volatility")
-regimeSlopeBars = input.int(5, "Regime EMA Slope Bars", minval=1, group="Sniper - Volatility")
-breakoutRangeMult = input.float(1.05, "Breakout Range Mult", minval=0.5, step=0.05, group="Sniper - Volatility")
 // ---------------------------------------------------------------------------
 // Helper / core functions
 // ---------------------------------------------------------------------------
@@ -111,15 +106,9 @@ rangeExpansionOk = not na(avgRecentRange) and not na(avgBaselineRange) and avgRe
 trendEma = ta.ema(close, trendEmaLen)
 trendLongOk = close > trendEma
 trendShortOk = close < trendEma
-trendSlope = trendEma - trendEma[regimeSlopeBars]
-regimeAtr = ta.atr(regimeAtrLen)
-regimeAtrMa = ta.sma(regimeAtr, regimeAtrMaLen)
-atrTrendOk = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
-breakoutRangeExpansion = rangeExpansionOk and not na(avgRecentRange) and barRange >= avgRecentRange * breakoutRangeMult
-volatilityRegimeOkLong = (atrTrendOk and trendSlope > 0) or breakoutRangeExpansion
-volatilityRegimeOkShort = (atrTrendOk and trendSlope < 0) or breakoutRangeExpansion
-breakConfirmLong = high > ta.highest(high, confirmBreakLookback)[1]
-breakConfirmShort = low < ta.lowest(low, confirmBreakLookback)[1]
+marketMovingOk = rangeExpansionOk
+momentumImpulseLong = close > high[1]
+momentumImpulseShort = close < low[1]
 // ---------------------------------------------------------------------------
 // Final v1.6 clean signals
 // ---------------------------------------------------------------------------
@@ -135,8 +124,8 @@ if barstate.isfirst
 cooldownOk = cooldownBars == 0 or na(lastTradeBarIndex) or (bar_index - lastTradeBarIndex) >= cooldownBars
 baseLongSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen
 baseShortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen
-longSignalFinal = baseLongSignal and trendLongOk and volatilityRegimeOkLong and breakConfirmLong
-shortSignalFinal = baseShortSignal and trendShortOk and volatilityRegimeOkShort and breakConfirmShort
+longSignalFinal = baseLongSignal and trendLongOk and marketMovingOk and momentumImpulseLong
+shortSignalFinal = baseShortSignal and trendShortOk and marketMovingOk and momentumImpulseShort
 longSignal = longSignalFinal and cooldownOk
 shortSignal = shortSignalFinal and cooldownOk
 // ---------------------------------------------------------------------------
