@@ -2,7 +2,10 @@
 // SZTrades Momentum Alignment Strategy v1.3 (T3 + CVD only)
 // 5m scalping variant with 6:00 open directional bias and 08:00-09:00 execution window.
 
-strategy('SZTrades Momentum Alignment Strategy v1.3', shorttitle='SZT1.3', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100, use_bar_magnifier=true, calc_on_every_tick=true, process_orders_on_close=false)
+strategy('SZTrades Momentum Alignment Strategy v1.3', shorttitle='SZT1.3', overlay=true,
+     max_labels_count=500, max_lines_count=500, pyramiding=0,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+     use_bar_magnifier=true, calc_on_every_tick=true, process_orders_on_close=false)
 
 // Optimization factors
 lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
@@ -102,19 +105,12 @@ var float activeShortTP = na
 if longSignal and strategy.position_size == 0
     strategy.entry('Long', strategy.long, comment='Buy signal')
     enteredThisBlock := true
+    activeLongStop := strategy.position_avg_price - stopPoints
+    activeLongTP := strategy.position_avg_price + stopPoints * takeProfitMultiplier
 
 if shortSignal and strategy.position_size == 0
     strategy.entry('Short', strategy.short, comment='Sell signal')
     enteredThisBlock := true
-
-newLongPosition = strategy.position_size > 0 and strategy.position_size[1] <= 0
-newShortPosition = strategy.position_size < 0 and strategy.position_size[1] >= 0
-
-if newLongPosition
-    activeLongStop := strategy.position_avg_price - stopPoints
-    activeLongTP := strategy.position_avg_price + stopPoints * takeProfitMultiplier
-
-if newShortPosition
     activeShortStop := strategy.position_avg_price + stopPoints
     activeShortTP := strategy.position_avg_price - stopPoints * takeProfitMultiplier
 
