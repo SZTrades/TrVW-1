@@ -164,6 +164,26 @@ breakoutShortLevel = ta.lowest(low, confirmBreakLookback)[1]
 breakConfirmLong = high > breakoutLongLevel and close >= breakoutLongLevel + breakoutBuffer
 breakConfirmShort = low < breakoutShortLevel and close <= breakoutShortLevel - breakoutBuffer
 
+// Regime confirmation (2 of 3 confluence)
+atrExpansionRegime = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
+trendSlopeLongConsistent = trendSlope != 0 and trendSlope > 0 and trendSlope[1] > 0
+trendSlopeShortConsistent = trendSlope != 0 and trendSlope < 0 and trendSlope[1] < 0
+breakoutRealLong = close > breakoutLongLevel
+breakoutRealShort = close < breakoutShortLevel
+regimeConfirmLongScore = (atrExpansionRegime ? 1 : 0) + (trendSlopeLongConsistent ? 1 : 0) + (breakoutRealLong ? 1 : 0)
+regimeConfirmShortScore = (atrExpansionRegime ? 1 : 0) + (trendSlopeShortConsistent ? 1 : 0) + (breakoutRealShort ? 1 : 0)
+regimeConfirmOkLong = regimeConfirmLongScore >= 2
+regimeConfirmOkShort = regimeConfirmShortScore >= 2
+
+// Micro-structure chop killer
+microRangeAvg = ta.sma(barRange, 20)
+microVolatilityOk = not na(microRangeAvg) and barRange > microRangeAvg * 0.7
+microBodyDirectionOk = bodyToRange > 0.6
+microWickOk = upperWick < 0.6 * barRange or lowerWick < 0.6 * barRange
+smallBodyCount5 = ta.sum(bodyToRange < 0.4 ? 1.0 : 0.0, 5)
+microAntiChopOk = smallBodyCount5 <= 3
+microChopOk = microVolatilityOk and microBodyDirectionOk and microWickOk and microAntiChopOk
+
 // ---------------------------------------------------------------------------
 // Final clean signals
 // ---------------------------------------------------------------------------
@@ -192,8 +212,8 @@ hardShortGate = trendShortOk and htfShortOk and volatilityRegimeOkShort and chop
 longQualityScore = (rangeExpansionOk ? 1 : 0) + (atrTrendOk ? 1 : 0) + (trendSlope > 0 ? 1 : 0) + (breakoutRangeExpansion ? 1 : 0) + (bodyToRange >= chopMinBodyToRange ? 1 : 0)
 shortQualityScore = (rangeExpansionOk ? 1 : 0) + (atrTrendOk ? 1 : 0) + (trendSlope < 0 ? 1 : 0) + (breakoutRangeExpansion ? 1 : 0) + (bodyToRange >= chopMinBodyToRange ? 1 : 0)
 
-longSignalFinal = baseLongSignal and hardLongGate and longQualityScore >= qualityMinScore
-shortSignalFinal = baseShortSignal and hardShortGate and shortQualityScore >= qualityMinScore
+longSignalFinal = baseLongSignal and hardLongGate and longQualityScore >= qualityMinScore and regimeConfirmOkLong and microChopOk
+shortSignalFinal = baseShortSignal and hardShortGate and shortQualityScore >= qualityMinScore and regimeConfirmOkShort and microChopOk
 
 longSignal = longSignalFinal and cooldownOk
 shortSignal = shortSignalFinal and cooldownOk
