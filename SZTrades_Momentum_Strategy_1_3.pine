@@ -24,9 +24,6 @@ cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
 stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
 takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
 slippageTicks = input.int(1, "Slippage Ticks", group="Risk")
-atrLen = input.int(14, "ATR Length", group="ATR")
-atrMaLen = input.int(50, "ATR MA Length", group="ATR")
-atrCompressionThreshold = input.float(0.8, "ATR Compression Threshold", group="ATR")
 
 // Session controls
 tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
@@ -106,16 +103,13 @@ if blockStarted
     reclaimedLong := false
     reclaimedShort := false
 
+atrLen = 14
 atr = ta.atr(atrLen)
-atrMA = ta.sma(atr, atrMaLen)
-isCompressed = atr < atrMA * atrCompressionThreshold
-isExpanding = atr > atr[1]
-
-var bool preSessionCompression = false
-if inPreSession and isCompressed
-    preSessionCompression := true
-if blockStarted
-    preSessionCompression := false
+preRange = preHigh - preLow
+isCompressed = preRange < atr
+isExpanding = (high - low) > atr
+validExpansionLong = isCompressed and isExpanding
+validExpansionShort = isCompressed and isExpanding
 
 // Parse session end time defensively.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
@@ -166,14 +160,16 @@ longSignal =
     inTradeBlock and
     not enteredThisBlock and
     triggerLong and
-    allowLongBySixOpen
+    allowLongBySixOpen and
+    validExpansionLong
 
 shortSignal =
     isFiveMinuteChart and
     inTradeBlock and
     not enteredThisBlock and
     triggerShort and
-    allowShortBySixOpen
+    allowShortBySixOpen and
+    validExpansionShort
 longSignal := longSignal and barstate.isconfirmed
 shortSignal := shortSignal and barstate.isconfirmed
 
@@ -228,6 +224,5 @@ plot(strategy.position_size > 0 ? activeLongTP : na, "Long TP", color=color.gree
 plot(preHigh, "Pre High", color=color.red)
 plot(preLow, "Pre Low", color=color.green)
 plot(atr, "ATR", color=color.blue)
-plot(atrMA, "ATR MA", color=color.orange)
 plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
