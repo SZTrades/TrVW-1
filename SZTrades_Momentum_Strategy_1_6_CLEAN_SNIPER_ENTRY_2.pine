@@ -39,7 +39,8 @@ htfEmaLen = input.int(100, "HTF EMA Length", minval=1, group="Sniper - Trend")
 
 confirmBreakLookback = input.int(3, "Entry Break Lookback", minval=2, group="Sniper - Entry")
 breakoutBufferAtrFrac = input.float(0.05, "Breakout Buffer ATR %", minval=0.0, step=0.01, group="Sniper - Entry")
-qualityMinScore = input.int(3, "Min Quality Score", minval=1, maxval=5, group="Sniper - Entry")
+qualityMinScore = input.float(4.0, "Min Quality Score", minval=1.0, maxval=6.0, step=0.5, group="Sniper - Entry")
+debugMode = input.bool(false, "Enable Filter Stage Debug", group="Sniper - Entry")
 
 cooldownBars = input.int(4, "Cooldown Bars Between Trades", minval=0, group="Sniper - Frequency")
 maxTradesPerBlock = input.int(1, "Max Trades Per Session Block", minval=1, group="Sniper - Frequency")
@@ -109,6 +110,8 @@ if ta.change(time("D")) != 0
 
 allowLongBySixOpen = not na(open6am) and close > open6am
 allowShortBySixOpen = not na(open6am) and close < open6am
+biasLongScore = na(open6am) ? 0.5 : allowLongBySixOpen ? 1.0 : 0.0
+biasShortScore = na(open6am) ? 0.5 : allowShortBySixOpen ? 1.0 : 0.0
 
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
 sessionRanges = str.split(sessionCore, ",")
@@ -147,9 +150,9 @@ regimeAtr = ta.atr(regimeAtrLen)
 regimeAtrMa = ta.sma(regimeAtr, regimeAtrMaLen)
 atrTrendOk = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
 
-breakoutRangeExpansion = rangeExpansionOk and not na(avgRecentRange) and barRange >= avgRecentRange * breakoutRangeMult
-volatilityRegimeOkLong = (atrTrendOk and trendSlope > 0) or breakoutRangeExpansion
-volatilityRegimeOkShort = (atrTrendOk and trendSlope < 0) or breakoutRangeExpansion
+volatilityOk = atrTrendOk or rangeExpansionOk
+volatilityRegimeOkLong = volatilityOk and trendSlope > 0
+volatilityRegimeOkShort = volatilityOk and trendSlope < 0
 
 bodyAbs = math.abs(close - open)
 bodyToRange = barRange > 0 ? bodyAbs / barRange : 0.0
@@ -158,18 +161,19 @@ rangeToAtr = regimeAtr > 0 ? barRange / regimeAtr : 0.0
 atrCompression = not na(regimeAtrMa) and regimeAtrMa > 0 ? regimeAtr / regimeAtrMa : na
 chopFilterOk = not na(atrCompression) and atrCompression >= chopMinAtrCompression and bodyToRange >= chopMinBodyToRange and bodyToAtr >= chopMinBodyToAtr and rangeToAtr >= chopMinRangeToAtr
 
-breakoutBuffer = regimeAtr * breakoutBufferAtrFrac
-breakoutLongLevel = ta.highest(high, confirmBreakLookback)[1]
-breakoutShortLevel = ta.lowest(low, confirmBreakLookback)[1]
-breakConfirmLong = high > breakoutLongLevel and close >= breakoutLongLevel + breakoutBuffer
-breakConfirmShort = low < breakoutShortLevel and close <= breakoutShortLevel - breakoutBuffer
+breakConfirmLookback = math.max(2, confirmBreakLookback - 1)
+breakoutLiteBuffer = math.max(syminfo.mintick, nz(regimeAtr, barRange) * breakoutBufferAtrFrac * 0.5)
+breakoutLongLevel = ta.highest(high, breakConfirmLookback)[1]
+breakoutShortLevel = ta.lowest(low, breakConfirmLookback)[1]
+breakConfirmLong = high >= breakoutLongLevel - breakoutLiteBuffer
+breakConfirmShort = low <= breakoutShortLevel + breakoutLiteBuffer
 
 // Regime confirmation (2 of 3 confluence)
 atrExpansionRegime = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
 trendSlopeLongConsistent = trendSlope != 0 and trendSlope > 0 and trendSlope[1] > 0
 trendSlopeShortConsistent = trendSlope != 0 and trendSlope < 0 and trendSlope[1] < 0
-breakoutRealLong = close > breakoutLongLevel
-breakoutRealShort = close < breakoutShortLevel
+breakoutRealLong = close >= breakoutLongLevel - breakoutLiteBuffer
+breakoutRealShort = close <= breakoutShortLevel + breakoutLiteBuffer
 regimeConfirmLongScore = (atrExpansionRegime ? 1 : 0) + (trendSlopeLongConsistent ? 1 : 0) + (breakoutRealLong ? 1 : 0)
 regimeConfirmShortScore = (atrExpansionRegime ? 1 : 0) + (trendSlopeShortConsistent ? 1 : 0) + (breakoutRealShort ? 1 : 0)
 regimeConfirmOkLong = regimeConfirmLongScore >= 2
@@ -202,6 +206,11 @@ var int trackedLosses = 0
 var float trackedGrossProfit = 0.0
 var float trackedGrossLoss = 0.0
 var float trackedNetProfit = 0.0
+var int baseSignals = 0
+var int afterEMA = 0
+var int afterVolatility = 0
+var int afterBreakConfirm = 0
+var int finalSignals = 0
 
 if barstate.isfirst
     firstBarTime := time
@@ -209,17 +218,51 @@ if barstate.isfirst
 cooldownOk = cooldownBars == 0 or na(lastTradeBarIndex) or (bar_index - lastTradeBarIndex) >= cooldownBars
 blockQuotaOk = tradesThisBlock < maxTradesPerBlock
 
-baseLongSignal = isFiveMinuteChart and inTradeBlock and newBull and allowLongBySixOpen and blockQuotaOk
-baseShortSignal = isFiveMinuteChart and inTradeBlock and newBear and allowShortBySixOpen and blockQuotaOk
+baseLongSignal = isFiveMinuteChart and inTradeBlock and newBull
+baseShortSignal = isFiveMinuteChart and inTradeBlock and newBear
 
-hardLongGate = trendLongOk and htfLongOk and volatilityRegimeOkLong and chopFilterOk and breakConfirmLong
-hardShortGate = trendShortOk and htfShortOk and volatilityRegimeOkShort and chopFilterOk and breakConfirmShort
+emaLongOk = baseLongSignal and trendLongOk and htfLongOk
+emaShortOk = baseShortSignal and trendShortOk and htfShortOk
+volatilityLongOk = emaLongOk and volatilityRegimeOkLong
+volatilityShortOk = emaShortOk and volatilityRegimeOkShort
+breakLongOk = volatilityLongOk and breakConfirmLong
+breakShortOk = volatilityShortOk and breakConfirmShort
 
-longQualityScore = (rangeExpansionOk ? 1 : 0) + (atrTrendOk ? 1 : 0) + (trendSlope > 0 ? 1 : 0) + (breakoutRangeExpansion ? 1 : 0) + (bodyToRange >= chopMinBodyToRange ? 1 : 0)
-shortQualityScore = (rangeExpansionOk ? 1 : 0) + (atrTrendOk ? 1 : 0) + (trendSlope < 0 ? 1 : 0) + (breakoutRangeExpansion ? 1 : 0) + (bodyToRange >= chopMinBodyToRange ? 1 : 0)
+longQualityScore = (trendLongOk ? 1.0 : 0.0) + (htfLongOk ? 1.0 : 0.0) + (volatilityRegimeOkLong ? 1.0 : 0.0) + (breakConfirmLong ? 1.0 : 0.0) + (regimeConfirmOkLong ? 1.0 : 0.0) + (chopFilterOk and microChopOk ? 1.0 : 0.0) + biasLongScore
+shortQualityScore = (trendShortOk ? 1.0 : 0.0) + (htfShortOk ? 1.0 : 0.0) + (volatilityRegimeOkShort ? 1.0 : 0.0) + (breakConfirmShort ? 1.0 : 0.0) + (regimeConfirmOkShort ? 1.0 : 0.0) + (chopFilterOk and microChopOk ? 1.0 : 0.0) + biasShortScore
 
-longSignalFinal = baseLongSignal and hardLongGate and longQualityScore >= qualityMinScore and regimeConfirmOkLong and microChopOk
-shortSignalFinal = baseShortSignal and hardShortGate and shortQualityScore >= qualityMinScore and regimeConfirmOkShort and microChopOk
+if debugMode
+    if baseLongSignal
+        baseSignals += 1
+    if baseShortSignal
+        baseSignals += 1
+
+if debugMode
+    if emaLongOk
+        afterEMA += 1
+    if emaShortOk
+        afterEMA += 1
+
+if debugMode
+    if volatilityLongOk
+        afterVolatility += 1
+    if volatilityShortOk
+        afterVolatility += 1
+
+if debugMode
+    if breakLongOk
+        afterBreakConfirm += 1
+    if breakShortOk
+        afterBreakConfirm += 1
+
+longSignalFinal = baseLongSignal and blockQuotaOk and longQualityScore >= qualityMinScore
+shortSignalFinal = baseShortSignal and blockQuotaOk and shortQualityScore >= qualityMinScore
+
+if debugMode
+    if longSignalFinal
+        finalSignals += 1
+    if shortSignalFinal
+        finalSignals += 1
 
 longSignal = longSignalFinal and cooldownOk
 shortSignal = shortSignalFinal and cooldownOk
@@ -327,7 +370,7 @@ plotshape(newBear, title="Bear Alignment", location=location.abovebar, style=sha
 // ---------------------------------------------------------------------------
 // Metrics table
 // ---------------------------------------------------------------------------
-var table stats = table.new(position.top_right, 2, 11, border_width=1)
+var table stats = table.new(position.top_right, 2, 16, border_width=1)
 if barstate.islast
     closedTrades = trackedClosedTrades
     winRate = closedTrades > 0 ? (trackedWins * 100.0) / closedTrades : na
@@ -371,4 +414,19 @@ if barstate.islast
     table.cell(stats, 1, 9, str.tostring(tradesThisBlock), text_color=color.white, bgcolor=color.new(color.black, 0))
 
     table.cell(stats, 0, 10, "QScore L/S", text_color=color.white, bgcolor=color.new(color.black, 0))
-    table.cell(stats, 1, 10, str.tostring(longQualityScore) + "/" + str.tostring(shortQualityScore), text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 10, str.tostring(longQualityScore, "#.##") + "/" + str.tostring(shortQualityScore, "#.##"), text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 11, "Debug base", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 11, debugMode ? str.tostring(baseSignals) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 12, "Debug after EMA", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 12, debugMode ? str.tostring(afterEMA) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 13, "Debug after Vol", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 13, debugMode ? str.tostring(afterVolatility) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 14, "Debug after Brk", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 14, debugMode ? str.tostring(afterBreakConfirm) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
+
+    table.cell(stats, 0, 15, "Debug final", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(stats, 1, 15, debugMode ? str.tostring(finalSignals) : "-", text_color=color.white, bgcolor=color.new(color.black, 0))
