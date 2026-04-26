@@ -97,6 +97,8 @@ if blockEnded
 
 longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBull and allowLongBySixOpen
 shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and newBear and allowShortBySixOpen
+longSignal := longSignal and barstate.isconfirmed
+shortSignal := shortSignal and barstate.isconfirmed
 
 var float activeLongStop = na
 var float activeShortStop = na
@@ -117,16 +119,13 @@ if newLong
     activeLongStop := entryPrice - stopPoints
     activeLongTP := entryPrice + stopPoints * takeProfitMultiplier
     enteredThisBlock := true
+    strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
 
 if newShort
     entryPrice = strategy.position_avg_price
     activeShortStop := entryPrice + stopPoints
     activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
     enteredThisBlock := true
-
-if strategy.position_size > 0 and not na(activeLongStop) and not na(activeLongTP)
-    strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
-if strategy.position_size < 0 and not na(activeShortStop) and not na(activeShortTP)
     strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
 
 if strategy.position_size == 0
@@ -137,10 +136,12 @@ if strategy.position_size == 0
 
 // Forced close at block end, always on.
 if lastBarOfBlock and strategy.position_size != 0
-    strategy.close_all(comment='Block end close', immediately=true)
+    strategy.close_all(comment='Block end close')
 
 bgcolor(bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na)
 plot(t3, title='T3', linewidth=2, color=t3Color)
 plot(showSixOpenLine ? open6am : na, title='06:00 Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
+plot(strategy.position_size > 0 ? activeLongStop : na, "Long SL", color=color.red)
+plot(strategy.position_size > 0 ? activeLongTP : na, "Long TP", color=color.green)
 plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
