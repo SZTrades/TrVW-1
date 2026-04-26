@@ -123,12 +123,13 @@ rangeExpansionOk = not na(avgRecentRange) and not na(avgBaselineRange) and avgRe
 trendEma = ta.ema(close, trendEmaLen)
 trendLongOk = close > trendEma
 trendShortOk = close < trendEma
-volatilityOk = rangeExpansionOk
-volatilityRegimeOkLong = volatilityOk
-volatilityRegimeOkShort = volatilityOk
+regimeAtr = ta.atr(14)
+regimeAtrMa = ta.sma(regimeAtr, 20)
+atrTrendOk = not na(regimeAtrMa) and regimeAtr > regimeAtrMa and regimeAtr > regimeAtr[1]
+volatilityOk = atrTrendOk or rangeExpansionOk
 
-breakoutTriggerLong = close > high[2]
-breakoutTriggerShort = close < low[2]
+momentumImpulseLong = close > high[1]
+momentumImpulseShort = close < low[1]
 
 // ---------------------------------------------------------------------------
 // Final clean signals
@@ -163,13 +164,13 @@ baseShortSignal = inTradeBlock and newBear
 
 emaLongOk = baseLongSignal and trendLongOk
 emaShortOk = baseShortSignal and trendShortOk
-volatilityLongOk = emaLongOk and volatilityRegimeOkLong
-volatilityShortOk = emaShortOk and volatilityRegimeOkShort
-breakLongOk = volatilityLongOk and breakoutTriggerLong
-breakShortOk = volatilityShortOk and breakoutTriggerShort
+volatilityLongOk = emaLongOk and volatilityOk
+volatilityShortOk = emaShortOk and volatilityOk
+impulseLongOk = volatilityLongOk and momentumImpulseLong
+impulseShortOk = volatilityShortOk and momentumImpulseShort
 
-longQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBull ? 1.0 : 0.0) + (trendLongOk ? 1.0 : 0.0) + (rangeExpansionOk ? 1.0 : 0.0) + (breakoutTriggerLong ? 1.0 : 0.0)
-shortQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBear ? 1.0 : 0.0) + (trendShortOk ? 1.0 : 0.0) + (rangeExpansionOk ? 1.0 : 0.0) + (breakoutTriggerShort ? 1.0 : 0.0)
+longQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBull ? 1.0 : 0.0) + (trendLongOk ? 1.0 : 0.0) + (volatilityOk ? 1.0 : 0.0) + (momentumImpulseLong ? 1.0 : 0.0)
+shortQualityScore = (inTradeBlock ? 1.0 : 0.0) + (newBear ? 1.0 : 0.0) + (trendShortOk ? 1.0 : 0.0) + (volatilityOk ? 1.0 : 0.0) + (momentumImpulseShort ? 1.0 : 0.0)
 
 if debugMode
     if baseLongSignal
@@ -190,13 +191,13 @@ if debugMode
         afterVolatility += 1
 
 if debugMode
-    if breakLongOk
+    if impulseLongOk
         afterBreakConfirm += 1
-    if breakShortOk
+    if impulseShortOk
         afterBreakConfirm += 1
 
-longSignalFinal = breakLongOk
-shortSignalFinal = breakShortOk
+longSignalFinal = baseLongSignal and trendLongOk and volatilityOk and momentumImpulseLong
+shortSignalFinal = baseShortSignal and trendShortOk and volatilityOk and momentumImpulseShort
 
 if debugMode
     if longSignalFinal
@@ -302,7 +303,6 @@ bgcolor(bullAligned ? color.new(color.green, 88) : bearAligned ? color.new(color
 plot(t3, title="T3", linewidth=2, color=t3Color)
 plot(open6am, title="06:00 Open", color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
 plot(trendEma, title="Trend EMA", color=color.new(color.aqua, 0), linewidth=1)
-plot(htfEma, title="HTF EMA", color=color.new(color.orange, 0), linewidth=1)
 
 plotshape(newBull, title="Bull Alignment", location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
 plotshape(newBear, title="Bear Alignment", location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
