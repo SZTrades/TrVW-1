@@ -103,42 +103,38 @@ var float activeLongTP = na
 var float activeShortTP = na
 
 if longSignal and strategy.position_size == 0
-    strategy.entry('Long', strategy.long, comment='Buy signal')
+    strategy.entry('Long', strategy.long)
     enteredThisBlock := true
 
 if shortSignal and strategy.position_size == 0
-    strategy.entry('Short', strategy.short, comment='Sell signal')
+    strategy.entry('Short', strategy.short)
     enteredThisBlock := true
 
 newLong = strategy.position_size > 0 and strategy.position_size[1] == 0
 newShort = strategy.position_size < 0 and strategy.position_size[1] == 0
 
 if newLong
-    entry = strategy.position_avg_price
-    activeLongStop := entry - stopPoints
-    activeLongTP := entry + stopPoints * takeProfitMultiplier
-    activeShortStop := na
-    activeShortTP := na
+    entryPrice = strategy.position_avg_price
+    activeLongStop := entryPrice - stopPoints
+    activeLongTP := entryPrice + stopPoints * takeProfitMultiplier
 
 if newShort
-    entry = strategy.position_avg_price
-    activeShortStop := entry + stopPoints
-    activeShortTP := entry - stopPoints * takeProfitMultiplier
-    activeLongStop := na
-    activeLongTP := na
+    entryPrice = strategy.position_avg_price
+    activeShortStop := entryPrice + stopPoints
+    activeShortTP := entryPrice - stopPoints * takeProfitMultiplier
 
-if strategy.position_size > 0 and not na(activeLongStop)
+if strategy.position_size > 0
     strategy.exit('Long Exit', 'Long', stop=activeLongStop, limit=activeLongTP)
-if strategy.position_size < 0 and not na(activeShortStop)
+if strategy.position_size < 0
     strategy.exit('Short Exit', 'Short', stop=activeShortStop, limit=activeShortTP)
 
 maeLong = strategy.position_size > 0 ? strategy.position_avg_price - low : na
 maeShort = strategy.position_size < 0 ? high - strategy.position_avg_price : na
 
 if strategy.position_size > 0 and maeLong > stopPoints
-    strategy.close('Long', comment='Hard SL')
+    strategy.close('Long', comment='Hard SL breach')
 if strategy.position_size < 0 and maeShort > stopPoints
-    strategy.close('Short', comment='Hard SL')
+    strategy.close('Short', comment='Hard SL breach')
 
 if strategy.position_size == 0
     activeLongStop := na
