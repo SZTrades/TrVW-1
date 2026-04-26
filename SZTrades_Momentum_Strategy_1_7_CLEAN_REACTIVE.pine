@@ -1,0 +1,123 @@
+//@version=6
+strategy("SZTrades v1.7 CLEAN REACTIVE", overlay=true, pyramiding=0,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+     process_orders_on_close=true, calc_on_every_tick=false)
+
+//────────────────────────────────────────────
+// Inputs (mínimos reales)
+//────────────────────────────────────────────
+t3Len = input.int(4, "T3 Length")
+factorT3 = input.float(0.7, "T3 Factor")
+
+emaLen = input.int(50, "Trend EMA")
+
+cvdLen = input.int(16, "CVD Length")
+
+atrLen = input.int(14, "ATR Length")
+atrMaLen = input.int(20, "ATR MA Length")
+
+stopPoints = input.float(4.0, "Stop")
+tpMult = input.float(2.0, "TP Mult")
+
+cooldownBars = input.int(4, "Cooldown")
+
+tradeSession = input.session("0800-0900", "Session")
+tz = input.string("Etc/GMT+4", "Timezone")
+
+//────────────────────────────────────────────
+// Core T3
+//────────────────────────────────────────────
+t3(src, len) =>
+    ta.ema(src, len) * (1 + factorT3) -
+    ta.ema(ta.ema(src, len), len) * factorT3
+
+t3v = t3(t3(t3(close, t3Len), t3Len), t3Len)
+t3Up = t3v > t3v[1]
+t3Dn = t3v < t3v[1]
+
+//────────────────────────────────────────────
+// Trend
+//────────────────────────────────────────────
+ema = ta.ema(close, emaLen)
+trendLong = close > ema
+trendShort = close < ema
+
+//────────────────────────────────────────────
+// CVD (flow)
+//────────────────────────────────────────────
+spread = math.max(high - low, syminfo.mintick)
+buyVol = close > open ? volume : volume * 0.5
+sellVol = close < open ? volume : volume * 0.5
+
+cvd = ta.ema(buyVol - sellVol, cvdLen)
+bullFlow = cvd > 0
+bearFlow = cvd < 0
+
+//────────────────────────────────────────────
+// Volatility (SINGLE GATE ONLY)
+//────────────────────────────────────────────
+atr = ta.atr(atrLen)
+atrMA = ta.sma(atr, atrMaLen)
+volOk = atr > atrMA
+
+//────────────────────────────────────────────
+// Session
+//────────────────────────────────────────────
+inSession = not na(time(timeframe.period, tradeSession, tz))
+
+//────────────────────────────────────────────
+// Cooldown
+//────────────────────────────────────────────
+var int lastTrade = na
+cooldownOk = na(lastTrade) or (bar_index - lastTrade > cooldownBars)
+
+//────────────────────────────────────────────
+// Signals (3 LAYERS ONLY)
+// trend + flow + volatility
+//────────────────────────────────────────────
+longSignal =
+     inSession and
+     cooldownOk and
+     t3Up and
+     trendLong and
+     bullFlow and
+     volOk and
+     barstate.isconfirmed
+
+shortSignal =
+     inSession and
+     cooldownOk and
+     t3Dn and
+     trendShort and
+     bearFlow and
+     volOk and
+     barstate.isconfirmed
+
+//────────────────────────────────────────────
+// Entries
+//────────────────────────────────────────────
+if longSignal and strategy.position_size == 0
+    strategy.entry("L", strategy.long)
+    lastTrade := bar_index
+
+if shortSignal and strategy.position_size == 0
+    strategy.entry("S", strategy.short)
+    lastTrade := bar_index
+
+//────────────────────────────────────────────
+// Risk
+//────────────────────────────────────────────
+longStop = strategy.position_avg_price - stopPoints
+longTP   = strategy.position_avg_price + stopPoints * tpMult
+
+shortStop = strategy.position_avg_price + stopPoints
+shortTP   = strategy.position_avg_price - stopPoints * tpMult
+
+strategy.exit("LX", "L", stop=longStop, limit=longTP)
+strategy.exit("SX", "S", stop=shortStop, limit=shortTP)
+
+//────────────────────────────────────────────
+// Visual
+//────────────────────────────────────────────
+plot(t3v, color=color.orange)
+plot(ema, color=color.aqua)
