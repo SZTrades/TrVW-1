@@ -112,15 +112,11 @@ newShortPosition = strategy.position_size < 0 and strategy.position_size[1] >= 0
 
 if newLongPosition
     activeLongStop := strategy.position_avg_price - stopPoints
-    activeShortStop := na
     activeLongTP := strategy.position_avg_price + stopPoints * takeProfitMultiplier
-    activeShortTP := na
 
 if newShortPosition
     activeShortStop := strategy.position_avg_price + stopPoints
-    activeLongStop := na
     activeShortTP := strategy.position_avg_price - stopPoints * takeProfitMultiplier
-    activeLongTP := na
 
 if strategy.position_size > 0 and not na(activeLongStop)
     strategy.exit('Long Exit', 'Long', stop=activeLongStop, limit=activeLongTP)
