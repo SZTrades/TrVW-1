@@ -1,8 +1,18 @@
 //@version=6
-// SZTrades Momentum Alignment Strategy v1.4 (T3 + CVD only)
-// 5m scalping variant with 06:00 reference and daily-open directional bias.
+// SZTrades ROUTE A CLEAN EDGE AUDIT
 
-strategy('SZTrades Momentum Alignment Strategy v1.4', shorttitle='SZT1.4', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=true, process_orders_on_close=false)
+strategy(
+    'SZTrades Momentum Alignment Strategy v1.4 CLEAN EDGE AUDIT',
+    shorttitle='SZT1.4A',
+    overlay=true,
+    max_labels_count=500,
+    max_lines_count=500,
+    pyramiding=0,
+    default_qty_type=strategy.percent_of_equity,
+    default_qty_value=100,
+    calc_on_every_tick=false,
+    process_orders_on_close=true
+)
 
 // Optimization factors
 lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
@@ -11,6 +21,7 @@ cumulationLength = input.int(16, 'CVD Cumulation Length', minval=1, group='CVD')
 cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
 stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
 takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
+cooldownBars = input.int(0, 'Cooldown Bars', minval=0, group='Risk')
 
 // Session controls
 tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
@@ -43,16 +54,14 @@ cvdDelta = cumBuy - cumSell
 bullCVD = cvdDelta > cvdThreshold
 bearCVD = cvdDelta < -cvdThreshold
 
-// Buy/sell signals only when T3 and CVD are aligned.
+// Signal event model: each appearance is a new independent event.
 bullAligned = basicLongT3 and bullCVD
 bearAligned = basicShortT3 and bearCVD
-newBull = bullAligned and not bullAligned[1]
-newBear = bearAligned and not bearAligned[1]
+newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
+newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
 
 // Session state
 inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
-blockStarted = inTradeBlock and not inTradeBlock[1]
-blockEnded = not inTradeBlock and inTradeBlock[1]
 
 // Parse session end time defensively.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
@@ -69,93 +78,51 @@ sessionEndMinute = (hasValidEnd and not na(endMinuteRaw)) ? int(endMinuteRaw) : 
 sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
 barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
 lastBarOfBlockByClock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
-lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : blockEnded
+lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : (not inTradeBlock and inTradeBlock[1])
 
 // Reference line from 06:00 open (same timezone), visible only in the 06:00-10:00 block.
 isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) == 0
-var float open6am = na
-if isSixAMBar
-    open6am := open
+open6am = ta.valuewhen(isSixAMBar, open, 0)
 showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
 
 // Daily bias from daily open anchored at 18:00 (UTC-4), visible all day.
 isDailyAnchorBar = hour(time, sessionTimezone) == 18 and minute(time, sessionTimezone) == 0
-var float dailyOpen1800 = na
-if isDailyAnchorBar
-    dailyOpen1800 := open
+dailyOpen1800 = ta.valuewhen(isDailyAnchorBar, open, 0)
 allowLongByDailyOpen = not na(dailyOpen1800) and close > dailyOpen1800
 allowShortByDailyOpen = not na(dailyOpen1800) and close < dailyOpen1800
 
 // Only execute on 5-minute charts.
 isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
 
-// Engine locks:
-// - one signal per direction per block max
-// - lock active from signal until fill confirmation or block reset
-// - only first filled entry per block (base behavior preserved)
-var bool enteredThisBlock = false
-var bool longSignalUsedBlock = false
-var bool shortSignalUsedBlock = false
-var bool entryLockActive = false
-var string entryLockDirection = ''
-var int lockBarIndex = na
-if blockStarted
-    enteredThisBlock := false
-    longSignalUsedBlock := false
-    shortSignalUsedBlock := false
-    entryLockActive := false
-    entryLockDirection := ''
-    lockBarIndex := na
-if blockEnded
-    enteredThisBlock := false
-    longSignalUsedBlock := false
-    shortSignalUsedBlock := false
-    entryLockActive := false
-    entryLockDirection := ''
-    lockBarIndex := na
+var int lastTradeBarIndex = na
+cooldownOk = cooldownBars == 0 or na(lastTradeBarIndex) or (bar_index - lastTradeBarIndex) >= cooldownBars
 
-newBullConfirmed = newBull and barstate.isconfirmed
-newBearConfirmed = newBear and barstate.isconfirmed
-longSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and not longSignalUsedBlock and newBullConfirmed and allowLongByDailyOpen
-shortSignal = isFiveMinuteChart and inTradeBlock and not enteredThisBlock and not shortSignalUsedBlock and newBearConfirmed and allowShortByDailyOpen
+longSignal = isFiveMinuteChart and inTradeBlock and newBull and allowLongByDailyOpen and cooldownOk
+shortSignal = isFiveMinuteChart and inTradeBlock and newBear and allowShortByDailyOpen and cooldownOk
 
 var float activeLongStop = na
 var float activeShortStop = na
 var float activeLongTP = na
 var float activeShortTP = na
 
-if longSignal and strategy.position_size == 0 and not entryLockActive
-    entryLockActive := true
-    entryLockDirection := 'Long'
-    longSignalUsedBlock := true
-    lockBarIndex := bar_index
+if longSignal and strategy.position_size == 0
     strategy.entry('Long', strategy.long, comment='Buy signal')
 
-if shortSignal and strategy.position_size == 0 and not entryLockActive
-    entryLockActive := true
-    entryLockDirection := 'Short'
-    shortSignalUsedBlock := true
-    lockBarIndex := bar_index
+if shortSignal and strategy.position_size == 0
     strategy.entry('Short', strategy.short, comment='Sell signal')
 
 newLongPosition = strategy.position_size > 0 and strategy.position_size[1] == 0
 newShortPosition = strategy.position_size < 0 and strategy.position_size[1] == 0
 
 if newLongPosition
-    enteredThisBlock := true
-    entryLockActive := false
-    entryLockDirection := ''
-    lockBarIndex := na
+    lastTradeBarIndex := bar_index
     activeLongStop := strategy.position_avg_price - stopPoints
     activeShortStop := na
     activeLongTP := strategy.position_avg_price + stopPoints * takeProfitMultiplier
     activeShortTP := na
 
 if newShortPosition
-    enteredThisBlock := true
-    entryLockActive := false
-    entryLockDirection := ''
-    lockBarIndex := na
+    lastTradeBarIndex := bar_index
     activeShortStop := strategy.position_avg_price + stopPoints
     activeLongStop := na
     activeShortTP := strategy.position_avg_price - stopPoints * takeProfitMultiplier
@@ -172,12 +139,8 @@ if strategy.position_size == 0
     activeLongTP := na
     activeShortTP := na
 
-// Forced close at block end, always on.
 if lastBarOfBlock and strategy.position_size != 0
     strategy.close_all(comment='Block end close')
-    entryLockActive := false
-    entryLockDirection := ''
-    lockBarIndex := na
 
 bgcolor(bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na)
 plot(t3, title='T3', linewidth=2, color=t3Color)
