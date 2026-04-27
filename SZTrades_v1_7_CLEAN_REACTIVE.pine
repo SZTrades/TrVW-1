@@ -53,9 +53,8 @@ emaSlope = ema - ema[regimeSlopeBars]
 // Flow proxy (range + relative close + volume)
 //────────────────────────────────────────────
 barRange = math.max(high - low, syminfo.mintick)
-closeLocation = ((close - low) - (high - close)) / barRange
-bodyPressure = (close - open) / barRange
-flowDelta = volume * (closeLocation * 0.7 + bodyPressure * 0.3)
+closePos = ((close - low) / barRange) * 2.0 - 1.0
+flowDelta = closePos * volume
 flow = ta.ema(flowDelta, cvdLen)
 bullFlow = flow > 0
 bearFlow = flow < 0
@@ -66,7 +65,8 @@ bearFlow = flow < 0
 atr = ta.atr(atrLen)
 atrMA = ta.sma(atr, atrMaLen)
 rangeMA = ta.sma(barRange, rangeMaLen)
-rangeExpansionOk = not na(rangeMA) and barRange >= rangeMA * rangeExpansionMin
+rangeExpansionMult = math.max(rangeExpansionMin, 1.10)
+rangeExpansionOk = not na(rangeMA) and barRange >= rangeMA * rangeExpansionMult
 
 volHardOk = atr >= atrMin
 highVolMode = atr >= atrHot
@@ -82,20 +82,19 @@ regimeShortOk = highVolMode or (trendShort and emaSlope < 0 and regimeStrengthOk
 //────────────────────────────────────────────
 inSession = not na(time(timeframe.period, tradeSession, tz))
 sessionStarted = inSession and not inSession[1]
-sessionEnded = not inSession and inSession[1]
 
 var int sessionBars = 0
 if sessionStarted
     sessionBars := 1
 else if inSession
     sessionBars += 1
-if sessionEnded
+else
     sessionBars := 0
 
-sessionWarmOk = inSession and sessionBars > sessionWarmupBars
+sessionWarmOk = sessionBars > sessionWarmupBars
 earlySession = inSession and sessionBars <= sessionWarmupBars + 2
 anomalousEarlyRange = earlySession and not na(rangeMA) and barRange > rangeMA * earlyRangeAnomalyMult
-sessionNoiseOk = sessionWarmOk and not anomalousEarlyRange
+sessionNoiseOk = inSession and sessionWarmOk and not anomalousEarlyRange
 
 //────────────────────────────────────────────
 // Cooldown

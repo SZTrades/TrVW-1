@@ -48,7 +48,7 @@ emaSlope = ema - ema[emaSlopeBars]
 
 barRange = math.max(high - low, syminfo.mintick)
 avgRange = ta.sma(barRange, atrMaLen)
-rangeExpansionOk = not na(avgRange) and barRange >= avgRange * 0.9
+rangeExpansionOk = not na(avgRange) and barRange >= avgRange * 1.15
 
 trendDirectionalLong = trendLong and t3Up and emaSlope > 0
 trendDirectionalShort = trendShort and t3Dn and emaSlope < 0
@@ -59,8 +59,8 @@ regimeShortOk = trendDirectionalShort and rangeExpansionOk
 // Flow proxy (realistic lightweight delta)
 //────────────────────────────────────────────
 closePos = barRange > 0 ? ((close - low) / barRange) * 2.0 - 1.0 : 0.0
-deltaProxy = closePos * volume * barRange
-flow = ta.ema(deltaProxy, flowLen)
+flowDelta = closePos * volume
+flow = ta.ema(flowDelta, flowLen)
 bullFlow = flow > 0
 bearFlow = flow < 0
 
@@ -87,7 +87,7 @@ else if inSession
 else
     sessionBars := 0
 
-sessionWarmOk = not inSession or sessionBars > sessionWarmupBars
+sessionWarmOk = sessionBars > sessionWarmupBars
 earlyRangeAvg = ta.sma(barRange, 20)
 anomalousEarlyRange = inSession and sessionBars <= sessionWarmupBars and not na(earlyRangeAvg) and barRange > earlyRangeAvg * maxOpenRangeMult
 sessionCleanOk = inSession and sessionWarmOk and not anomalousEarlyRange
