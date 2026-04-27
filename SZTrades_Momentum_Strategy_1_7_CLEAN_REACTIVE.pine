@@ -53,9 +53,9 @@ emaSlope = ema - ema[regimeSlopeBars]
 // Flow proxy (range + relative close + volume)
 //────────────────────────────────────────────
 barRange = math.max(high - low, syminfo.mintick)
-closePos = ((close - low) / barRange) * 2.0 - 1.0
-flowDelta = volume * closePos
-flow = ta.ema(flowDelta, cvdLen)
+closePos = (close - open) / math.max(high - low, syminfo.mintick)
+deltaProxy = closePos * volume
+flow = ta.ema(deltaProxy, cvdLen)
 bullFlow = flow > 0
 bearFlow = flow < 0
 
@@ -66,7 +66,7 @@ atr = ta.atr(atrLen)
 atrMA = ta.sma(atr, atrMaLen)
 rangeMA = ta.sma(barRange, rangeMaLen)
 rangeExpansionMult = math.max(rangeExpansionMin, 1.05)
-rangeExpansionOk = not na(rangeMA) and barRange >= rangeMA * rangeExpansionMult
+rangeExpansionOk = not na(rangeMA) and barRange > rangeMA and math.abs(emaSlope) > 0
 
 volHardOk = atr >= atrMin
 highVolMode = atr >= atrHot
@@ -91,10 +91,9 @@ else if inSession
 else
     sessionBars := 0
 
-sessionWarmOk = sessionBars > sessionWarmupBars
 earlySession = inSession and sessionBars <= sessionWarmupBars + 2
 anomalousEarlyRange = earlySession and not na(rangeMA) and barRange > rangeMA * earlyRangeAnomalyMult
-sessionNoiseOk = inSession and sessionWarmOk and not anomalousEarlyRange
+sessionNoiseOk = inSession and sessionBars > sessionWarmupBars and not anomalousEarlyRange
 
 //────────────────────────────────────────────
 // Cooldown
