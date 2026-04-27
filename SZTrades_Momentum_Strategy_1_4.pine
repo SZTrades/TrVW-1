@@ -2,7 +2,7 @@
 // SZTrades Momentum Alignment Strategy v1.4 (T3 + CVD only)
 // 5m scalping variant with 06:00 reference and daily-open directional bias.
 
-strategy('SZTrades Momentum Alignment Strategy v1.4', shorttitle='SZT1.4', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=false, process_orders_on_close=true)
+strategy('SZTrades Momentum Alignment Strategy v1.4', shorttitle='SZT1.4', overlay=true, max_labels_count=500, max_lines_count=500, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=true, process_orders_on_close=false)
 
 // Optimization factors
 lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
