@@ -1,0 +1,150 @@
+//@version=6
+// SZTrades ROUTE A CLEAN EDGE AUDIT
+
+strategy(
+    'SZTrades Momentum Alignment Strategy v1.4 CLEAN EDGE AUDIT',
+    shorttitle='SZT1.4A',
+    overlay=true,
+    max_labels_count=500,
+    max_lines_count=500,
+    pyramiding=0,
+    default_qty_type=strategy.percent_of_equity,
+    default_qty_value=100,
+    calc_on_every_tick=false,
+    process_orders_on_close=true
+)
+
+// Optimization factors
+lengthT3 = input.int(4, 'T3 Length', minval=1, group='T3')
+factorT3 = input.float(0.7, 'T3 Factor', minval=0.0, maxval=1.0, group='T3')
+cumulationLength = input.int(16, 'CVD Cumulation Length', minval=1, group='CVD')
+cvdThreshold = input.float(0.0, 'CVD Delta Threshold', minval=0.0, group='CVD')
+stopPoints = input.float(4.0, 'Stop Points', minval=0.0, group='Risk')
+takeProfitMultiplier = input.float(2.0, 'Take Profit Multiplier', minval=0.1, group='Risk')
+cooldownBars = input.int(0, 'Cooldown Bars', minval=0, group='Risk')
+
+// Session controls
+tradeSession = input.session('0800-0900', 'Trading Window (HHMM-HHMM)', group='Session')
+sessionTimezone = 'Etc/GMT+4'
+
+gdT3(src, len) =>
+    ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
+
+// T3 core
+t3 = gdT3(gdT3(gdT3(close, lengthT3), lengthT3), lengthT3)
+t3Direction = t3 > t3[1] ? 1 : t3 < t3[1] ? -1 : 0
+t3Color = t3Direction > 0 ? color.green : color.red
+basicLongT3 = t3Direction > 0 and close > t3
+basicShortT3 = t3Direction < 0 and close < t3
+
+// CVD core
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+halfWicks = (percentUpper + percentLower) / 2
+buyingVolume = close > open ? (percentBody + halfWicks) * volume : halfWicks * volume
+sellingVolume = close < open ? (percentBody + halfWicks) * volume : halfWicks * volume
+cumBuy = ta.ema(buyingVolume, cumulationLength)
+cumSell = ta.ema(sellingVolume, cumulationLength)
+cvdDelta = cumBuy - cumSell
+bullCVD = cvdDelta > cvdThreshold
+bearCVD = cvdDelta < -cvdThreshold
+
+// Signal event model: each appearance is a new independent event.
+bullAligned = basicLongT3 and bullCVD
+bearAligned = basicShortT3 and bearCVD
+newBull = bullAligned and not bullAligned[1] and barstate.isconfirmed
+newBear = bearAligned and not bearAligned[1] and barstate.isconfirmed
+
+// Session state
+inTradeBlock = not na(time(timeframe.period, tradeSession, sessionTimezone))
+
+// Parse session end time defensively.
+sessionCore = array.get(str.split(tradeSession, ":"), 0)
+sessionRanges = str.split(sessionCore, ",")
+lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ''
+rangeParts = str.split(lastRange, "-")
+endToken = array.size(rangeParts) > 1 ? array.get(rangeParts, 1) : ''
+endTokenClean = str.replace_all(endToken, ":", "")
+hasValidEnd = str.length(endTokenClean) >= 4
+endHourRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
+endMinuteRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
+sessionEndHour = (hasValidEnd and not na(endHourRaw)) ? int(endHourRaw) : 0
+sessionEndMinute = (hasValidEnd and not na(endMinuteRaw)) ? int(endMinuteRaw) : 0
+sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
+barCloseMinuteOfDay = hour(time_close, sessionTimezone) * 60 + minute(time_close, sessionTimezone)
+lastBarOfBlockByClock = inTradeBlock and barCloseMinuteOfDay == sessionEndMinuteOfDay
+lastBarOfBlock = hasValidEnd ? lastBarOfBlockByClock : (not inTradeBlock and inTradeBlock[1])
+
+// Reference line from 06:00 open (same timezone), visible only in the 06:00-10:00 block.
+isSixAMBar = hour(time, sessionTimezone) == 6 and minute(time, sessionTimezone) == 0
+open6am = ta.valuewhen(isSixAMBar, open, 0)
+showSixOpenLine = not na(time(timeframe.period, '0600-1000', sessionTimezone))
+
+// Daily bias from daily open anchored at 18:00 (UTC-4), visible all day.
+isDailyAnchorBar = hour(time, sessionTimezone) == 18 and minute(time, sessionTimezone) == 0
+dailyOpen1800 = ta.valuewhen(isDailyAnchorBar, open, 0)
+allowLongByDailyOpen = not na(dailyOpen1800) and close > dailyOpen1800
+allowShortByDailyOpen = not na(dailyOpen1800) and close < dailyOpen1800
+
+// Only execute on 5-minute charts.
+isFiveMinuteChart = timeframe.isminutes and timeframe.multiplier == 5
+
+var int lastTradeBarIndex = na
+cooldownOk = cooldownBars == 0 or na(lastTradeBarIndex) or (bar_index - lastTradeBarIndex) >= cooldownBars
+
+longSignal = isFiveMinuteChart and inTradeBlock and newBull and allowLongByDailyOpen and cooldownOk
+shortSignal = isFiveMinuteChart and inTradeBlock and newBear and allowShortByDailyOpen and cooldownOk
+
+var float activeLongStop = na
+var float activeShortStop = na
+var float activeLongTP = na
+var float activeShortTP = na
+
+if longSignal and strategy.position_size == 0
+    strategy.entry('Long', strategy.long, comment='Buy signal')
+
+if shortSignal and strategy.position_size == 0
+    strategy.entry('Short', strategy.short, comment='Sell signal')
+
+newLongPosition = strategy.position_size > 0 and strategy.position_size[1] == 0
+newShortPosition = strategy.position_size < 0 and strategy.position_size[1] == 0
+
+if newLongPosition
+    lastTradeBarIndex := bar_index
+    activeLongStop := strategy.position_avg_price - stopPoints
+    activeShortStop := na
+    activeLongTP := strategy.position_avg_price + stopPoints * takeProfitMultiplier
+    activeShortTP := na
+
+if newShortPosition
+    lastTradeBarIndex := bar_index
+    activeShortStop := strategy.position_avg_price + stopPoints
+    activeLongStop := na
+    activeShortTP := strategy.position_avg_price - stopPoints * takeProfitMultiplier
+    activeLongTP := na
+
+if strategy.position_size > 0 and not na(activeLongStop)
+    strategy.exit('Long Exit', 'Long', stop=activeLongStop, limit=activeLongTP)
+if strategy.position_size < 0 and not na(activeShortStop)
+    strategy.exit('Short Exit', 'Short', stop=activeShortStop, limit=activeShortTP)
+
+if strategy.position_size == 0
+    activeLongStop := na
+    activeShortStop := na
+    activeLongTP := na
+    activeShortTP := na
+
+if lastBarOfBlock and strategy.position_size != 0
+    strategy.close_all(comment='Block end close')
+
+bgcolor(bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na)
+plot(t3, title='T3', linewidth=2, color=t3Color)
+plot(showSixOpenLine ? open6am : na, title='06:00 Open', color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
+plot(dailyOpen1800, title='Daily Open 18:00', color=color.new(color.aqua, 0), linewidth=2, style=plot.style_linebr)
+plotshape(newBull, title='Buy Signal', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
+plotshape(newBear, title='Sell Signal', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
