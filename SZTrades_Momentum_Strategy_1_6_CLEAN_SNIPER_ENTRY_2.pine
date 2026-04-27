@@ -10,11 +10,14 @@ t3Len = input.int(4, "T3 Length")
 factorT3 = input.float(0.7, "T3 Factor")
 
 emaLen = input.int(50, "Trend EMA")
+emaSlopeBars = input.int(5, "EMA Slope Bars")
 
-cvdLen = input.int(16, "CVD Length")
+flowLen = input.int(16, "Flow EMA Length")
 
 atrLen = input.int(14, "ATR Length")
 atrMaLen = input.int(20, "ATR MA Length")
+atrMin = input.float(2.0, "ATR Min Gate")
+atrHot = input.float(8.0, "ATR Hot Market")
 
 stopPoints = input.float(4.0, "Stop")
 tpMult = input.float(2.0, "TP Mult")
@@ -23,6 +26,8 @@ cooldownBars = input.int(4, "Cooldown")
 
 tradeSession = input.session("0800-0900", "Session")
 tz = input.string("Etc/GMT+4", "Timezone")
+sessionWarmupBars = input.int(2, "Session Warmup Bars")
+maxOpenRangeMult = input.float(1.8, "Max Early Range Mult")
 
 //────────────────────────────────────────────
 // Core T3
@@ -34,34 +39,58 @@ t3Up = t3v > t3v[1]
 t3Dn = t3v < t3v[1]
 
 //────────────────────────────────────────────
-// Trend
+// Trend + minimal regime
 //────────────────────────────────────────────
 ema = ta.ema(close, emaLen)
 trendLong = close > ema
 trendShort = close < ema
+emaSlope = ema - ema[emaSlopeBars]
+
+barRange = math.max(high - low, syminfo.mintick)
+avgRange = ta.sma(barRange, atrMaLen)
+rangeExpansionOk = not na(avgRange) and barRange >= avgRange * 0.9
+
+trendDirectionalLong = trendLong and t3Up and emaSlope > 0
+trendDirectionalShort = trendShort and t3Dn and emaSlope < 0
+regimeLongOk = trendDirectionalLong and rangeExpansionOk
+regimeShortOk = trendDirectionalShort and rangeExpansionOk
 
 //────────────────────────────────────────────
-// CVD (flow)
+// Flow proxy (realistic lightweight delta)
 //────────────────────────────────────────────
-spread = math.max(high - low, syminfo.mintick)
-buyVol = close > open ? volume : volume * 0.5
-sellVol = close < open ? volume : volume * 0.5
-
-cvd = ta.ema(buyVol - sellVol, cvdLen)
-bullFlow = cvd > 0
-bearFlow = cvd < 0
+closePos = barRange > 0 ? ((close - low) / barRange) * 2.0 - 1.0 : 0.0
+deltaProxy = closePos * volume * barRange
+flow = ta.ema(deltaProxy, flowLen)
+bullFlow = flow > 0
+bearFlow = flow < 0
 
 //────────────────────────────────────────────
-// Volatility (SINGLE GATE ONLY)
+// Volatility hard gate
 //────────────────────────────────────────────
 atr = ta.atr(atrLen)
 atrMA = ta.sma(atr, atrMaLen)
-volOk = atr > atrMA
+atrMinOk = atr >= atrMin
+atrActiveOk = atr > atrMA
+hotMarket = atr >= atrHot
+volOk = atrMinOk and (hotMarket or atrActiveOk)
 
 //────────────────────────────────────────────
-// Session
+// Session + micro-noise cleanup
 //────────────────────────────────────────────
 inSession = not na(time(timeframe.period, tradeSession, tz))
+sessionStart = inSession and not inSession[1]
+var int sessionBars = 0
+if sessionStart
+    sessionBars := 1
+else if inSession
+    sessionBars += 1
+else
+    sessionBars := 0
+
+sessionWarmOk = not inSession or sessionBars > sessionWarmupBars
+earlyRangeAvg = ta.sma(barRange, 20)
+anomalousEarlyRange = inSession and sessionBars <= sessionWarmupBars and not na(earlyRangeAvg) and barRange > earlyRangeAvg * maxOpenRangeMult
+sessionCleanOk = inSession and sessionWarmOk and not anomalousEarlyRange
 
 //────────────────────────────────────────────
 // Cooldown
@@ -70,23 +99,21 @@ var int lastTrade = na
 cooldownOk = na(lastTrade) or (bar_index - lastTrade > cooldownBars)
 
 //────────────────────────────────────────────
-// Signals (3 LAYERS ONLY)
-// trend + flow + volatility
+// Signals (minimal reactive stack)
+// trend + flow + regime + hard vol + clean session
 //────────────────────────────────────────────
 longSignal =
-     inSession and
+     sessionCleanOk and
      cooldownOk and
-     t3Up and
-     trendLong and
+     regimeLongOk and
      bullFlow and
      volOk and
      barstate.isconfirmed
 
 shortSignal =
-     inSession and
+     sessionCleanOk and
      cooldownOk and
-     t3Dn and
-     trendShort and
+     regimeShortOk and
      bearFlow and
      volOk and
      barstate.isconfirmed
@@ -103,7 +130,7 @@ if shortSignal and strategy.position_size == 0
     lastTrade := bar_index
 
 //────────────────────────────────────────────
-// Risk
+// Risk (modular for future structural SL transition)
 //────────────────────────────────────────────
 longStop = strategy.position_avg_price - stopPoints
 longTP   = strategy.position_avg_price + stopPoints * tpMult
