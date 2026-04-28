@@ -23,11 +23,11 @@ trigger1ShortBias = close < trigger1Open
 // ============================
 // ==== Kernel Settings =======
 // ============================
-h = input.int(8, "Lookback Window", minval=3, tooltip="Bars used for estimation. Recommended: 3-50", group="Kernel Settings")
-r = input.float(8.0, "Relative Weighting", step=0.25, tooltip="Relative weighting of time frames. Recommended: 0.25-25", group="Kernel Settings")
-x = input.int(25, "Regression Level", tooltip="Starting bar index for regression. Smaller = tighter fit. Recommended: 2-25", group="Kernel Settings")
-lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Recommended: 1-2", group="Kernel Settings")
-source = input.source(close, "Source", group="Kernel Settings")
+h = 4
+r = 4.0
+x = 10
+lag = 1
+source = close
 kernelLineWidth = input.int(1, "Kernel Line Width", minval=1, maxval=5, group="Kernel Settings")
 kernelBullColor = input.color(#009988, "Kernel Bull Color", group="Kernel Settings")
 kernelBearColor = input.color(#747171, "Kernel Bear Color", group="Kernel Settings")
@@ -46,8 +46,8 @@ plot(yhat1, title="Kernel", color=kernelPlotColor, linewidth=kernelLineWidth)
 // ====== JMA Settings ========
 // ============================
 jmaLength = 20
-jmaPhase = input.int(50, "JMA Phase", minval=-100, maxval=100, group="JMA Settings")
-jmaPower = input.int(2, "JMA Power", minval=1, group="JMA Settings")
+jmaPhase = 40
+jmaPower = 2
 jmaLineWidth = input.int(1, "JMA Line Width", minval=1, maxval=5, group="JMA Settings")
 jmaBullColor = input.color(#009988, "JMA Bull Color", group="JMA Settings")
 jmaBearColor = input.color(#959595, "JMA Bear Color", group="JMA Settings")
@@ -78,8 +78,8 @@ jmaShort = isDown and close < jma
 // ============================
 // ====== CVD Settings ========
 // ============================
-cvdLength = input.int(14, "CVD Length", group="CVD Settings")
-cvdThreshold = input.float(0, "CVD Threshold (abs value)", step=10, group="CVD Settings")
+cvdLength = 14
+cvdThreshold = 10.0
 
 upperWick = close > open ? high - close : high - open
 lowerWick = close > open ? open - low : close - low
@@ -106,9 +106,9 @@ plot(cvdDelta, title="CVD Delta", display=display.data_window)
 // ==== Volatility Stop (SL) ===
 // ============================
 useVolStop = input.bool(true, "Use Volatility Stop", group="Volatility Stop")
-vsLength = input.int(20, "Length", minval=2, group="Volatility Stop")
-vsFactor = input.float(2.0, "Multiplier", minval=0.25, step=0.25, group="Volatility Stop")
-vsSource = input.source(close, "Source", group="Volatility Stop")
+vsLength = 20
+vsFactor = 2.0
+vsSource = close
 vsShowLine = input.bool(false, "Show Stop Line", group="Volatility Stop")
 vsShowDots = input.bool(true, "Show Stop Dots", group="Volatility Stop")
 vsLineWidth = input.int(1, "Stop Line Width", minval=1, maxval=5, group="Volatility Stop")
