@@ -10,15 +10,15 @@ trigger1Tf = input.timeframe("120", "Trigger 1) Higher Timeframe Candle Referenc
 trigger2Tf = input.timeframe("60", "Trigger 2) Medium Timeframe Candle Reference (1h)", group="Trigger Settings")
 trigger3Tf = input.timeframe("15", "Trigger 3) Lower Timeframe Candle Reference (15m)", group="Trigger Settings")
 
-trigger1Price = request.security(syminfo.tickerid, trigger1Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
-trigger2Price = request.security(syminfo.tickerid, trigger2Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
-trigger3Price = request.security(syminfo.tickerid, trigger3Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
-trigger1Open = request.security(syminfo.tickerid, trigger1Tf, open, barmerge.gaps_off, barmerge.lookahead_off)
+// Use open-based HTF references so trigger checks work on the active HTF candle.
+trigger1Level = request.security(syminfo.tickerid, trigger1Tf, open, barmerge.gaps_off, barmerge.lookahead_off)
+trigger2Level = request.security(syminfo.tickerid, trigger2Tf, open, barmerge.gaps_off, barmerge.lookahead_off)
+trigger3Level = request.security(syminfo.tickerid, trigger3Tf, open, barmerge.gaps_off, barmerge.lookahead_off)
 
-priceAboveAllTriggers = close > trigger1Price and close > trigger2Price and close > trigger3Price
-priceBelowAllTriggers = close < trigger1Price and close < trigger2Price and close < trigger3Price
-trigger1LongBias = close > trigger1Open
-trigger1ShortBias = close < trigger1Open
+priceAboveAllTriggers = close > trigger1Level and close > trigger2Level and close > trigger3Level
+priceBelowAllTriggers = close < trigger1Level and close < trigger2Level and close < trigger3Level
+trigger1LongBias = close > trigger1Level
+trigger1ShortBias = close < trigger1Level
 
 // ============================
 // ==== Kernel Settings =======
