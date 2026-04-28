@@ -1,0 +1,177 @@
+//@version=6
+indicator("SZT Trend align + CVD", "SZT Align + CVD", overlay=true)
+
+import jdehorty/KernelFunctions/2 as kernels
+
+// ==============================
+// ==== Trigger Timeframes ======
+// ==============================
+trigger1Tf = input.timeframe("120", "Trigger 1) Higher Timeframe Candle Reference (2h)", group="Trigger Settings")
+trigger2Tf = input.timeframe("60", "Trigger 2) Medium Timeframe Candle Reference (1h)", group="Trigger Settings")
+trigger3Tf = input.timeframe("15", "Trigger 3) Lower Timeframe Candle Reference (15m)", group="Trigger Settings")
+
+trigger1Price = request.security(syminfo.tickerid, trigger1Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
+trigger2Price = request.security(syminfo.tickerid, trigger2Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
+trigger3Price = request.security(syminfo.tickerid, trigger3Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
+
+priceAboveAllTriggers = close > trigger1Price and close > trigger2Price and close > trigger3Price
+priceBelowAllTriggers = close < trigger1Price and close < trigger2Price and close < trigger3Price
+
+// ============================
+// ==== Kernel Settings =======
+// ============================
+h = input.int(8, "Lookback Window", minval=3, tooltip="Bars used for estimation. Recommended: 3-50", group="Kernel Settings")
+r = input.float(8.0, "Relative Weighting", step=0.25, tooltip="Relative weighting of time frames. Recommended: 0.25-25", group="Kernel Settings")
+x = input.int(25, "Regression Level", tooltip="Starting bar index for regression. Smaller = tighter fit. Recommended: 2-25", group="Kernel Settings")
+lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Recommended: 1-2", group="Kernel Settings")
+source = input.source(close, "Source", group="Kernel Settings")
+kernelLineWidth = input.int(1, "Kernel Line Width", minval=1, maxval=5, group="Kernel Settings")
+kernelBullColor = input.color(#009988, "Kernel Bull Color", group="Kernel Settings")
+kernelBearColor = input.color(#747171, "Kernel Bear Color", group="Kernel Settings")
+
+yhat1 = kernels.rationalQuadratic(source, h, r, x)
+yhat2 = kernels.gaussian(source, h - lag, x)
+
+// Smoothing is hardcoded ON: alignment uses yhat2 vs yhat1.
+kernelBullish = yhat2 >= yhat1
+kernelBearish = yhat2 <= yhat1
+
+kernelPlotColor = kernelBullish ? kernelBullColor : kernelBearColor
+plot(yhat1, title="Kernel", color=kernelPlotColor, linewidth=kernelLineWidth)
+
+// ============================
+// ====== JMA Settings ========
+// ============================
+jmaLength = 20
+jmaPhase = input.int(50, "JMA Phase", minval=-100, maxval=100, group="JMA Settings")
+jmaPower = input.int(2, "JMA Power", minval=1, group="JMA Settings")
+jmaLineWidth = input.int(1, "JMA Line Width", minval=1, maxval=5, group="JMA Settings")
+jmaBullColor = input.color(#009988, "JMA Bull Color", group="JMA Settings")
+jmaBearColor = input.color(#959595, "JMA Bear Color", group="JMA Settings")
+
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+
+jmaPlotColor = jma > jma[1] ? jmaBullColor : jmaBearColor
+plot(jma, title="JMA", color=jmaPlotColor, linewidth=jmaLineWidth)
+
+// JMA color confirmation is hardcoded ON.
+isUp = jma > jma[1]
+isDown = jma < jma[1]
+jmaLong = isUp and close > jma
+jmaShort = isDown and close < jma
+
+// ============================
+// ====== CVD Settings ========
+// ============================
+cvdLength = input.int(14, "CVD Length", group="CVD Settings")
+cvdThreshold = input.float(0, "CVD Threshold (abs value)", step=10, group="CVD Settings")
+
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = high - low
+bodyLength = spread - (upperWick + lowerWick)
+
+percentUpperWick = spread == 0.0 ? 0.0 : upperWick / spread
+percentLowerWick = spread == 0.0 ? 0.0 : lowerWick / spread
+percentBodyLength = spread == 0.0 ? 0.0 : bodyLength / spread
+
+buyingVolume = close > open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+sellingVolume = close < open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+
+cumulativeBuyingVolume = ta.ema(buyingVolume, cvdLength)
+cumulativeSellingVolume = ta.ema(sellingVolume, cvdLength)
+cvdDelta = cumulativeBuyingVolume - cumulativeSellingVolume
+
+cvdBullish = cvdDelta > cvdThreshold
+cvdBearish = cvdDelta < -cvdThreshold
+
+plot(cvdDelta, title="CVD Delta", display=display.data_window)
+
+// ============================
+// ==== Volatility Stop (SL) ===
+// ============================
+useVolStop = input.bool(true, "Use Volatility Stop", group="Volatility Stop")
+vsLength = input.int(20, "Length", minval=2, group="Volatility Stop")
+vsFactor = input.float(2.0, "Multiplier", minval=0.25, step=0.25, group="Volatility Stop")
+vsSource = input.source(close, "Source", group="Volatility Stop")
+vsShowLine = input.bool(false, "Show Stop Line", group="Volatility Stop")
+vsShowDots = input.bool(true, "Show Stop Dots", group="Volatility Stop")
+vsLineWidth = input.int(1, "Stop Line Width", minval=1, maxval=5, group="Volatility Stop")
+
+// ============================
+// ===== Display Settings =====
+// ============================
+useBarColor = input.bool(true, "Color Bars When Aligned", group="Display")
+barTransp = input.int(50, "Bar Color Transparency", minval=0, maxval=100, group="Display")
+bgTransp = input.int(86, "Background Transparency", minval=0, maxval=100, group="Display")
+
+bullColor = #009988
+bearColor = #8e8989
+
+// ======================
+// ==== Alignment I/O ===
+// ======================
+alignLong = jmaLong and kernelBullish
+alignShort = jmaShort and kernelBearish
+
+// Start-of-alignment only with cycle gating (non-repainting at bar close)
+var int cycleDir = 0 // 1 = long cycle active, -1 = short cycle active, 0 = none
+alignLongStart = barstate.isconfirmed and alignLong and not alignLong[1] and (cycleDir != 1)
+alignShortStart = barstate.isconfirmed and alignShort and not alignShort[1] and (cycleDir != -1)
+cycleDir := alignLongStart ? 1 : alignShortStart ? -1 : cycleDir
+cycleDir := cycleDir == 1 and alignShort ? 0 : cycleDir == -1 and alignLong ? 0 : cycleDir
+
+plotshape(alignLongStart, title="Align Long Start", style=shape.labelup, location=location.belowbar, color=bullColor, size=size.tiny, text="")
+plotshape(alignShortStart, title="Align Short Start", style=shape.labeldown, location=location.abovebar, color=bearColor, size=size.tiny, text="")
+
+barColorSeries = alignLong ? color.new(bullColor, barTransp) : alignShort ? color.new(bearColor, barTransp) : na
+barcolor(useBarColor ? barColorSeries : na)
+
+// Confirmed-bar trigger background: only paints on closed candles.
+bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers
+bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers
+bgColorSeries = bgLong ? color.new(bullColor, bgTransp) : bgShort ? color.new(bearColor, bgTransp) : na
+bgcolor(bgColorSeries, title="Trigger Background")
+
+// Alerts
+alertcondition(alignLongStart, title="Kernel+JMA Align Long (Start)", message="SZT Align Long ▲ | {{ticker}}@{{close}} | ({{interval}})")
+alertcondition(alignShortStart, title="Kernel+JMA Align Short (Start)", message="SZT Align Short ▼ | {{ticker}}@{{close}} | ({{interval}})")
+alertcondition(bgLong, title="SZT Align + CVD + Triggers Long", message="SZT Trend align + CVD LONG ✅ | {{ticker}}@{{close}} | ({{interval}})")
+alertcondition(bgShort, title="SZT Align + CVD + Triggers Short", message="SZT Trend align + CVD SHORT ✅ | {{ticker}}@{{close}} | ({{interval}})")
+
+volStop(src, atrlen, atrmult) =>
+    if not na(src)
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool uptrend = true
+        var float stop = na
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = bar_index > 0 ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+[vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
+vsColor = vsUp ? color.new(#09d647, 0) : color.new(#8f8b8a, 0)
+plot(useVolStop and vsShowLine ? vsStop : na, title="Volatility Stop", color=vsColor, linewidth=vsLineWidth)
+plot(useVolStop and vsShowDots ? vsStop : na, title="Volatility Stop Dots", style=plot.style_cross, color=vsColor, linewidth=1)
+
+plot(useVolStop ? vsStop : na, title="SL Level (VolStop)", display=display.data_window)
