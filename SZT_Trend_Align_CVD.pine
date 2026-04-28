@@ -9,6 +9,8 @@ import jdehorty/KernelFunctions/2 as kernels
 trigger1Tf = input.timeframe("120", "Trigger 1) Higher Timeframe Candle Reference (2h)", group="Trigger Settings")
 trigger2Tf = input.timeframe("60", "Trigger 2) Medium Timeframe Candle Reference (1h)", group="Trigger Settings")
 trigger3Tf = input.timeframe("15", "Trigger 3) Lower Timeframe Candle Reference (15m)", group="Trigger Settings")
+trigger4AtrAvgLen = input.int(15, "Trigger 4) ATR Average Length", minval=1, group="Trigger Settings")
+trigger4AtrMax = input.float(8.0, "Trigger 4) ATR Average Max", minval=0.0, step=0.25, group="Trigger Settings")
 triggerTimezoneMode = input.string("UTC-4 (fixed)", "Trigger Timezone", options=["UTC-4 (fixed)", "America/New_York (DST)", "Exchange"], tooltip="Controls where 2h/1h/15m trigger candles start. Use UTC-4 fixed or New York DST-aware clock.", group="Trigger Settings")
 showTriggerDebug = input.bool(false, "Show Trigger Debug Table", group="Trigger Settings")
 triggerTimezone = triggerTimezoneMode == "Exchange" ? syminfo.timezone : triggerTimezoneMode == "America/New_York (DST)" ? "America/New_York" : "Etc/GMT+4"
@@ -30,9 +32,11 @@ priceAboveAllTriggers = close > trigger1Level and close > trigger2Level and clos
 priceBelowAllTriggers = close < trigger1Level and close < trigger2Level and close < trigger3Level
 trigger1LongBias = close > trigger1Level
 trigger1ShortBias = close < trigger1Level
+trigger4AtrAvg = ta.atr(trigger4AtrAvgLen)
+trigger4VolatilityOk = trigger4AtrAvg <= trigger4AtrMax
 
 if showTriggerDebug and barstate.islast
-    var table dbg = table.new(position.top_right, 2, 8, border_width=1)
+    var table dbg = table.new(position.top_right, 2, 10, border_width=1)
     table.cell(dbg, 0, 0, "TZ", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(dbg, 1, 0, triggerTimezone, text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(dbg, 0, 1, "2h start", text_color=color.white, bgcolor=color.new(color.black, 0))
@@ -49,6 +53,10 @@ if showTriggerDebug and barstate.islast
     table.cell(dbg, 1, 6, str.tostring(priceAboveAllTriggers), text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(dbg, 0, 7, "Below all", text_color=color.white, bgcolor=color.new(color.black, 0))
     table.cell(dbg, 1, 7, str.tostring(priceBelowAllTriggers), text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(dbg, 0, 8, "ATR Avg", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(dbg, 1, 8, str.tostring(trigger4AtrAvg, format.mintick), text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(dbg, 0, 9, "ATR <= Max", text_color=color.white, bgcolor=color.new(color.black, 0))
+    table.cell(dbg, 1, 9, str.tostring(trigger4VolatilityOk), text_color=color.white, bgcolor=color.new(color.black, 0))
 
 // ============================
 // ==== Kernel Settings =======
@@ -175,8 +183,8 @@ barcolor(useBarColor ? barColorSeries : na)
 
 // Confirmed-bar trigger background: only paints on closed candles.
 // Background follows active alignment and additionally requires Trigger-1 open bias.
-bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias
-bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias
+bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
+bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
 bgColorSeries = bgLong ? color.new(bullColor, bgTransp) : bgShort ? color.new(bearColor, bgTransp) : na
 bgcolor(bgColorSeries, title="Trigger Background")
 
