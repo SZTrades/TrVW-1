@@ -13,9 +13,12 @@ trigger3Tf = input.timeframe("15", "Trigger 3) Lower Timeframe Candle Reference 
 trigger1Price = request.security(syminfo.tickerid, trigger1Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
 trigger2Price = request.security(syminfo.tickerid, trigger2Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
 trigger3Price = request.security(syminfo.tickerid, trigger3Tf, close, barmerge.gaps_off, barmerge.lookahead_off)
+trigger1Open = request.security(syminfo.tickerid, trigger1Tf, open, barmerge.gaps_off, barmerge.lookahead_off)
 
 priceAboveAllTriggers = close > trigger1Price and close > trigger2Price and close > trigger3Price
 priceBelowAllTriggers = close < trigger1Price and close < trigger2Price and close < trigger3Price
+trigger1LongBias = close > trigger1Open
+trigger1ShortBias = close < trigger1Open
 
 // ============================
 // ==== Kernel Settings =======
@@ -140,8 +143,9 @@ barColorSeries = alignLong ? color.new(bullColor, barTransp) : alignShort ? colo
 barcolor(useBarColor ? barColorSeries : na)
 
 // Confirmed-bar trigger background: only paints on closed candles.
-bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers
-bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers
+// Background follows active alignment and additionally requires Trigger-1 open bias.
+bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias
+bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias
 bgColorSeries = bgLong ? color.new(bullColor, bgTransp) : bgShort ? color.new(bearColor, bgTransp) : na
 bgcolor(bgColorSeries, title="Trigger Background")
 
