@@ -53,17 +53,18 @@ if showTriggerDebug and barstate.islast
 // ============================
 // ==== Kernel Settings =======
 // ============================
-h = 4
-r = 4.0
-x = 10
-lag = 1
+kernel_h = input.int(4, "Kernel Lookback (h)", minval=2, group="Kernel Settings")
+kernel_r = input.float(4.0, "Kernel Relative Weight (r)", step=0.5, group="Kernel Settings")
+kernel_x = input.int(10, "Kernel Regression Level (x)", minval=2, group="Kernel Settings")
+kernel_lag = input.int(1, "Kernel Lag", minval=1, maxval=3, group="Kernel Settings")
 source = close
 kernelLineWidth = input.int(1, "Kernel Line Width", minval=1, maxval=5, group="Kernel Settings")
 kernelBullColor = input.color(#009988, "Kernel Bull Color", group="Kernel Settings")
 kernelBearColor = input.color(#747171, "Kernel Bear Color", group="Kernel Settings")
 
-yhat1 = kernels.rationalQuadratic(source, h, r, x)
-yhat2 = kernels.gaussian(source, h - lag, x)
+yhat1 = kernels.rationalQuadratic(source, kernel_h, kernel_r, kernel_x)
+kernelSmoothLookback = math.max(1, kernel_h - kernel_lag)
+yhat2 = kernels.gaussian(source, kernelSmoothLookback, kernel_x)
 
 // Smoothing is hardcoded ON: alignment uses yhat2 vs yhat1.
 kernelBullish = yhat2 >= yhat1
@@ -76,8 +77,8 @@ plot(yhat1, title="Kernel", color=kernelPlotColor, linewidth=kernelLineWidth)
 // ====== JMA Settings ========
 // ============================
 jmaLength = 20
-jmaPhase = 40
-jmaPower = 2
+jmaPhase = input.int(40, "JMA Phase", minval=-100, maxval=100, group="JMA Settings")
+jmaPower = input.int(2, "JMA Power", minval=1, maxval=5, group="JMA Settings")
 jmaLineWidth = input.int(1, "JMA Line Width", minval=1, maxval=5, group="JMA Settings")
 jmaBullColor = input.color(#009988, "JMA Bull Color", group="JMA Settings")
 jmaBearColor = input.color(#959595, "JMA Bear Color", group="JMA Settings")
@@ -108,8 +109,8 @@ jmaShort = isDown and close < jma
 // ============================
 // ====== CVD Settings ========
 // ============================
-cvdLength = 14
-cvdThreshold = 10.0
+cvdLength = input.int(14, "CVD Length", minval=1, group="CVD Settings")
+cvdThreshold = input.float(10.0, "CVD Threshold", step=5.0, group="CVD Settings")
 
 upperWick = close > open ? high - close : high - open
 lowerWick = close > open ? open - low : close - low
@@ -136,8 +137,8 @@ plot(cvdDelta, title="CVD Delta", display=display.data_window)
 // ==== Volatility Stop (SL) ===
 // ============================
 useVolStop = input.bool(true, "Use Volatility Stop", group="Volatility Stop")
-vsLength = 20
-vsFactor = 2.0
+vsLength = input.int(20, "ATR Length", minval=2, group="Volatility Stop")
+vsFactor = input.float(2.0, "ATR Multiplier", step=0.25, group="Volatility Stop")
 vsSource = close
 vsShowLine = input.bool(false, "Show Stop Line", group="Volatility Stop")
 vsShowDots = input.bool(true, "Show Stop Dots", group="Volatility Stop")
