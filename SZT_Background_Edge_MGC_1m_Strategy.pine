@@ -20,8 +20,7 @@ sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
 isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
 inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
 inWindow = isOneMinute and inWindowRaw
-_15mTime = time("15", "", sessionTz)
-isNew15mBar = not na(_15mTime) and na(_15mTime[1])
+isNew15mBar = timeframe.isminutes and timeframe.multiplier == 15 and barstate.isnew
 windowStart = inWindow and isNew15mBar
 var bool tradedThisWindow = false
 if windowStart
