@@ -20,8 +20,7 @@ sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
 isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
 inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
 inWindow = isOneMinute and inWindowRaw
-subWindowTime = time("15", "", sessionTz)
-isNew15mBar = na(subWindowTime[1]) or subWindowTime != subWindowTime[1]
+isNew15mBar = request.security(syminfo.tickerid, "15", barstate.isnew, lookahead=barmerge.lookahead_off)
 windowStart = inWindow and isNew15mBar
 var bool tradedThisSubWindow = false
 if barstate.isnew and windowStart
@@ -131,14 +130,14 @@ if firstCandleFlipped
 if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
     strategy.close_all(comment="Funky first flip exit", immediately=true)
 exitOnLossOfBG = exitOnLossMode == 1
-if windowStart and not tradedThisSubWindow and not withinCutoff and strategy.position_size == 0
+if windowStart and not tradedThisSubWindow and not withinCutoff
     if bgLong and not bgShort
         strategy.entry("Long", strategy.long, comment="AutoStart Long")
         tradedThisSubWindow := true
     else if bgShort and not bgLong
         strategy.entry("Short", strategy.short, comment="AutoStart Short")
         tradedThisSubWindow := true
-allowSignalEntry = allowNewEntry and not tradedThisSubWindow and strategy.position_size == 0
+allowSignalEntry = allowNewEntry and not tradedThisSubWindow
 if allowSignalEntry and longFlipSignal
     strategy.entry("Long", strategy.long, comment="Flip Long")
     tradedThisSubWindow := true
@@ -149,8 +148,7 @@ if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and no
     strategy.close("Long", comment="Long BG Lost")
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort
     strategy.close("Short", comment="Short BG Lost")
-barsSinceWindowStart = ta.barssince(windowStart)
-isLastWindowBar = inWindow and barsSinceWindowStart == 14
+isLastWindowBar = inWindow and hasValidSessionEnd and minutesToSessionEnd <= 1 and minutesToSessionEnd >= 0
 if isLastWindowBar and strategy.position_size != 0
     strategy.close_all(comment="Window Close (last bar)", immediately=true)
 if strategy.position_size > 0
