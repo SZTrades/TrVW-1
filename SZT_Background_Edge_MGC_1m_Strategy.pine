@@ -27,7 +27,7 @@ inWindow = isOneMinute and inWindowRaw
 firstBarOfWindow = inWindowRaw and na(time(timeframe.period, tradeSession, sessionTz)[1])
 windowStart = firstBarOfWindow
 var bool tradedThisWindow = false
-if barstate.isnew and not inWindow and inWindow[1]
+if not inWindow and inWindow[1]
     tradedThisWindow := false
 
 var int sessionEndHour = 0
@@ -124,9 +124,11 @@ alignShort = jmaShort and kernelBearish
 bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
 bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
 
+if not inWindow and strategy.position_size != 0
+    strategy.close_all(comment="Window Close", immediately=true)
+
 bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
 bgDirPrev = nz(bgDir[1], 0)
-
 flipToLong = inWindow and bgDir == 1 and bgDirPrev != 1
 flipToShort = inWindow and bgDir == -1 and bgDirPrev != -1
 longFlipSignal = flipToLong and not windowStart
@@ -146,12 +148,12 @@ if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
     strategy.close_all(comment="Funky first flip exit", immediately=true)
 
 exitOnLossOfBG = exitOnLossMode == 1
-if windowStart and not tradedThisWindow and not withinCutoff and strategy.position_size == 0
-    if bgLong or bgShort
-        if bgLong
-            strategy.entry("Long", strategy.long, comment="AutoStart Long")
-        if bgShort
-            strategy.entry("Short", strategy.short, comment="AutoStart Short")
+if windowStart and not tradedThisWindow and not withinCutoff
+    if bgLong
+        strategy.entry("Long", strategy.long, comment="AutoStart Long")
+        tradedThisWindow := true
+    if bgShort
+        strategy.entry("Short", strategy.short, comment="AutoStart Short")
         tradedThisWindow := true
 
 allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
@@ -167,9 +169,6 @@ if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and no
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort
     strategy.close("Short", comment="Short BG Lost")
 
-if not inWindow and strategy.position_size != 0
-    strategy.close_all(comment="Window Close", immediately=true)
-
 if strategy.position_size > 0
     strategy.exit("Long Exit", "Long", stop=strategy.position_avg_price - stopPts, limit=strategy.position_avg_price + tpPts)
 if strategy.position_size < 0
@@ -178,5 +177,7 @@ if strategy.position_size < 0
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
 plotchar(tradedThisWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
+plotchar(windowStart, "windowStart", "", location.top, color=color.new(color.blue, 0), size=size.tiny, display=display.data_window)
+plotchar(bgLong, "bgLong (1er vela)", "", location.top, color=color.new(color.green, 0), size=size.tiny, display=display.data_window)
 plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
 plot(minutesToSessionEnd, "minutesToSessionEnd", color=color.new(color.white, 0), display=display.data_window)
