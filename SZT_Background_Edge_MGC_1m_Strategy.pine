@@ -123,6 +123,8 @@ alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
 bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
+bgLong15m = request.security(syminfo.tickerid, "15", bgLong[1], lookahead=barmerge.lookahead_off)
+bgShort15m = request.security(syminfo.tickerid, "15", bgShort[1], lookahead=barmerge.lookahead_off)
 
 if not inWindow and strategy.position_size != 0
     strategy.close_all(comment="Window Close", immediately=true)
@@ -149,11 +151,11 @@ if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
 
 exitOnLossOfBG = exitOnLossMode == 1
 if windowStart and not tradedThisWindow and not withinCutoff
-    if bgLong
-        strategy.entry("Long", strategy.long, comment="AutoStart Long")
+    if bgLong15m
+        strategy.entry("Long", strategy.long, comment="AutoStart Long (from 15m)")
         tradedThisWindow := true
-    if bgShort
-        strategy.entry("Short", strategy.short, comment="AutoStart Short")
+    if bgShort15m
+        strategy.entry("Short", strategy.short, comment="AutoStart Short (from 15m)")
         tradedThisWindow := true
 
 allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
