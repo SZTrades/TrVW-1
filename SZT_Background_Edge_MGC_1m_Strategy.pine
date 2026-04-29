@@ -20,13 +20,13 @@ sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
 isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
 inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
 inWindow = isOneMinute and inWindowRaw
-isNew15mBar = request.security(syminfo.tickerid, "15", barstate.isnew, lookahead=barmerge.lookahead_off)
+isNew15mBar = timeframe.isminutes and timeframe.multiplier == 15 and barstate.isnew
 windowStart = inWindow and isNew15mBar
-var bool tradedThisSubWindow = false
-if barstate.isnew and windowStart
-    tradedThisSubWindow := false
+var bool tradedThisWindow = false
+if windowStart
+    tradedThisWindow := false
 if barstate.isnew and not inWindow and inWindow[1]
-    tradedThisSubWindow := false
+    tradedThisWindow := false
 var int sessionEndHour = 0
 var int sessionEndMinute = 0
 var float minutesToSessionEnd = na
@@ -53,7 +53,7 @@ if inWindow and hasValidSessionEnd
 else
     minutesToSessionEnd := na
 withinCutoff = inWindow and hasValidSessionEnd and minutesToSessionEnd < cutOffMinutes
-allowNewEntry = inWindow and not withinCutoff and not tradedThisSubWindow
+allowNewEntry = inWindow and not withinCutoff and not tradedThisWindow
 trigger1Tf = "120"
 trigger2Tf = "60"
 trigger3Tf = "15"
@@ -130,25 +130,26 @@ if firstCandleFlipped
 if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
     strategy.close_all(comment="Funky first flip exit", immediately=true)
 exitOnLossOfBG = exitOnLossMode == 1
-if windowStart and not tradedThisSubWindow and not withinCutoff
+if windowStart and not tradedThisWindow and not withinCutoff and strategy.position_size == 0
     if bgLong and not bgShort
         strategy.entry("Long", strategy.long, comment="AutoStart Long")
-        tradedThisSubWindow := true
+        tradedThisWindow := true
     else if bgShort and not bgLong
         strategy.entry("Short", strategy.short, comment="AutoStart Short")
-        tradedThisSubWindow := true
-allowSignalEntry = allowNewEntry and not tradedThisSubWindow
+        tradedThisWindow := true
+allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
 if allowSignalEntry and longFlipSignal
     strategy.entry("Long", strategy.long, comment="Flip Long")
-    tradedThisSubWindow := true
+    tradedThisWindow := true
 if allowSignalEntry and shortFlipSignal
     strategy.entry("Short", strategy.short, comment="Flip Short")
-    tradedThisSubWindow := true
+    tradedThisWindow := true
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and not bgLong
     strategy.close("Long", comment="Long BG Lost")
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort
     strategy.close("Short", comment="Short BG Lost")
-isLastWindowBar = inWindow and hasValidSessionEnd and minutesToSessionEnd <= 1 and minutesToSessionEnd >= 0
+barsSinceWindowStart = ta.barssince(windowStart)
+isLastWindowBar = inWindow and barsSinceWindowStart == 14
 if isLastWindowBar and strategy.position_size != 0
     strategy.close_all(comment="Window Close (last bar)", immediately=true)
 if strategy.position_size > 0
@@ -156,7 +157,7 @@ if strategy.position_size > 0
 if strategy.position_size < 0
     strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price + stopPts, limit=strategy.position_avg_price - tpPts)
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
-plotchar(tradedThisSubWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
+plotchar(tradedThisWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
 plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
 plot(minutesToSessionEnd, "minutesToSessionEnd", color=color.new(color.white, 0), display=display.data_window)
