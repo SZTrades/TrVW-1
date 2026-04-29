@@ -16,7 +16,12 @@ showTriggerDebug = input.bool(false, "Show Trigger Debug Table", group="Trigger 
 triggerTimezone = triggerTimezoneMode == "Exchange" ? syminfo.timezone : triggerTimezoneMode == "America/New_York (DST)" ? "America/New_York" : "Etc/GMT+4"
 
 // Build timezone-aligned trigger opens so the 2h/1h/15m references match the selected clock.
-t1 = time(trigger1Tf, "", triggerTimezone)
+// Forzar vela de 2h a comenzar a las 8:00 AM (hora NY / timezone seleccionada).
+var int sessionStartHour = 8
+trigger1DayStart = timestamp(triggerTimezone, year(time, triggerTimezone), month(time, triggerTimezone), dayofmonth(time, triggerTimezone), 0, 0)
+trigger1Anchor = trigger1DayStart + sessionStartHour * 60 * 60 * 1000
+trigger1BucketMs = 2 * 60 * 60 * 1000
+t1 = trigger1Anchor + int(math.floor((time - trigger1Anchor) / trigger1BucketMs)) * trigger1BucketMs
 t2 = time(trigger2Tf, "", triggerTimezone)
 t3 = time(trigger3Tf, "", triggerTimezone)
 
