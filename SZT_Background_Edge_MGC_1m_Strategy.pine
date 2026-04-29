@@ -1,8 +1,6 @@
 //@version=6
-strategy("SZT 15m Expanse", overlay=true, process_orders_on_close=false, calc_on_every_tick=true, pyramiding=0, initial_capital=100000, default_qty_type=strategy.fixed, default_qty_value=1)
-
+strategy("SZT 15m Expanse", overlay=true, process_orders_on_close=false, calc_on_every_tick=true, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1)
 import jdehorty/KernelFunctions/2 as kernels
-
 kernel_h = input.int(4, "Kernel Lookback (h)", minval=2, step=1)
 kernel_r = input.float(4.0, "Kernel Relative Weight (r)", step=0.5)
 kernel_x = input.int(10, "Kernel Regression Level (x)", minval=2, step=1)
@@ -11,25 +9,21 @@ jmaPhase = input.int(40, "JMA Phase", minval=-100, maxval=100, step=1)
 jmaPower = input.int(2, "JMA Power", minval=1, maxval=5)
 cvdLength = input.int(14, "CVD Length", minval=1, step=1)
 cvdThreshold = input.float(10.0, "CVD Threshold", step=5.0)
-
 tradeSession = input.session("0815-0830", "Trading Window")
 sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"])
 cutOffMinutes = input.int(4, "Cut-Off (Minutes before close)", minval=1, maxval=5)
 stopPts = input.float(5.0, "Stop Loss (Points)", minval=0.25, step=0.25)
 tpPts = input.float(10.0, "Take Profit (Points)", minval=0.25, step=0.25)
 exitOnLossMode = input.int(1, "Exit on BG Loss (1=Yes, 0=No)", minval=0, maxval=1, step=1)
-confirmationBars = input.int(3, "BG Confirmation Bars", minval=1, maxval=10, step=1)
-
+firstFlipMode = input.int(0, "Exit on First Candle Flip (1=Yes, 0=No)", minval=0, maxval=1, step=1)
 sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
 isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
 inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
 inWindow = isOneMinute and inWindowRaw
-firstBarOfWindow = inWindowRaw and na(time(timeframe.period, tradeSession, sessionTz)[1])
-windowStart = firstBarOfWindow
+windowStart = inWindow and not inWindow[1]
 var bool tradedThisWindow = false
-if not inWindow and inWindow[1]
+if barstate.isnew and not inWindow and inWindow[1]
     tradedThisWindow := false
-
 var int sessionEndHour = 0
 var int sessionEndMinute = 0
 var float minutesToSessionEnd = na
@@ -56,7 +50,7 @@ if inWindow and hasValidSessionEnd
 else
     minutesToSessionEnd := na
 withinCutoff = inWindow and hasValidSessionEnd and minutesToSessionEnd < cutOffMinutes
-
+allowNewEntry = inWindow and not withinCutoff and not tradedThisWindow
 trigger1Tf = "120"
 trigger2Tf = "60"
 trigger3Tf = "15"
@@ -64,7 +58,6 @@ triggerTimezone = "Etc/GMT+4"
 trigger4AtrAvgLen = 15
 trigger4AtrMax = 8.0
 jmaLength = 20
-
 t1 = time(trigger1Tf, "", triggerTimezone)
 t2 = time(trigger2Tf, "", triggerTimezone)
 t3 = time(trigger3Tf, "", triggerTimezone)
@@ -74,21 +67,18 @@ var float trigger3Level = na
 trigger1Level := na(t1[1]) or t1 != t1[1] ? open : nz(trigger1Level[1], open)
 trigger2Level := na(t2[1]) or t2 != t2[1] ? open : nz(trigger2Level[1], open)
 trigger3Level := na(t3[1]) or t3 != t3[1] ? open : nz(trigger3Level[1], open)
-
 priceAboveAllTriggers = close > trigger1Level and close > trigger2Level and close > trigger3Level
 priceBelowAllTriggers = close < trigger1Level and close < trigger2Level and close < trigger3Level
 trigger1LongBias = close > trigger1Level
 trigger1ShortBias = close < trigger1Level
 trigger4AtrAvg = ta.atr(trigger4AtrAvgLen)
 trigger4VolatilityOk = trigger4AtrAvg <= trigger4AtrMax
-
 source = close
 yhat1 = kernels.rationalQuadratic(source, kernel_h, kernel_r, kernel_x)
 kernelSmoothLookback = math.max(1, kernel_h - kernel_lag)
 yhat2 = kernels.gaussian(source, kernelSmoothLookback, kernel_x)
 kernelBullish = yhat2 >= yhat1
 kernelBearish = yhat2 <= yhat1
-
 phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
 beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
 alpha = math.pow(beta, jmaPower)
@@ -102,7 +92,6 @@ e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(al
 jma := e2 + nz(jma[1])
 jmaLong = jma > jma[1] and close > jma
 jmaShort = jma < jma[1] and close < jma
-
 upperWick = close > open ? high - close : high - open
 lowerWick = close > open ? open - low : close - low
 spread = math.max(high - low, syminfo.mintick)
@@ -117,51 +106,55 @@ cumulativeSellingVolume = ta.ema(sellingVolume, cvdLength)
 cvdDelta = cumulativeBuyingVolume - cumulativeSellingVolume
 cvdBullish = cvdDelta > cvdThreshold
 cvdBearish = cvdDelta < -cvdThreshold
-
 alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
 bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
-
-if not inWindow and strategy.position_size != 0
-    strategy.close_all(comment="Window Close", immediately=true)
-
 bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
-var int bgDirConfirmed = 0
-var int bgDirCounter = 0
-if barstate.isconfirmed
-    if bgDir == bgDirConfirmed
-        bgDirCounter := 0
-    else
-        bgDirCounter := bgDir == nz(bgDir[1], 0) ? bgDirCounter + 1 : 1
-        if bgDirCounter >= confirmationBars
-            bgDirConfirmed := bgDir
-            bgDirCounter := 0
-
+bgDirPrev = nz(bgDir[1], 0)
+flipToLong = inWindow and bgDir == 1 and bgDirPrev != 1
+flipToShort = inWindow and bgDir == -1 and bgDirPrev != -1
+longFlipSignal = flipToLong and not windowStart
+shortFlipSignal = flipToShort and not windowStart
+var int firstCandleDir = 0
+var bool firstFlipSeen = false
+if windowStart
+    firstCandleDir := bgDir
+    firstFlipSeen := false
+firstCandleFlipped = barstate.isconfirmed and inWindow and not windowStart and not firstFlipSeen and firstCandleDir != 0 and bgDir != firstCandleDir
+if firstCandleFlipped
+    firstFlipSeen := true
+if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
+    strategy.close_all(comment="Funky first flip exit", immediately=true)
 exitOnLossOfBG = exitOnLossMode == 1
-if windowStart and not tradedThisWindow and not withinCutoff
-    if bgDir == 1
+if windowStart and not tradedThisWindow and not withinCutoff and strategy.position_size == 0
+    if bgLong and not bgShort
         strategy.entry("Long", strategy.long, comment="AutoStart Long")
         tradedThisWindow := true
-    if bgDir == -1
+    else if bgShort and not bgLong
         strategy.entry("Short", strategy.short, comment="AutoStart Short")
         tradedThisWindow := true
-
-if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and bgDirConfirmed != 1
+allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
+if allowSignalEntry and longFlipSignal
+    strategy.entry("Long", strategy.long, comment="Flip Long")
+    tradedThisWindow := true
+if allowSignalEntry and shortFlipSignal
+    strategy.entry("Short", strategy.short, comment="Flip Short")
+    tradedThisWindow := true
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and not bgLong
     strategy.close("Long", comment="Long BG Lost")
-if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and bgDirConfirmed != -1
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort
     strategy.close("Short", comment="Short BG Lost")
-
+barsSinceWindowStart = ta.barssince(windowStart)
+isLastWindowBar = inWindow and barsSinceWindowStart == 14
+if isLastWindowBar and strategy.position_size != 0
+    strategy.close_all(comment="Window Close (last bar)", immediately=true)
 if strategy.position_size > 0
     strategy.exit("Long Exit", "Long", stop=strategy.position_avg_price - stopPts, limit=strategy.position_avg_price + tpPts)
 if strategy.position_size < 0
     strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price + stopPts, limit=strategy.position_avg_price - tpPts)
-
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
 plotchar(tradedThisWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
-plotchar(windowStart, "windowStart", "", location.top, color=color.new(color.blue, 0), size=size.tiny, display=display.data_window)
-plotchar(bgLong, "bgLong (1er vela)", "", location.top, color=color.new(color.green, 0), size=size.tiny, display=display.data_window)
-plotchar(bgDirConfirmed, "bgDirConfirmed", "", location.top, color=color.new(color.purple, 0), size=size.tiny, display=display.data_window)
 plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
 plot(minutesToSessionEnd, "minutesToSessionEnd", color=color.new(color.white, 0), display=display.data_window)
