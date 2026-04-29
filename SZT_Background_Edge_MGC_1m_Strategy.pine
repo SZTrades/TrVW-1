@@ -27,6 +27,7 @@ cutOffMinutes = input.int(2, "Cut-Off (Minutes before close)", minval=1, maxval=
 // ==== CONFIG ESTRATEGIA =============
 // ====================================
 exitOnFirstFlip = input.bool(false, "Exit on First Candle Flip (Funky Mode)", group="Strategy")
+exitOnBgLoss = input.bool(true, "Close on Loss of BG", group="Strategy")
 
 // ====================================
 // ==== RISK MANAGEMENT (Puntos) ======
@@ -95,22 +96,24 @@ if exitOnFirstFlip and firstCandleFlipped and strategy.position_size != 0
 // ====================================
 // ==== ENTRADAS ======================
 // ====================================
-if allowNewEntry and longEntrySignal
+allowSignalEntry = allowNewEntry and (exitOnBgLoss or strategy.position_size == 0)
+
+if allowSignalEntry and longEntrySignal
     strategy.entry("Long", strategy.long, comment=autoStartLong ? "AutoStart Long" : "Flip Long")
 
-if allowNewEntry and shortEntrySignal
+if allowSignalEntry and shortEntrySignal
     strategy.entry("Short", strategy.short, comment=autoStartShort ? "AutoStart Short" : "Flip Short")
 
 // ====================================
 // ==== SALIDAS ESTÁNDAR ==============
 // ====================================
-tryingReverseToShort = allowNewEntry and shortEntrySignal
-tryingReverseToLong = allowNewEntry and longEntrySignal
+tryingReverseToShort = exitOnBgLoss and allowSignalEntry and shortEntrySignal
+tryingReverseToLong = exitOnBgLoss and allowSignalEntry and longEntrySignal
 
-if barConfirmed and strategy.position_size > 0 and not bgLong and not tryingReverseToShort
+if exitOnBgLoss and barConfirmed and strategy.position_size > 0 and not bgLong and not tryingReverseToShort
     strategy.close("Long", comment="Long BG Lost")
 
-if barConfirmed and strategy.position_size < 0 and not bgShort and not tryingReverseToLong
+if exitOnBgLoss and barConfirmed and strategy.position_size < 0 and not bgShort and not tryingReverseToLong
     strategy.close("Short", comment="Short BG Lost")
 
 if not inWindow and strategy.position_size != 0
