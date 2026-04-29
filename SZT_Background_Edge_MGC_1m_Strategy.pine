@@ -145,15 +145,15 @@ if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
     strategy.close_all(comment="Funky first flip exit", immediately=true)
 
 exitOnLossOfBG = exitOnLossMode == 1
-if allowNewEntry and barstate.isnew and strategy.position_size == 0
+if windowStart and not tradedThisWindow and not withinCutoff and strategy.position_size == 0
     if bgLong and not bgShort
-        strategy.entry("Long", strategy.long, comment="BG Active Entry")
+        strategy.entry("Long", strategy.long, comment="AutoStart Long")
         tradedThisWindow := true
     else if bgShort and not bgLong
-        strategy.entry("Short", strategy.short, comment="BG Active Entry")
+        strategy.entry("Short", strategy.short, comment="AutoStart Short")
         tradedThisWindow := true
 
-allowSignalEntry = allowNewEntry and strategy.position_size == 0
+allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
 if allowSignalEntry and longFlipSignal
     strategy.entry("Long", strategy.long, comment="Flip Long")
     tradedThisWindow := true
