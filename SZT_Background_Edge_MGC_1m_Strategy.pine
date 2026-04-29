@@ -165,3 +165,4 @@ if strategy.position_size < 0
 
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
 plotchar(withinCutoff ? 1 : 0, "CutOff Active", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
+plotchar(tradedThisWindow ? 1 : 0, "Traded This Window", "", location.top, color=color.new(color.yellow, 0), size=size.tiny, display=display.data_window)
