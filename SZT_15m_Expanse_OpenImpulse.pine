@@ -12,6 +12,7 @@ cvdThreshold = input.float(10.0, "CVD Threshold", step=5.0)
 tradeSession = input.session("0800-0900", "Global Trading Window")
 sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"])
 cutOffMinutes = input.int(4, "Cut-Off (Minutes before close)", minval=1, maxval=5)
+minScore = input.int(3, "Min Score", minval=1, maxval=5)
 stopPts = input.float(5.0, "Stop Loss (Points)", minval=0.25, step=0.25)
 tpPts = input.float(10.0, "Take Profit (Points)", minval=0.25, step=0.25)
 exitOnLossMode = input.int(1, "Exit on BG Loss (1=Yes, 0=No)", minval=0, maxval=1, step=1)
@@ -53,7 +54,6 @@ if inWindow and hasValidSessionEnd
 else
     minutesToSessionEnd := na
 withinCutoff = inWindow and hasValidSessionEnd and minutesToSessionEnd < cutOffMinutes
-allowNewEntry = inWindow and not withinCutoff and not tradedThisSubWindow
 trigger1Tf = "120"
 trigger2Tf = "60"
 trigger3Tf = "15"
@@ -111,10 +111,22 @@ cvdBullish = cvdDelta > cvdThreshold
 cvdBearish = cvdDelta < -cvdThreshold
 alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
-bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
-bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
+longScore = 0
+longScore += alignLong ? 1 : 0
+longScore += cvdBullish ? 1 : 0
+longScore += priceAboveAllTriggers ? 1 : 0
+longScore += trigger1LongBias ? 1 : 0
+longScore += trigger4VolatilityOk ? 1 : 0
+shortScore = 0
+shortScore += alignShort ? 1 : 0
+shortScore += cvdBearish ? 1 : 0
+shortScore += priceBelowAllTriggers ? 1 : 0
+shortScore += trigger1ShortBias ? 1 : 0
+shortScore += trigger4VolatilityOk ? 1 : 0
+bgLong = longScore >= minScore and longScore > shortScore
+bgShort = shortScore >= minScore and shortScore > longScore
 bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
-if allowNewEntry and strategy.position_size == 0
+if inWindow and not withinCutoff and not tradedThisSubWindow and strategy.position_size == 0
     if bgLong and not bgShort
         strategy.entry("Long", strategy.long)
         tradedThisSubWindow := true
