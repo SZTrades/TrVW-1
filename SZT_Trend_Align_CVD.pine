@@ -183,8 +183,17 @@ barcolor(useBarColor ? barColorSeries : na)
 
 // Confirmed-bar trigger background: only paints on closed candles.
 // Background follows active alignment and additionally requires Trigger-1 open bias.
-bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
-bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
+bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk and cycleDir != -1
+bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk and cycleDir != 1
+// Reset ciclo por cambio en timeframes superiores
+if na(trigger1Level[1]) or trigger1Level != trigger1Level[1] or na(trigger2Level[1]) or trigger2Level != trigger2Level[1]
+    cycleDir := 0
+
+// Reset ciclo si la tendencia superior contradice el ciclo actual
+if (cycleDir == -1 and trigger1LongBias)
+    cycleDir := 0
+if (cycleDir == 1 and trigger1ShortBias)
+    cycleDir := 0
 bgColorSeries = bgLong ? color.new(bullColor, bgTransp) : bgShort ? color.new(bearColor, bgTransp) : na
 bgcolor(bgColorSeries, title="Trigger Background")
 
