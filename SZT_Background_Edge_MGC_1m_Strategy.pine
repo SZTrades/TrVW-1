@@ -1,0 +1,157 @@
+//@version=6
+strategy(
+    "SZT Background Edge Strategy (MGC 1m)",
+    shorttitle="SZT BG Edge",
+    overlay=true,
+    pyramiding=0,
+    default_qty_type=strategy.fixed,
+    default_qty_value=1,
+    calc_on_every_tick=false,
+    process_orders_on_close=false
+)
+
+import jdehorty/KernelFunctions/2 as kernels
+
+// ==============================
+// ===== Backtest controls ======
+// ==============================
+enforceOneMinute = input.bool(true, "Only Trade on 1m", group="Backtest")
+allowLongs = input.bool(true, "Enable Long Trades", group="Backtest")
+allowShorts = input.bool(true, "Enable Short Trades", group="Backtest")
+
+tradeSession = input.session("0815-0830", "Trading Window (HHMM-HHMM)", group="Session")
+sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"], group="Session")
+sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
+forceCloseOutsideWindow = input.bool(true, "Force Close Outside Window", group="Session")
+
+stopPts = input.float(5.0, "Stop Loss (Points)", minval=0.25, step=0.25, group="Risk")
+takeProfitPts = input.float(10.0, "Take Profit (Points)", minval=0.25, step=0.25, group="Risk")
+
+// ==============================
+// ===== Signal components ======
+// ==============================
+trigger1Tf = input.timeframe("120", "Trigger 1 TF (2h)", group="Signal - Triggers")
+trigger2Tf = input.timeframe("60", "Trigger 2 TF (1h)", group="Signal - Triggers")
+trigger3Tf = input.timeframe("15", "Trigger 3 TF (15m)", group="Signal - Triggers")
+trigger4AtrAvgLen = input.int(15, "Trigger 4 ATR Avg Length", minval=1, group="Signal - Triggers")
+trigger4AtrMax = input.float(8.0, "Trigger 4 ATR Avg Max", minval=0.0, step=0.25, group="Signal - Triggers")
+triggerTimezoneMode = input.string("UTC-4 (fixed)", "Trigger Timezone", options=["UTC-4 (fixed)", "America/New_York (DST)", "Exchange"], group="Signal - Triggers")
+triggerTimezone = triggerTimezoneMode == "Exchange" ? syminfo.timezone : triggerTimezoneMode == "America/New_York (DST)" ? "America/New_York" : "Etc/GMT+4"
+
+kernel_h = input.int(4, "Kernel Lookback (h)", minval=2, group="Signal - Kernel")
+kernel_r = input.float(4.0, "Kernel Relative Weight (r)", step=0.5, group="Signal - Kernel")
+kernel_x = input.int(10, "Kernel Regression Level (x)", minval=2, group="Signal - Kernel")
+kernel_lag = input.int(1, "Kernel Lag", minval=1, maxval=3, group="Signal - Kernel")
+
+jmaLength = input.int(20, "JMA Length", minval=1, group="Signal - JMA")
+jmaPhase = input.int(40, "JMA Phase", minval=-100, maxval=100, group="Signal - JMA")
+jmaPower = input.int(2, "JMA Power", minval=1, maxval=5, group="Signal - JMA")
+
+cvdLength = input.int(14, "CVD Length", minval=1, group="Signal - CVD")
+cvdThreshold = input.float(10.0, "CVD Threshold", step=5.0, group="Signal - CVD")
+
+// ==============================
+// ===== Signal calculations =====
+// ==============================
+source = close
+
+t1 = time(trigger1Tf, "", triggerTimezone)
+t2 = time(trigger2Tf, "", triggerTimezone)
+t3 = time(trigger3Tf, "", triggerTimezone)
+var float trigger1Level = na
+var float trigger2Level = na
+var float trigger3Level = na
+trigger1Level := na(t1[1]) or t1 != t1[1] ? open : nz(trigger1Level[1], open)
+trigger2Level := na(t2[1]) or t2 != t2[1] ? open : nz(trigger2Level[1], open)
+trigger3Level := na(t3[1]) or t3 != t3[1] ? open : nz(trigger3Level[1], open)
+
+priceAboveAllTriggers = close > trigger1Level and close > trigger2Level and close > trigger3Level
+priceBelowAllTriggers = close < trigger1Level and close < trigger2Level and close < trigger3Level
+trigger1LongBias = close > trigger1Level
+trigger1ShortBias = close < trigger1Level
+trigger4AtrAvg = ta.atr(trigger4AtrAvgLen)
+trigger4VolatilityOk = trigger4AtrAvg <= trigger4AtrMax
+
+yhat1 = kernels.rationalQuadratic(source, kernel_h, kernel_r, kernel_x)
+kernelSmoothLookback = math.max(1, kernel_h - kernel_lag)
+yhat2 = kernels.gaussian(source, kernelSmoothLookback, kernel_x)
+kernelBullish = yhat2 >= yhat1
+kernelBearish = yhat2 <= yhat1
+
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+
+jmaLong = jma > jma[1] and close > jma
+jmaShort = jma < jma[1] and close < jma
+
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = high - low
+bodyLength = spread - (upperWick + lowerWick)
+percentUpperWick = spread == 0.0 ? 0.0 : upperWick / spread
+percentLowerWick = spread == 0.0 ? 0.0 : lowerWick / spread
+percentBodyLength = spread == 0.0 ? 0.0 : bodyLength / spread
+buyingVolume = close > open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+sellingVolume = close < open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+cumulativeBuyingVolume = ta.ema(buyingVolume, cvdLength)
+cumulativeSellingVolume = ta.ema(sellingVolume, cvdLength)
+cvdDelta = cumulativeBuyingVolume - cumulativeSellingVolume
+cvdBullish = cvdDelta > cvdThreshold
+cvdBearish = cvdDelta < -cvdThreshold
+
+alignLong = jmaLong and kernelBullish
+alignShort = jmaShort and kernelBearish
+
+bgLong = barstate.isconfirmed and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
+bgShort = barstate.isconfirmed and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
+
+longSignalClose = bgLong and not bgLong[1]
+shortSignalClose = bgShort and not bgShort[1]
+
+// ==============================
+// ===== Execution logic =========
+// ==============================
+isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
+canTradeTf = not enforceOneMinute or isOneMinute
+inWindow = not na(time(timeframe.period, tradeSession, sessionTz))
+windowStart = inWindow and not inWindow[1]
+
+var bool tradedThisWindow = false
+if windowStart
+    tradedThisWindow := false
+
+flat = strategy.position_size == 0
+canSubmit = canTradeTf and inWindow and not tradedThisWindow and flat
+
+if canSubmit and allowLongs and longSignalClose and not shortSignalClose
+    strategy.entry("Long", strategy.long)
+    tradedThisWindow := true
+
+if canSubmit and allowShorts and shortSignalClose and not longSignalClose
+    strategy.entry("Short", strategy.short)
+    tradedThisWindow := true
+
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Long", stop=strategy.position_avg_price - stopPts, limit=strategy.position_avg_price + takeProfitPts)
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price + stopPts, limit=strategy.position_avg_price - takeProfitPts)
+
+if forceCloseOutsideWindow and not inWindow and strategy.position_size != 0
+    strategy.close_all(comment="Window Close")
+
+// ==============================
+// ========= Visuals ============
+// ==============================
+bgcolor(bgLong ? color.new(color.teal, 86) : bgShort ? color.new(color.red, 86) : na, title="Signal Background")
+plotshape(longSignalClose, title="Long signal (close)", style=shape.circle, location=location.belowbar, size=size.tiny, color=color.new(color.teal, 0))
+plotshape(shortSignalClose, title="Short signal (close)", style=shape.circle, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0))
+plot(jma, title="JMA", color=color.new(color.yellow, 0), linewidth=1)
