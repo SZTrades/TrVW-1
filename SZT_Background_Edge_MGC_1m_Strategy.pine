@@ -1,51 +1,31 @@
 //@version=6
-strategy(
-    "SZT Master Strategy",
-    overlay=true,
-    pyramiding=0,
-    default_qty_type=strategy.fixed,
-    default_qty_value=1,
-    process_orders_on_close=false,
-    calc_on_every_tick=true
-)
+strategy("SZT Unificada OptiBro", overlay=true, process_orders_on_close=false, calc_on_every_tick=true, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1)
 
-// ====================================
-// ==== SEÑAL EXTERNA (Background) ====
-// ====================================
-bgLongSource = input.source(close * 0.0, "BG Long Source", group="Signal")
-bgShortSource = input.source(close * 0.0, "BG Short Source", group="Signal")
-bgLong = nz(bgLongSource, 0.0) > 0.0
-bgShort = nz(bgShortSource, 0.0) > 0.0
+import jdehorty/KernelFunctions/2 as kernels
 
-// ====================================
-// ==== VENTANA + CUT OFF =============
-// ====================================
-tradeSession = input.session("0815-0830", "Trading Window", group="Session")
-sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"], group="Session")
+kernel_h = input.int(4, "Kernel Lookback (h)", minval=2, step=1)
+kernel_r = input.float(4.0, "Kernel Relative Weight (r)", step=0.5)
+kernel_x = input.int(10, "Kernel Regression Level (x)", minval=2, step=1)
+kernel_lag = input.int(1, "Kernel Lag", minval=1, maxval=3)
+jmaPhase = input.int(40, "JMA Phase", minval=-100, maxval=100, step=1)
+jmaPower = input.int(2, "JMA Power", minval=1, maxval=5)
+cvdLength = input.int(14, "CVD Length", minval=1, step=1)
+cvdThreshold = input.float(10.0, "CVD Threshold", step=5.0)
+
+tradeSession = input.session("0815-0830", "Trading Window")
+sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"])
+cutOffMinutes = input.int(2, "Cut-Off (Minutes before close)", minval=1, maxval=5)
+stopPts = input.float(5.0, "Stop Loss (Points)", minval=0.25, step=0.25)
+tpPts = input.float(10.0, "Take Profit (Points)", minval=0.25, step=0.25)
+exitOnLossMode = input.int(1, "Exit on BG Loss (1=Yes, 0=No)", minval=0, maxval=1, step=1)
+firstFlipMode = input.int(0, "Exit on First Candle Flip (1=Yes, 0=No)", minval=0, maxval=1, step=1)
+
 sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
-cutOffMinutes = input.int(2, "Cut-Off (Minutes before close)", minval=1, maxval=5, group="Session")
-
-// ====================================
-// ==== CONFIG ESTRATEGIA =============
-// ====================================
-exitOnFirstFlip = input.bool(false, "Exit on First Candle Flip (Funky Mode)", group="Strategy")
-exitOnLossOfBG = input.bool(true, "Exit when background is lost (Gray)", group="Strategy")
-
-// ====================================
-// ==== RISK MANAGEMENT (Puntos) ======
-// ====================================
-stopPts = input.float(5.0, "Stop Loss (Points)", minval=0.25, step=0.25, group="Risk")
-tpPts = input.float(10.0, "Take Profit (Points)", minval=0.25, step=0.25, group="Risk")
-
-// ====================================
-// ==== SESIÓN / TIEMPO ===============
-// ====================================
 isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
 inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
 inWindow = isOneMinute and inWindowRaw
 windowStart = inWindow and not inWindow[1]
 
-// Parse defensivo del fin de sesión para cálculo de cut-off.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
 sessionRanges = str.split(sessionCore, ",")
 lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ""
@@ -63,9 +43,72 @@ minutesToSessionEnd = sessionEndMinuteOfDay - barCloseMinuteOfDay
 withinCutoff = hasValidEnd and inWindow and minutesToSessionEnd < cutOffMinutes
 allowNewEntry = inWindow and not withinCutoff
 
-// ====================================
-// ==== DIRECCIÓN DEL BG ==============
-// ====================================
+trigger1Tf = "120"
+trigger2Tf = "60"
+trigger3Tf = "15"
+triggerTimezone = "Etc/GMT+4"
+trigger4AtrAvgLen = 15
+trigger4AtrMax = 8.0
+jmaLength = 20
+
+t1 = time(trigger1Tf, "", triggerTimezone)
+t2 = time(trigger2Tf, "", triggerTimezone)
+t3 = time(trigger3Tf, "", triggerTimezone)
+var float trigger1Level = na
+var float trigger2Level = na
+var float trigger3Level = na
+trigger1Level := na(t1[1]) or t1 != t1[1] ? open : nz(trigger1Level[1], open)
+trigger2Level := na(t2[1]) or t2 != t2[1] ? open : nz(trigger2Level[1], open)
+trigger3Level := na(t3[1]) or t3 != t3[1] ? open : nz(trigger3Level[1], open)
+
+priceAboveAllTriggers = close > trigger1Level and close > trigger2Level and close > trigger3Level
+priceBelowAllTriggers = close < trigger1Level and close < trigger2Level and close < trigger3Level
+trigger1LongBias = close > trigger1Level
+trigger1ShortBias = close < trigger1Level
+trigger4AtrAvg = ta.atr(trigger4AtrAvgLen)
+trigger4VolatilityOk = trigger4AtrAvg <= trigger4AtrMax
+
+source = close
+yhat1 = kernels.rationalQuadratic(source, kernel_h, kernel_r, kernel_x)
+kernelSmoothLookback = math.max(1, kernel_h - kernel_lag)
+yhat2 = kernels.gaussian(source, kernelSmoothLookback, kernel_x)
+kernelBullish = yhat2 >= yhat1
+kernelBearish = yhat2 <= yhat1
+
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+jmaLong = jma > jma[1] and close > jma
+jmaShort = jma < jma[1] and close < jma
+
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpperWick = upperWick / spread
+percentLowerWick = lowerWick / spread
+percentBodyLength = bodyLength / spread
+buyingVolume = close > open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+sellingVolume = close < open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+cumulativeBuyingVolume = ta.ema(buyingVolume, cvdLength)
+cumulativeSellingVolume = ta.ema(sellingVolume, cvdLength)
+cvdDelta = cumulativeBuyingVolume - cumulativeSellingVolume
+cvdBullish = cvdDelta > cvdThreshold
+cvdBearish = cvdDelta < -cvdThreshold
+
+alignLong = jmaLong and kernelBullish
+alignShort = jmaShort and kernelBearish
+bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
+bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
+
 bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
 bgDirPrev = nz(bgDir[1], 0)
 
@@ -73,16 +116,11 @@ flipToLong = inWindow and bgDir == 1 and bgDirPrev != 1
 flipToShort = inWindow and bgDir == -1 and bgDirPrev != -1
 autoStartLong = windowStart and bgDir == 1
 autoStartShort = windowStart and bgDir == -1
-
 longEntrySignal = autoStartLong or (flipToLong and not windowStart)
 shortEntrySignal = autoStartShort or (flipToShort and not windowStart)
 
-// ====================================
-// ==== FIRST-CANDLE FLIP (FUNKY) =====
-// ====================================
 var int firstCandleDir = 0
 var bool firstFlipSeen = false
-
 if windowStart
     firstCandleDir := bgDir
     firstFlipSeen := false
@@ -91,45 +129,30 @@ firstCandleFlipped = barstate.isconfirmed and inWindow and not windowStart and n
 if firstCandleFlipped
     firstFlipSeen := true
 
-if exitOnFirstFlip and firstCandleFlipped and strategy.position_size != 0
+if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
     strategy.close_all(comment="Funky first flip exit", immediately=true)
 
-// ====================================
-// ==== ENTRADAS ======================
-// ====================================
+exitOnLossOfBG = exitOnLossMode == 1
 allowSignalEntry = allowNewEntry and (exitOnLossOfBG or strategy.position_size == 0)
-
 if allowSignalEntry and longEntrySignal
     strategy.entry("Long", strategy.long, comment=autoStartLong ? "AutoStart Long" : "Flip Long")
-
 if allowSignalEntry and shortEntrySignal
     strategy.entry("Short", strategy.short, comment=autoStartShort ? "AutoStart Short" : "Flip Short")
 
-// ====================================
-// ==== SALIDAS ESTÁNDAR ==============
-// ====================================
 tryingReverseToShort = exitOnLossOfBG and allowSignalEntry and shortEntrySignal
 tryingReverseToLong = exitOnLossOfBG and allowSignalEntry and longEntrySignal
-
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and not bgLong and not tryingReverseToShort
     strategy.close("Long", comment="Long BG Lost")
-
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort and not tryingReverseToLong
     strategy.close("Short", comment="Short BG Lost")
 
 if not inWindow and strategy.position_size != 0
     strategy.close_all(comment="Window Close", immediately=true)
 
-// ====================================
-// ==== SL / TP FIJOS EN PUNTOS =======
-// ====================================
 if strategy.position_size > 0
     strategy.exit("Long Exit", "Long", stop=strategy.position_avg_price - stopPts, limit=strategy.position_avg_price + tpPts)
 if strategy.position_size < 0
     strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price + stopPts, limit=strategy.position_avg_price - tpPts)
 
-// ====================================
-// ==== VISUAL ========================
-// ====================================
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
 plotchar(withinCutoff ? 1 : 0, "CutOff Active", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
