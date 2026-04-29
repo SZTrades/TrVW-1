@@ -57,7 +57,6 @@ if inWindow and hasValidSessionEnd
 else
     minutesToSessionEnd := na
 withinCutoff = inWindow and hasValidSessionEnd and minutesToSessionEnd < cutOffMinutes
-allowNewEntry = inWindow and not withinCutoff and not tradedThisWindow
 
 trigger1Tf = "120"
 trigger2Tf = "60"
@@ -124,12 +123,6 @@ alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
 bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
-bgLong15m = request.security(syminfo.tickerid, "15", bgLong, lookahead=barmerge.lookahead_off)
-bgShort15m = request.security(syminfo.tickerid, "15", bgShort, lookahead=barmerge.lookahead_off)
-barsSinceWindowStart = ta.barssince(windowStart)
-useBg15m = windowStart or (inWindow and barsSinceWindowStart <= 2)
-effectiveBgLong = useBg15m ? bgLong15m : bgLong
-effectiveBgShort = useBg15m ? bgShort15m : bgShort
 
 if not inWindow and strategy.position_size != 0
     strategy.close_all(comment="Window Close", immediately=true)
@@ -146,12 +139,6 @@ if barstate.isconfirmed
             bgDirConfirmed := bgDir
             bgDirCounter := 0
 
-bgDirPrev = nz(bgDir[1], 0)
-flipToLong = inWindow and bgDir == 1 and bgDirPrev != 1
-flipToShort = inWindow and bgDir == -1 and bgDirPrev != -1
-longFlipSignal = flipToLong and not windowStart and not useBg15m
-shortFlipSignal = flipToShort and not windowStart and not useBg15m
-
 var int firstCandleDir = 0
 var bool firstFlipSeen = false
 if windowStart
@@ -167,20 +154,12 @@ if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
 
 exitOnLossOfBG = exitOnLossMode == 1
 if windowStart and not tradedThisWindow and not withinCutoff
-    if effectiveBgLong
-        strategy.entry("Long", strategy.long, comment="AutoStart Long (from 15m)")
+    if bgDirConfirmed == 1
+        strategy.entry("Long", strategy.long, comment="AutoStart Long")
         tradedThisWindow := true
-    if effectiveBgShort
-        strategy.entry("Short", strategy.short, comment="AutoStart Short (from 15m)")
+    if bgDirConfirmed == -1
+        strategy.entry("Short", strategy.short, comment="AutoStart Short")
         tradedThisWindow := true
-
-allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
-if allowSignalEntry and longFlipSignal
-    strategy.entry("Long", strategy.long, comment="Flip Long")
-    tradedThisWindow := true
-if allowSignalEntry and shortFlipSignal
-    strategy.entry("Short", strategy.short, comment="Flip Short")
-    tradedThisWindow := true
 
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and bgDirConfirmed != 1
     strategy.close("Long", comment="Long BG Lost")
