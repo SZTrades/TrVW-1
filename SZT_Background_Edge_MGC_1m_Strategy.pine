@@ -24,7 +24,8 @@ sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
 isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
 inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
 inWindow = isOneMinute and inWindowRaw
-windowStart = inWindow and not inWindow[1]
+firstBarOfWindow = inWindowRaw and na(time(timeframe.period, tradeSession, sessionTz)[1])
+windowStart = firstBarOfWindow
 var bool tradedThisWindow = false
 if barstate.isnew and not inWindow and inWindow[1]
     tradedThisWindow := false
@@ -146,11 +147,11 @@ if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
 
 exitOnLossOfBG = exitOnLossMode == 1
 if windowStart and not tradedThisWindow and not withinCutoff and strategy.position_size == 0
-    if bgLong and not bgShort
-        strategy.entry("Long", strategy.long, comment="AutoStart Long")
-        tradedThisWindow := true
-    else if bgShort and not bgLong
-        strategy.entry("Short", strategy.short, comment="AutoStart Short")
+    if bgLong or bgShort
+        if bgLong
+            strategy.entry("Long", strategy.long, comment="AutoStart Long")
+        if bgShort
+            strategy.entry("Short", strategy.short, comment="AutoStart Short")
         tradedThisWindow := true
 
 allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
