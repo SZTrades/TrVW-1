@@ -19,6 +19,7 @@ stopPts = input.float(5.0, "Stop Loss (Points)", minval=0.25, step=0.25)
 tpPts = input.float(10.0, "Take Profit (Points)", minval=0.25, step=0.25)
 exitOnLossMode = input.int(1, "Exit on BG Loss (1=Yes, 0=No)", minval=0, maxval=1, step=1)
 firstFlipMode = input.int(0, "Exit on First Candle Flip (1=Yes, 0=No)", minval=0, maxval=1, step=1)
+confirmationBars = input.int(3, "BG Confirmation Bars", minval=1, maxval=10, step=1)
 
 sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
 isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
@@ -134,6 +135,17 @@ if not inWindow and strategy.position_size != 0
     strategy.close_all(comment="Window Close", immediately=true)
 
 bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
+var int bgDirConfirmed = 0
+var int bgDirCounter = 0
+if barstate.isconfirmed
+    if bgDir == bgDirConfirmed
+        bgDirCounter := 0
+    else
+        bgDirCounter := bgDir == nz(bgDir[1], 0) ? bgDirCounter + 1 : 1
+        if bgDirCounter >= confirmationBars
+            bgDirConfirmed := bgDir
+            bgDirCounter := 0
+
 bgDirPrev = nz(bgDir[1], 0)
 flipToLong = inWindow and bgDir == 1 and bgDirPrev != 1
 flipToShort = inWindow and bgDir == -1 and bgDirPrev != -1
@@ -170,9 +182,9 @@ if allowSignalEntry and shortFlipSignal
     strategy.entry("Short", strategy.short, comment="Flip Short")
     tradedThisWindow := true
 
-if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and not bgLong
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and bgDirConfirmed != 1
     strategy.close("Long", comment="Long BG Lost")
-if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and bgDirConfirmed != -1
     strategy.close("Short", comment="Short BG Lost")
 
 if strategy.position_size > 0
@@ -185,5 +197,6 @@ plotchar(tradedThisWindow, "tradedThisWindow", "", location.top, color=color.new
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
 plotchar(windowStart, "windowStart", "", location.top, color=color.new(color.blue, 0), size=size.tiny, display=display.data_window)
 plotchar(bgLong, "bgLong (1er vela)", "", location.top, color=color.new(color.green, 0), size=size.tiny, display=display.data_window)
+plotchar(bgDirConfirmed, "bgDirConfirmed", "", location.top, color=color.new(color.purple, 0), size=size.tiny, display=display.data_window)
 plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
 plot(minutesToSessionEnd, "minutesToSessionEnd", color=color.new(color.white, 0), display=display.data_window)
