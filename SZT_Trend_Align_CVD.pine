@@ -32,6 +32,17 @@ priceAboveAllTriggers = close > trigger1Level and close > trigger2Level and clos
 priceBelowAllTriggers = close < trigger1Level and close < trigger2Level and close < trigger3Level
 trigger1LongBias = close > trigger1Level
 trigger1ShortBias = close < trigger1Level
+var int cycleDir = 0 // 1 = long cycle active, -1 = short cycle active, 0 = none
+
+// --- RESETEO DE CICLO POR TIMEFRAMES SUPERIORES ---
+// Este bloque debe ejecutarse ANTES de calcular bgLong/bgShort
+if na(trigger1Level[1]) or trigger1Level != trigger1Level[1] or na(trigger2Level[1]) or trigger2Level != trigger2Level[1]
+    cycleDir := 0
+
+if (cycleDir == -1 and trigger1LongBias)
+    cycleDir := 0
+if (cycleDir == 1 and trigger1ShortBias)
+    cycleDir := 0
 trigger4AtrAvg = ta.atr(trigger4AtrAvgLen)
 trigger4VolatilityOk = trigger4AtrAvg <= trigger4AtrMax
 
@@ -169,7 +180,6 @@ alignLong = jmaLong and kernelBullish
 alignShort = jmaShort and kernelBearish
 
 // Start-of-alignment only with cycle gating (non-repainting at bar close)
-var int cycleDir = 0 // 1 = long cycle active, -1 = short cycle active, 0 = none
 alignLongStart = barstate.isconfirmed and alignLong and not alignLong[1] and (cycleDir != 1)
 alignShortStart = barstate.isconfirmed and alignShort and not alignShort[1] and (cycleDir != -1)
 cycleDir := alignLongStart ? 1 : alignShortStart ? -1 : cycleDir
@@ -185,15 +195,6 @@ barcolor(useBarColor ? barColorSeries : na)
 // Background follows active alignment and additionally requires Trigger-1 open bias.
 bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk and cycleDir != -1
 bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk and cycleDir != 1
-// Reset ciclo por cambio en timeframes superiores
-if na(trigger1Level[1]) or trigger1Level != trigger1Level[1] or na(trigger2Level[1]) or trigger2Level != trigger2Level[1]
-    cycleDir := 0
-
-// Reset ciclo si la tendencia superior contradice el ciclo actual
-if (cycleDir == -1 and trigger1LongBias)
-    cycleDir := 0
-if (cycleDir == 1 and trigger1ShortBias)
-    cycleDir := 0
 bgColorSeries = bgLong ? color.new(bullColor, bgTransp) : bgShort ? color.new(bearColor, bgTransp) : na
 bgcolor(bgColorSeries, title="Trigger Background")
 
