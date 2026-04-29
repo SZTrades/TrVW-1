@@ -34,14 +34,15 @@ trigger1LongBias = close > trigger1Level
 trigger1ShortBias = close < trigger1Level
 var int cycleDir = 0 // 1 = long cycle active, -1 = short cycle active, 0 = none
 
-// --- RESETEO DE CICLO POR TIMEFRAMES SUPERIORES ---
-// Este bloque debe ejecutarse ANTES de calcular bgLong/bgShort
-if na(trigger1Level[1]) or trigger1Level != trigger1Level[1] or na(trigger2Level[1]) or trigger2Level != trigger2Level[1]
-    cycleDir := 0
-
-if (cycleDir == -1 and trigger1LongBias)
-    cycleDir := 0
-if (cycleDir == 1 and trigger1ShortBias)
+// --- RESETEO FORZADO DE CICLO POR BIAS DE 2h ---
+// Si la vela de 2h es alcista, el ciclo DEBE ser alcista.
+// Si la vela de 2h es bajista, el ciclo DEBE ser bajista.
+// Si no hay bias claro (precio igual al open), se resetea a 0.
+if trigger1LongBias
+    cycleDir := 1
+else if trigger1ShortBias
+    cycleDir := -1
+else
     cycleDir := 0
 trigger4AtrAvg = ta.atr(trigger4AtrAvgLen)
 trigger4VolatilityOk = trigger4AtrAvg <= trigger4AtrMax
