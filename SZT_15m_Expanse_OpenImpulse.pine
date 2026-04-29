@@ -53,7 +53,6 @@ if inWindow and hasValidSessionEnd
 else
     minutesToSessionEnd := na
 withinCutoff = inWindow and hasValidSessionEnd and minutesToSessionEnd < cutOffMinutes
-allowNewEntry = inWindow and not withinCutoff and not tradedThisSubWindow
 trigger1Tf = "120"
 trigger2Tf = "60"
 trigger3Tf = "15"
@@ -115,21 +114,13 @@ bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias
 bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
 bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
 isFirst1mOf15 = isNew15mBar
-var int pendingDir = 0
-if isFirst1mOf15 and inWindow
+if isFirst1mOf15 and inWindow and not withinCutoff and not tradedThisSubWindow and strategy.position_size == 0
     if bgDir[1] == 1
-        pendingDir := 1
-    else if bgDir[1] == -1
-        pendingDir := -1
-    else
-        pendingDir := 0
-if isFirst1mOf15 and pendingDir != 0 and allowNewEntry and strategy.position_size == 0
-    if pendingDir == 1
         strategy.entry("Long", strategy.long)
-    if pendingDir == -1
+        tradedThisSubWindow := true
+    else if bgDir[1] == -1
         strategy.entry("Short", strategy.short)
-    tradedThisSubWindow := true
-    pendingDir := 0
+        tradedThisSubWindow := true
 exitOnLossOfBG = exitOnLossMode == 1
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and not bgLong
     strategy.close("Long", comment="Long BG Lost")
