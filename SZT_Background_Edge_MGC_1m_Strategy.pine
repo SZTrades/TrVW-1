@@ -1,5 +1,5 @@
 //@version=6
-strategy("SZT Unificada OptiBro", overlay=true, process_orders_on_close=false, calc_on_every_tick=true, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1)
+strategy("SZT 15m Expanse", overlay=true, process_orders_on_close=false, calc_on_every_tick=true, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1)
 
 import jdehorty/KernelFunctions/2 as kernels
 
@@ -14,7 +14,7 @@ cvdThreshold = input.float(10.0, "CVD Threshold", step=5.0)
 
 tradeSession = input.session("0815-0830", "Trading Window")
 sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"])
-cutOffMinutes = input.int(2, "Cut-Off (Minutes before close)", minval=1, maxval=5)
+cutOffMinutes = input.int(4, "Cut-Off (Minutes before close)", minval=1, maxval=5)
 stopPts = input.float(5.0, "Stop Loss (Points)", minval=0.25, step=0.25)
 tpPts = input.float(10.0, "Take Profit (Points)", minval=0.25, step=0.25)
 exitOnLossMode = input.int(1, "Exit on BG Loss (1=Yes, 0=No)", minval=0, maxval=1, step=1)
@@ -29,22 +29,33 @@ var bool tradedThisWindow = false
 if barstate.isnew and not inWindow and inWindow[1]
     tradedThisWindow := false
 
+var int sessionEndHour = 0
+var int sessionEndMinute = 0
+var float minutesToSessionEnd = na
+var bool hasValidSessionEnd = false
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
 sessionRanges = str.split(sessionCore, ",")
 lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ""
 rangeParts = str.split(lastRange, "-")
 endToken = array.size(rangeParts) > 1 ? array.get(rangeParts, 1) : ""
 endTokenClean = str.replace_all(endToken, ":", "")
-hasValidEnd = str.length(endTokenClean) >= 4
-endHourRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
-endMinuteRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
-sessionEndHour = hasValidEnd and not na(endHourRaw) ? int(endHourRaw) : 0
-sessionEndMinute = hasValidEnd and not na(endMinuteRaw) ? int(endMinuteRaw) : 0
-sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
-barCloseMinuteOfDay = hour(time_close, sessionTz) * 60 + minute(time_close, sessionTz)
-minutesToSessionEnd = sessionEndMinuteOfDay - barCloseMinuteOfDay
-withinCutoff = hasValidEnd and inWindow and minutesToSessionEnd < cutOffMinutes
-allowNewEntry = inWindow and not withinCutoff
+hasValidToken = str.length(endTokenClean) >= 4
+endHourRaw = hasValidToken ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
+endMinuteRaw = hasValidToken ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
+if windowStart
+    hasValidSessionEnd := hasValidToken and not na(endHourRaw) and not na(endMinuteRaw)
+    if hasValidSessionEnd
+        sessionEndHour := int(endHourRaw)
+        sessionEndMinute := int(endMinuteRaw)
+if inWindow and hasValidSessionEnd
+    currentTs = barstate.isrealtime ? timenow : time
+    currentMinuteOfDay = hour(currentTs, sessionTz) * 60 + minute(currentTs, sessionTz)
+    sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
+    minutesToSessionEnd := sessionEndMinuteOfDay - currentMinuteOfDay
+else
+    minutesToSessionEnd := na
+withinCutoff = inWindow and hasValidSessionEnd and minutesToSessionEnd < cutOffMinutes
+allowNewEntry = inWindow and not withinCutoff and not tradedThisWindow
 
 trigger1Tf = "120"
 trigger2Tf = "60"
@@ -134,7 +145,7 @@ if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
     strategy.close_all(comment="Funky first flip exit", immediately=true)
 
 exitOnLossOfBG = exitOnLossMode == 1
-if inWindow and barstate.isnew and not tradedThisWindow and strategy.position_size == 0
+if allowNewEntry and barstate.isnew and strategy.position_size == 0
     if bgLong and not bgShort
         strategy.entry("Long", strategy.long, comment="BG Active Entry")
         tradedThisWindow := true
@@ -142,7 +153,7 @@ if inWindow and barstate.isnew and not tradedThisWindow and strategy.position_si
         strategy.entry("Short", strategy.short, comment="BG Active Entry")
         tradedThisWindow := true
 
-allowSignalEntry = allowNewEntry and not tradedThisWindow and strategy.position_size == 0
+allowSignalEntry = allowNewEntry and strategy.position_size == 0
 if allowSignalEntry and longFlipSignal
     strategy.entry("Long", strategy.long, comment="Flip Long")
     tradedThisWindow := true
@@ -166,4 +177,5 @@ if strategy.position_size < 0
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
 plotchar(tradedThisWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
-plotchar(withinCutoff, "withinCutoff", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
+plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
+plot(minutesToSessionEnd, "minutesToSessionEnd", color=color.new(color.white, 0), display=display.data_window)
