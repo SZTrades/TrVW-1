@@ -139,13 +139,13 @@ if barstate.isconfirmed
             bgDirCounter := 0
 
 exitOnLossOfBG = exitOnLossMode == 1
-if windowStart and not tradedThisWindow
-    if not withinCutoff
-        if bgDirConfirmed == 1
-            strategy.entry("Long", strategy.long, comment="AutoStart Long")
-        if bgDirConfirmed == -1
-            strategy.entry("Short", strategy.short, comment="AutoStart Short")
-    tradedThisWindow := true
+if windowStart and not tradedThisWindow and not withinCutoff
+    if bgDir == 1
+        strategy.entry("Long", strategy.long, comment="AutoStart Long")
+        tradedThisWindow := true
+    if bgDir == -1
+        strategy.entry("Short", strategy.short, comment="AutoStart Short")
+        tradedThisWindow := true
 
 if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and bgDirConfirmed != 1
     strategy.close("Long", comment="Long BG Lost")
