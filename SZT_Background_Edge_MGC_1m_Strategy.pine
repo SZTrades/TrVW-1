@@ -12,8 +12,10 @@ strategy(
 // ====================================
 // ==== SEÑAL EXTERNA (Background) ====
 // ====================================
-bgLong = input.bool(false, "BG Long (Verde)", group="Signal")
-bgShort = input.bool(false, "BG Short (Rojo)", group="Signal")
+bgLongSource = input.source(close * 0.0, "BG Long Source", group="Signal")
+bgShortSource = input.source(close * 0.0, "BG Short Source", group="Signal")
+bgLong = nz(bgLongSource, 0.0) > 0.0
+bgShort = nz(bgShortSource, 0.0) > 0.0
 
 // ====================================
 // ==== VENTANA + CUT OFF =============
@@ -42,7 +44,6 @@ isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
 inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
 inWindow = isOneMinute and inWindowRaw
 windowStart = inWindow and not inWindow[1]
-barConfirmed = barstate.isconfirmed
 
 // Parse defensivo del fin de sesión para cálculo de cut-off.
 sessionCore = array.get(str.split(tradeSession, ":"), 0)
@@ -68,10 +69,10 @@ allowNewEntry = inWindow and not withinCutoff
 bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
 bgDirPrev = nz(bgDir[1], 0)
 
-flipToLong = barConfirmed and inWindow and bgDir == 1 and bgDirPrev != 1
-flipToShort = barConfirmed and inWindow and bgDir == -1 and bgDirPrev != -1
-autoStartLong = barConfirmed and windowStart and bgDir == 1
-autoStartShort = barConfirmed and windowStart and bgDir == -1
+flipToLong = inWindow and bgDir == 1 and bgDirPrev != 1
+flipToShort = inWindow and bgDir == -1 and bgDirPrev != -1
+autoStartLong = windowStart and bgDir == 1
+autoStartShort = windowStart and bgDir == -1
 
 longEntrySignal = autoStartLong or (flipToLong and not windowStart)
 shortEntrySignal = autoStartShort or (flipToShort and not windowStart)
@@ -86,7 +87,7 @@ if windowStart
     firstCandleDir := bgDir
     firstFlipSeen := false
 
-firstCandleFlipped = barConfirmed and inWindow and not windowStart and not firstFlipSeen and firstCandleDir != 0 and bgDir != firstCandleDir
+firstCandleFlipped = barstate.isconfirmed and inWindow and not windowStart and not firstFlipSeen and firstCandleDir != 0 and bgDir != firstCandleDir
 if firstCandleFlipped
     firstFlipSeen := true
 
@@ -110,10 +111,10 @@ if allowSignalEntry and shortEntrySignal
 tryingReverseToShort = exitOnLossOfBG and allowSignalEntry and shortEntrySignal
 tryingReverseToLong = exitOnLossOfBG and allowSignalEntry and longEntrySignal
 
-if exitOnLossOfBG and barConfirmed and strategy.position_size > 0 and not bgLong and not tryingReverseToShort
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and not bgLong and not tryingReverseToShort
     strategy.close("Long", comment="Long BG Lost")
 
-if exitOnLossOfBG and barConfirmed and strategy.position_size < 0 and not bgShort and not tryingReverseToLong
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort and not tryingReverseToLong
     strategy.close("Short", comment="Short BG Lost")
 
 if not inWindow and strategy.position_size != 0
