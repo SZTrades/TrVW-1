@@ -13,14 +13,12 @@ tradeSession = input.session("0800-0900", "Global Trading Window")
 sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"])
 cutOffMinutes = input.int(4, "Cut-Off (Minutes before close)", minval=1, maxval=5)
 
-// ==== Volatility Risk Manager ====
-atrLength = input.int(14, "ATR Length", minval=5)
-lowVolThreshold = input.float(10.0, "Low Volatility Threshold (points)", step=1.0)
-highVolThreshold = input.float(25.0, "High Volatility Threshold (points)", step=1.0)
-lowVolSLMult = input.float(1.2, "Low Vol Stop Multiplier", step=0.1)
-normVolSLMult = input.float(1.8, "Normal Vol Stop Multiplier", step=0.1)
-highVolSLMult = input.float(2.5, "High Vol Stop Multiplier", step=0.1)
-rrRatio = input.float(2.5, "Risk/Reward Ratio (TP = SL * R:R)", step=0.25)
+// ==== Volatility Stop ====
+useVolStop = input.bool(true, "Use Volatility Stop", group="Volatility Stop")
+vsLength = input.int(20, "ATR Length", minval=2, group="Volatility Stop")
+vsFactor = input.float(2.0, "ATR Multiplier", step=0.25, group="Volatility Stop")
+stopPts = input.float(25.0, "Initial Stop (Points)", step=5.0, group="Volatility Stop")
+tpMultiplier = input.float(3.0, "TP Multiplier (x Initial Stop)", step=0.5, group="Volatility Stop")
 
 exitOnLossMode = input.int(1, "Exit on BG Loss (1=Yes, 0=No)", minval=0, maxval=1, step=1)
 firstFlipMode = input.int(0, "Exit on First Candle Flip (1=Yes, 0=No)", minval=0, maxval=1, step=1)
@@ -162,28 +160,47 @@ isLastWindowBar = inWindow and barsSinceWindowStart == 14
 if isLastWindowBar and strategy.position_size != 0
     strategy.close_all(comment="Window Close (last bar)", immediately=true)
 
-atrValue = ta.atr(atrLength)
-isLowVol = atrValue < lowVolThreshold
-isHighVol = atrValue >= highVolThreshold
-isNormalVol = not isLowVol and not isHighVol
-slMult = isLowVol ? lowVolSLMult : isHighVol ? highVolSLMult : normVolSLMult
-tpMult = slMult * rrRatio
+volStop(src, atrlen, atrmult) =>
+    if not na(src)
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool uptrend = true
+        var float stop = na
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = bar_index > 0 ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+[vsStop, vsUp] = volStop(close, vsLength, vsFactor)
+vsColor = vsUp ? color.new(#09d647, 0) : color.new(#8f8b8a, 0)
+tpPoints = stopPts * tpMultiplier
+
+float trailStopLong = na
+float trailStopShort = na
+float longLimit = na
+float shortLimit = na
 
 if strategy.position_size > 0
-    strategy.exit("Long Exit", "Long", stop=strategy.position_avg_price - (atrValue * slMult), limit=strategy.position_avg_price + (atrValue * tpMult))
-if strategy.position_size < 0
-    strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price + (atrValue * slMult), limit=strategy.position_avg_price - (atrValue * tpMult))
+    initialStopLong = strategy.position_avg_price - stopPts
+    trailStopLong := useVolStop ? math.max(initialStopLong, vsStop) : initialStopLong
+    longLimit := strategy.position_avg_price + tpPoints
+    strategy.exit("Long Exit", "Long", stop=trailStopLong, limit=longLimit)
 
-longVolStop = strategy.position_size > 0 ? strategy.position_avg_price - (atrValue * slMult) : na
-longVolTp = strategy.position_size > 0 ? strategy.position_avg_price + (atrValue * tpMult) : na
-shortVolStop = strategy.position_size < 0 ? strategy.position_avg_price + (atrValue * slMult) : na
-shortVolTp = strategy.position_size < 0 ? strategy.position_avg_price - (atrValue * tpMult) : na
+if strategy.position_size < 0
+    initialStopShort = strategy.position_avg_price + stopPts
+    trailStopShort := useVolStop ? math.min(initialStopShort, vsStop) : initialStopShort
+    shortLimit := strategy.position_avg_price - tpPoints
+    strategy.exit("Short Exit", "Short", stop=trailStopShort, limit=shortLimit)
 
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
-plot(longVolStop, "Long Vol Stop", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
-plot(longVolTp, "Long Vol TP", color=color.new(color.lime, 0), linewidth=2, style=plot.style_linebr)
-plot(shortVolStop, "Short Vol Stop", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
-plot(shortVolTp, "Short Vol TP", color=color.new(color.lime, 0), linewidth=2, style=plot.style_linebr)
+plot(useVolStop and strategy.position_size != 0 ? (strategy.position_size > 0 ? trailStopLong : strategy.position_size < 0 ? trailStopShort : na) : na, title="Dynamic Stop", color=vsColor, linewidth=2, style=plot.style_linebr)
 plotchar(tradedThisSubWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
 plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
