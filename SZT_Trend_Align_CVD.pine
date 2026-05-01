@@ -174,6 +174,8 @@ vsLineWidth = input.int(1, "Stop Line Width", minval=1, maxval=5, group="Volatil
 // ============================
 useBarColor = input.bool(true, "Color Bars When Aligned", group="Display")
 barTransp = input.int(50, "Bar Color Transparency", minval=0, maxval=100, group="Display")
+bgBullColor = input.color(#009988, "Background Long Color", group="Display")
+bgBearColor = input.color(#8e8989, "Background Short Color", group="Display")
 bgTransp = input.int(86, "Background Transparency", minval=0, maxval=100, group="Display")
 
 bullColor = #009988
@@ -201,7 +203,7 @@ barcolor(useBarColor ? barColorSeries : na)
 // Background follows active alignment and additionally requires Trigger-1 open bias.
 bgLong = barstate.isconfirmed and useBarColor and alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk and cycleDir != -1
 bgShort = barstate.isconfirmed and useBarColor and alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk and cycleDir != 1
-bgColorSeries = bgLong ? color.new(bullColor, bgTransp) : bgShort ? color.new(bearColor, bgTransp) : na
+bgColorSeries = bgLong ? color.new(bgBullColor, bgTransp) : bgShort ? color.new(bgBearColor, bgTransp) : na
 bgcolor(bgColorSeries, title="Trigger Background")
 
 // Alerts
