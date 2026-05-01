@@ -1,0 +1,199 @@
+//@version=6
+strategy(
+    "SZT Trend Align + CVD ATR Risk Manager (Modular)",
+    shorttitle="SZT-ATR-Mod",
+    overlay=true,
+    pyramiding=0,
+    default_qty_type=strategy.percent_of_equity,
+    default_qty_value=100,
+    calc_on_every_tick=true,
+    process_orders_on_close=false
+)
+
+// ---------------------------------------------------------------------------
+// Signal Core: SZT Trend align + CVD
+// Keep this block aligned with your indicator so bgLong/bgShort stay identical.
+// ---------------------------------------------------------------------------
+lengthT3 = input.int(4, "T3 Length", minval=1, group="Signal Core - Trend Align + CVD")
+factorT3 = input.float(0.7, "T3 Factor", minval=0.0, maxval=1.0, step=0.05, group="Signal Core - Trend Align + CVD")
+cumulationLength = input.int(16, "CVD Cumulation Length", minval=1, group="Signal Core - Trend Align + CVD")
+baseCvdThreshold = input.float(0.0, "Base CVD Threshold", minval=0.0, step=0.1, group="Signal Core - Trend Align + CVD")
+
+gdT3(src, len, factor) =>
+    ta.ema(src, len) * (1 + factor) - ta.ema(ta.ema(src, len), len) * factor
+
+t3 = gdT3(gdT3(gdT3(close, lengthT3, factorT3), lengthT3, factorT3), lengthT3, factorT3)
+t3Direction = t3 > t3[1] ? 1 : t3 < t3[1] ? -1 : 0
+basicLongT3 = t3Direction > 0 and close > t3
+basicShortT3 = t3Direction < 0 and close < t3
+
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+halfWicks = (percentUpper + percentLower) / 2
+buyingVolume = close > open ? (percentBody + halfWicks) * volume : halfWicks * volume
+sellingVolume = close < open ? (percentBody + halfWicks) * volume : halfWicks * volume
+cumBuy = ta.ema(buyingVolume, cumulationLength)
+cumSell = ta.ema(sellingVolume, cumulationLength)
+cvdDelta = cumBuy - cumSell
+bullCVD = cvdDelta > baseCvdThreshold
+bearCVD = cvdDelta < -baseCvdThreshold
+
+// Main directional states used by entry logic.
+bgLong = basicLongT3 and bullCVD
+bgShort = basicShortT3 and bearCVD
+newBgLong = bgLong and not bgLong[1]
+newBgShort = bgShort and not bgShort[1]
+
+// ---------------------------------------------------------------------------
+// Volatility Risk Manager
+// ---------------------------------------------------------------------------
+atrLength = input.int(14, "ATR Length", minval=5, group="Volatility Risk Manager")
+lowVolThreshold = input.float(10.0, "Low Volatility Threshold (points)", step=1.0, group="Volatility Risk Manager")
+highVolThreshold = input.float(25.0, "High Volatility Threshold (points)", step=1.0, group="Volatility Risk Manager")
+lowVolSLMult = input.float(1.2, "Low Vol Stop Multiplier", step=0.1, group="Volatility Risk Manager")
+normVolSLMult = input.float(1.8, "Normal Vol Stop Multiplier", step=0.1, group="Volatility Risk Manager")
+highVolSLMult = input.float(2.5, "High Vol Stop Multiplier", step=0.1, group="Volatility Risk Manager")
+rrRatio = input.float(2.5, "Risk/Reward Ratio (TP = SL * R:R)", step=0.25, group="Volatility Risk Manager")
+
+atrValue = ta.atr(atrLength)
+isLowVol = atrValue < lowVolThreshold
+isHighVol = atrValue >= highVolThreshold
+isNormalVol = not isLowVol and not isHighVol
+slMultCurrent = isLowVol ? lowVolSLMult : isHighVol ? highVolSLMult : normVolSLMult
+tpMultCurrent = slMultCurrent * rrRatio
+
+// ---------------------------------------------------------------------------
+// Session & Cut-Off
+// ---------------------------------------------------------------------------
+tradeSession = input.session("0900-1200", "Global Trading Window", group="Session & Cut-Off")
+cutOffMinutes = input.int(5, "Cut-Off (Minutes before close)", minval=1, maxval=15, group="Session & Cut-Off")
+
+inWindow = not na(time(timeframe.period, tradeSession))
+windowStarted = inWindow and not inWindow[1]
+windowEnded = not inWindow and inWindow[1]
+
+sessionCore = array.get(str.split(tradeSession, ":"), 0)
+sessionRanges = str.split(sessionCore, ",")
+lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ""
+rangeParts = str.split(lastRange, "-")
+endToken = array.size(rangeParts) > 1 ? array.get(rangeParts, 1) : ""
+endTokenClean = str.replace_all(endToken, ":", "")
+hasValidEnd = str.length(endTokenClean) >= 4
+endHourRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
+endMinuteRaw = hasValidEnd ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
+sessionEndHour = hasValidEnd and not na(endHourRaw) ? int(endHourRaw) : 0
+sessionEndMinute = hasValidEnd and not na(endMinuteRaw) ? int(endMinuteRaw) : 0
+sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
+
+barCloseMinuteOfDay = hour(time_close) * 60 + minute(time_close)
+minutesToSessionClose = sessionEndMinuteOfDay - barCloseMinuteOfDay
+inCutOff = inWindow and hasValidEnd and minutesToSessionClose < cutOffMinutes and minutesToSessionClose >= 0
+allowEntriesNow = inWindow and not inCutOff
+
+// ---------------------------------------------------------------------------
+// 15m sub-window control + AutoStart
+// AutoStart: on first 1m bar of each 15m sub-window, if bgLong/bgShort is active,
+// allow the corresponding entry even without a "fresh" color flip.
+// ---------------------------------------------------------------------------
+subWindowTime = time("15")
+newSubWindow = inWindow and (windowStarted or subWindowTime != subWindowTime[1])
+
+var bool tradedThisSubWindow = false
+if not inWindow
+    tradedThisSubWindow := false
+else if newSubWindow
+    tradedThisSubWindow := false
+
+isOneMinuteChart = timeframe.isminutes and timeframe.multiplier == 1
+atrReady = not na(atrValue)
+autoStartLong = newSubWindow and bgLong
+autoStartShort = newSubWindow and bgShort
+
+longSignal = isOneMinuteChart and atrReady and allowEntriesNow and strategy.position_size == 0 and not tradedThisSubWindow and (newBgLong or autoStartLong)
+shortSignal = isOneMinuteChart and atrReady and allowEntriesNow and strategy.position_size == 0 and not tradedThisSubWindow and (newBgShort or autoStartShort)
+
+if longSignal and not shortSignal
+    strategy.entry("Long", strategy.long)
+if shortSignal and not longSignal
+    strategy.entry("Short", strategy.short)
+
+// ---------------------------------------------------------------------------
+// Dynamic ATR-based exits (frozen at entry)
+// ---------------------------------------------------------------------------
+var float activeLongStop = na
+var float activeLongTP = na
+var float activeShortStop = na
+var float activeShortTP = na
+var float entryAtr = na
+var float entrySlMult = na
+var float entryTpMult = na
+
+newLong = strategy.position_size > 0 and strategy.position_size[1] <= 0
+newShort = strategy.position_size < 0 and strategy.position_size[1] >= 0
+newPositionOpened = strategy.position_size != 0 and strategy.position_size[1] == 0
+
+if newPositionOpened
+    tradedThisSubWindow := true
+
+if newLong
+    entryAtr := atrValue
+    entrySlMult := slMultCurrent
+    entryTpMult := slMultCurrent * rrRatio
+    stopDistance = entryAtr * entrySlMult
+    tpDistance = entryAtr * entryTpMult
+    activeLongStop := strategy.position_avg_price - stopDistance
+    activeLongTP := strategy.position_avg_price + tpDistance
+    strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
+
+if newShort
+    entryAtr := atrValue
+    entrySlMult := slMultCurrent
+    entryTpMult := slMultCurrent * rrRatio
+    stopDistance = entryAtr * entrySlMult
+    tpDistance = entryAtr * entryTpMult
+    activeShortStop := strategy.position_avg_price + stopDistance
+    activeShortTP := strategy.position_avg_price - tpDistance
+    strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
+
+if strategy.position_size > 0 and not na(activeLongStop) and not na(activeLongTP)
+    strategy.exit("Long Exit", "Long", stop=activeLongStop, limit=activeLongTP)
+if strategy.position_size < 0 and not na(activeShortStop) and not na(activeShortTP)
+    strategy.exit("Short Exit", "Short", stop=activeShortStop, limit=activeShortTP)
+
+if strategy.position_size == 0
+    activeLongStop := na
+    activeLongTP := na
+    activeShortStop := na
+    activeShortTP := na
+    entryAtr := na
+    entrySlMult := na
+    entryTpMult := na
+
+if windowEnded and strategy.position_size != 0
+    strategy.close_all(comment="Session end close")
+
+// ---------------------------------------------------------------------------
+// Debug & visual tools
+// ---------------------------------------------------------------------------
+bgcolor(bgLong ? color.new(color.green, 86) : bgShort ? color.new(color.red, 86) : na, title="bgLong/bgShort")
+plot(t3, "T3", color=t3Direction >= 0 ? color.new(color.green, 0) : color.new(color.red, 0), linewidth=2)
+plot(atrValue, "atrValue", color=color.new(color.orange, 0))
+plot(strategy.position_size > 0 ? activeLongStop : na, "Long SL", color=color.new(color.red, 0))
+plot(strategy.position_size > 0 ? activeLongTP : na, "Long TP", color=color.new(color.green, 0))
+plot(strategy.position_size < 0 ? activeShortStop : na, "Short SL", color=color.new(color.red, 0))
+plot(strategy.position_size < 0 ? activeShortTP : na, "Short TP", color=color.new(color.green, 0))
+
+plotchar(inWindow, title="inWindow", char="W", location=location.top, color=color.new(color.white, 0), size=size.tiny)
+plotchar(inCutOff, title="inCutOff", char="C", location=location.top, color=color.new(color.orange, 0), size=size.tiny)
+plotchar(newSubWindow, title="newSubWindow", char="N", location=location.top, color=color.new(color.aqua, 0), size=size.tiny)
+plotchar(tradedThisSubWindow, title="tradedThisSubWindow", char="T", location=location.top, color=color.new(color.yellow, 0), size=size.tiny)
+plotchar(autoStartLong, title="autoStartLong", char="L", location=location.belowbar, color=color.new(color.green, 0), size=size.tiny)
+plotchar(autoStartShort, title="autoStartShort", char="S", location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+plotchar(isLowVol, title="Low Vol", char="1", location=location.bottom, color=color.new(color.blue, 0), size=size.tiny)
+plotchar(isNormalVol, title="Normal Vol", char="2", location=location.bottom, color=color.new(color.gray, 0), size=size.tiny)
+plotchar(isHighVol, title="High Vol", char="3", location=location.bottom, color=color.new(color.purple, 0), size=size.tiny)
