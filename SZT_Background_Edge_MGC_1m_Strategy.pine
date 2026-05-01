@@ -174,7 +174,16 @@ if strategy.position_size > 0
 if strategy.position_size < 0
     strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price + (atrValue * slMult), limit=strategy.position_avg_price - (atrValue * tpMult))
 
+longVolStop = strategy.position_size > 0 ? strategy.position_avg_price - (atrValue * slMult) : na
+longVolTp = strategy.position_size > 0 ? strategy.position_avg_price + (atrValue * tpMult) : na
+shortVolStop = strategy.position_size < 0 ? strategy.position_avg_price + (atrValue * slMult) : na
+shortVolTp = strategy.position_size < 0 ? strategy.position_avg_price - (atrValue * tpMult) : na
+
 bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
+plot(longVolStop, "Long Vol Stop", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
+plot(longVolTp, "Long Vol TP", color=color.new(color.lime, 0), linewidth=2, style=plot.style_linebr)
+plot(shortVolStop, "Short Vol Stop", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
+plot(shortVolTp, "Short Vol TP", color=color.new(color.lime, 0), linewidth=2, style=plot.style_linebr)
 plotchar(tradedThisSubWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
 plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
