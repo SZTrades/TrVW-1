@@ -179,7 +179,3 @@ plotchar(tradedThisSubWindow, "tradedThisWindow", "", location.top, color=color.
 plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
 plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
 plot(minutesToSessionEnd, "minutesToSessionEnd", color=color.new(color.white, 0), display=display.data_window)
-plot(atrValue, "atrValue", color=color.new(color.yellow, 0), display=display.data_window)
-plotchar(isLowVol, "isLowVol", "", location.top, color=color.new(color.aqua, 0), size=size.tiny, display=display.data_window)
-plotchar(isNormalVol, "isNormalVol", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
-plotchar(isHighVol, "isHighVol", "", location.top, color=color.new(color.purple, 0), size=size.tiny, display=display.data_window)
