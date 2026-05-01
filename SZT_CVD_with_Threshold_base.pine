@@ -1,0 +1,34 @@
+//@version=6
+indicator("CVD with Threshold", overlay=false)
+
+// Inputs
+cvdLength = input.int(14, "CVD Length")
+threshold = input.float(0, "CVD Threshold (abs value)", step=10)
+
+// Cálculo del delta (igual que Ankit)
+upper_wick = close > open ? high - close : high - open
+lower_wick = close > open ? open - low : close - low
+spread = high - low
+body_length = spread - (upper_wick + lower_wick)
+
+percent_upper_wick = upper_wick / spread
+percent_lower_wick = lower_wick / spread
+percent_body_length = body_length / spread
+
+buying_volume = close > open ? (percent_body_length + (percent_upper_wick + percent_lower_wick)/2) * volume : ((percent_upper_wick + percent_lower_wick)/2) * volume
+selling_volume = close < open ? (percent_body_length + (percent_upper_wick + percent_lower_wick)/2) * volume : ((percent_upper_wick + percent_lower_wick)/2) * volume
+
+cumulative_buying_volume = ta.ema(buying_volume, cvdLength)
+cumulative_selling_volume = ta.ema(selling_volume, cvdLength)
+
+cvdDelta = cumulative_buying_volume - cumulative_selling_volume
+
+// Threshold filtering
+deltaFiltered = math.abs(cvdDelta) > threshold ? cvdDelta : 0
+
+// Colors for columns
+col = cvdDelta > threshold ? color.green : cvdDelta < -threshold ? color.red : color.gray
+
+// Plot
+plot(deltaFiltered, "CVD Delta (filtered)", color=col, style=plot.style_columns, linewidth=2)
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dotted)
