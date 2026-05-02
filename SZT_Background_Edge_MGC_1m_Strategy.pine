@@ -1,0 +1,206 @@
+//@version=6
+strategy("SZT 15m Expanse", overlay=true, process_orders_on_close=false, calc_on_every_tick=true, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1)
+import jdehorty/KernelFunctions/2 as kernels
+kernel_h = input.int(4, "Kernel Lookback (h)", minval=2, step=1)
+kernel_r = input.float(4.0, "Kernel Relative Weight (r)", step=0.5)
+kernel_x = input.int(10, "Kernel Regression Level (x)", minval=2, step=1)
+kernel_lag = input.int(1, "Kernel Lag", minval=1, maxval=3)
+jmaPhase = input.int(40, "JMA Phase", minval=-100, maxval=100, step=1)
+jmaPower = input.int(2, "JMA Power", minval=1, maxval=5)
+cvdLength = input.int(14, "CVD Length", minval=1, step=1)
+cvdThreshold = input.float(10.0, "CVD Threshold", step=5.0)
+tradeSession = input.session("0800-0900", "Global Trading Window")
+sessionTimezone = input.string("America/New_York", "Session Timezone", options=["America/New_York", "Etc/GMT+4", "Exchange"])
+cutOffMinutes = input.int(4, "Cut-Off (Minutes before close)", minval=1, maxval=5)
+
+// ==== Volatility Stop ====
+vsLength = input.int(20, "ATR Length", minval=2, group="Volatility Stop")
+vsFactor = input.float(2.0, "ATR Multiplier", step=0.25, group="Volatility Stop")
+stopPts = input.float(25.0, "Initial Stop (Points)", step=5.0, group="Volatility Stop")
+tpMultiplier = input.float(3.0, "TP Multiplier (x Initial Stop)", step=0.5, group="Volatility Stop")
+
+exitOnLossMode = input.int(1, "Exit on BG Loss (1=Yes, 0=No)", minval=0, maxval=1, step=1)
+firstFlipMode = input.int(0, "Exit on First Candle Flip (1=Yes, 0=No)", minval=0, maxval=1, step=1)
+sessionTz = sessionTimezone == "Exchange" ? syminfo.timezone : sessionTimezone
+isOneMinute = timeframe.isminutes and timeframe.multiplier == 1
+inWindowRaw = not na(time(timeframe.period, tradeSession, sessionTz))
+inWindow = isOneMinute and inWindowRaw
+subWindowTime = time("15", "", sessionTz)
+isNew15mBar = na(subWindowTime[1]) or subWindowTime != subWindowTime[1]
+windowStart = inWindow and isNew15mBar
+var bool tradedThisSubWindow = false
+if barstate.isnew and windowStart
+    tradedThisSubWindow := false
+if barstate.isnew and not inWindow and inWindow[1]
+    tradedThisSubWindow := false
+var int sessionEndHour = 0
+var int sessionEndMinute = 0
+var float minutesToSessionEnd = na
+var bool hasValidSessionEnd = false
+sessionCore = array.get(str.split(tradeSession, ":"), 0)
+sessionRanges = str.split(sessionCore, ",")
+lastRange = array.size(sessionRanges) > 0 ? array.get(sessionRanges, array.size(sessionRanges) - 1) : ""
+rangeParts = str.split(lastRange, "-")
+endToken = array.size(rangeParts) > 1 ? array.get(rangeParts, 1) : ""
+endTokenClean = str.replace_all(endToken, ":", "")
+hasValidToken = str.length(endTokenClean) >= 4
+endHourRaw = hasValidToken ? str.tonumber(str.substring(endTokenClean, 0, 2)) : na
+endMinuteRaw = hasValidToken ? str.tonumber(str.substring(endTokenClean, 2, 4)) : na
+if windowStart
+    hasValidSessionEnd := hasValidToken and not na(endHourRaw) and not na(endMinuteRaw)
+    if hasValidSessionEnd
+        sessionEndHour := int(endHourRaw)
+        sessionEndMinute := int(endMinuteRaw)
+if inWindow and hasValidSessionEnd
+    currentTs = barstate.isrealtime ? timenow : time
+    currentMinuteOfDay = hour(currentTs, sessionTz) * 60 + minute(currentTs, sessionTz)
+    sessionEndMinuteOfDay = sessionEndHour * 60 + sessionEndMinute
+    minutesToSessionEnd := sessionEndMinuteOfDay - currentMinuteOfDay
+else
+    minutesToSessionEnd := na
+withinCutoff = inWindow and hasValidSessionEnd and minutesToSessionEnd < cutOffMinutes
+allowNewEntry = inWindow and not withinCutoff and not tradedThisSubWindow
+trigger1Tf = "120"
+trigger2Tf = "60"
+trigger3Tf = "15"
+triggerTimezone = "Etc/GMT+4"
+trigger4AtrAvgLen = 15
+trigger4AtrMax = 8.0
+jmaLength = 20
+t1 = time(trigger1Tf, "", triggerTimezone)
+t2 = time(trigger2Tf, "", triggerTimezone)
+t3 = time(trigger3Tf, "", triggerTimezone)
+var float trigger1Level = na
+var float trigger2Level = na
+var float trigger3Level = na
+trigger1Level := na(t1[1]) or t1 != t1[1] ? open : nz(trigger1Level[1], open)
+trigger2Level := na(t2[1]) or t2 != t2[1] ? open : nz(trigger2Level[1], open)
+trigger3Level := na(t3[1]) or t3 != t3[1] ? open : nz(trigger3Level[1], open)
+priceAboveAllTriggers = close > trigger1Level and close > trigger2Level and close > trigger3Level
+priceBelowAllTriggers = close < trigger1Level and close < trigger2Level and close < trigger3Level
+trigger1LongBias = close > trigger1Level
+trigger1ShortBias = close < trigger1Level
+trigger4AtrAvg = ta.atr(trigger4AtrAvgLen)
+trigger4VolatilityOk = trigger4AtrAvg <= trigger4AtrMax
+source = close
+yhat1 = kernels.rationalQuadratic(source, kernel_h, kernel_r, kernel_x)
+kernelSmoothLookback = math.max(1, kernel_h - kernel_lag)
+yhat2 = kernels.gaussian(source, kernelSmoothLookback, kernel_x)
+kernelBullish = yhat2 >= yhat1
+kernelBearish = yhat2 <= yhat1
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+jmaLong = jma > jma[1] and close > jma
+jmaShort = jma < jma[1] and close < jma
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpperWick = upperWick / spread
+percentLowerWick = lowerWick / spread
+percentBodyLength = bodyLength / spread
+buyingVolume = close > open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+sellingVolume = close < open ? (percentBodyLength + (percentUpperWick + percentLowerWick) / 2) * volume : ((percentUpperWick + percentLowerWick) / 2) * volume
+cumulativeBuyingVolume = ta.ema(buyingVolume, cvdLength)
+cumulativeSellingVolume = ta.ema(sellingVolume, cvdLength)
+cvdDelta = cumulativeBuyingVolume - cumulativeSellingVolume
+cvdBullish = cvdDelta > cvdThreshold
+cvdBearish = cvdDelta < -cvdThreshold
+alignLong = jmaLong and kernelBullish
+alignShort = jmaShort and kernelBearish
+bgLong = alignLong and cvdBullish and priceAboveAllTriggers and trigger1LongBias and trigger4VolatilityOk
+bgShort = alignShort and cvdBearish and priceBelowAllTriggers and trigger1ShortBias and trigger4VolatilityOk
+bgDir = bgLong and not bgShort ? 1 : bgShort and not bgLong ? -1 : 0
+bgDirPrev = nz(bgDir[1], 0)
+flipToLong = inWindow and bgDir == 1 and bgDirPrev != 1
+flipToShort = inWindow and bgDir == -1 and bgDirPrev != -1
+longFlipSignal = flipToLong and not windowStart
+shortFlipSignal = flipToShort and not windowStart
+var int firstCandleDir = 0
+var bool firstFlipSeen = false
+if windowStart
+    firstCandleDir := bgDir
+    firstFlipSeen := false
+firstCandleFlipped = barstate.isconfirmed and inWindow and not windowStart and not firstFlipSeen and firstCandleDir != 0 and bgDir != firstCandleDir
+if firstCandleFlipped
+    firstFlipSeen := true
+if firstFlipMode == 1 and firstCandleFlipped and strategy.position_size != 0
+    strategy.close_all(comment="Funky first flip exit", immediately=true)
+exitOnLossOfBG = exitOnLossMode == 1
+if windowStart and not tradedThisSubWindow and not withinCutoff and strategy.position_size == 0
+    if bgLong and not bgShort
+        strategy.entry("Long", strategy.long, comment="AutoStart Long")
+        tradedThisSubWindow := true
+    else if bgShort and not bgLong
+        strategy.entry("Short", strategy.short, comment="AutoStart Short")
+        tradedThisSubWindow := true
+allowSignalEntry = allowNewEntry and not tradedThisSubWindow and strategy.position_size == 0
+if allowSignalEntry and longFlipSignal
+    strategy.entry("Long", strategy.long, comment="Flip Long")
+    tradedThisSubWindow := true
+if allowSignalEntry and shortFlipSignal
+    strategy.entry("Short", strategy.short, comment="Flip Short")
+    tradedThisSubWindow := true
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size > 0 and not bgLong
+    strategy.close("Long", comment="Long BG Lost")
+if exitOnLossOfBG and barstate.isconfirmed and strategy.position_size < 0 and not bgShort
+    strategy.close("Short", comment="Short BG Lost")
+barsSinceWindowStart = ta.barssince(windowStart)
+isLastWindowBar = inWindow and barsSinceWindowStart == 14
+if isLastWindowBar and strategy.position_size != 0
+    strategy.close_all(comment="Window Close (last bar)", immediately=true)
+
+volStop(src, atrlen, atrmult) =>
+    if not na(src)
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool uptrend = true
+        var float stop = na
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = bar_index > 0 ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+[vsStop, vsUp] = volStop(close, vsLength, vsFactor)
+vsColor = vsUp ? color.new(#09d647, 0) : color.new(#8f8b8a, 0)
+tpPoints = stopPts * tpMultiplier
+
+float trailStopLong = na
+float trailStopShort = na
+float longLimit = na
+float shortLimit = na
+
+if strategy.position_size > 0
+    initialStopLong = strategy.position_avg_price - stopPts
+    trailStopLong := math.max(initialStopLong, vsStop)
+    longLimit := strategy.position_avg_price + tpPoints
+    strategy.exit("Long Exit", "Long", stop=trailStopLong, limit=longLimit)
+
+if strategy.position_size < 0
+    initialStopShort = strategy.position_avg_price + stopPts
+    trailStopShort := math.min(initialStopShort, vsStop)
+    shortLimit := strategy.position_avg_price - tpPoints
+    strategy.exit("Short Exit", "Short", stop=trailStopShort, limit=shortLimit)
+
+bgcolor(bgDir == 1 ? color.new(color.teal, 86) : bgDir == -1 ? color.new(color.red, 86) : na, title="BG Signal")
+plot(strategy.position_size != 0 ? (strategy.position_size > 0 ? trailStopLong : strategy.position_size < 0 ? trailStopShort : na) : na, title="Dynamic Stop", color=vsColor, linewidth=2, style=plot.style_linebr)
+plotchar(tradedThisSubWindow, "tradedThisWindow", "", location.top, color=color.new(color.white, 0), size=size.tiny, display=display.data_window)
+plotchar(inWindow, "inWindow", "", location.top, color=color.new(color.gray, 0), size=size.tiny, display=display.data_window)
+plotchar(withinCutoff, "withinCutoff (bloquea entrada)", "", location.top, color=color.new(color.orange, 0), size=size.tiny, display=display.data_window)
+plot(minutesToSessionEnd, "minutesToSessionEnd", color=color.new(color.white, 0), display=display.data_window)
