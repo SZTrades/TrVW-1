@@ -1,12 +1,13 @@
 // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 
 //@version=5
-indicator("M1 Liquidez (Swings)", shorttitle="M1 Liquidity", overlay=true, max_labels_count=500)
+indicator("M1 Liquidez (Swings)", shorttitle="M1 Liquidity", overlay=true, max_lines_count=500)
 
 // === Liquidity Module Settings ===
 var inputPivotBars = input(5, "Pivot Candles", group="Liquidity Module")
-var highcolor = input.color(color.red, "High Color", group="Liquidity Module")
-var lowcolor = input.color(color.green, "Low Color", group="Liquidity Module")
+var highcolor = input.color(color.rgb(70, 184, 42), "High Color", group="Liquidity Module")
+var lowcolor = input.color(color.rgb(200, 200, 200), "Low Color", group="Liquidity Module")
+var lineWidth = input.int(1, "Line Width", minval=1, maxval=4, group="Liquidity Module")
 
 // Fixed variables (not user inputs)
 var bool inputHighlightIntermediates = true
@@ -16,13 +17,13 @@ var intermediateLabelSize = size.tiny
 
 // Parallel arrays for Swing High Data
 var float[] swingHighs = array.new_float()
-var label[] swingHighLabels = array.new_label()
+var line[] swingHighLines = array.new_line()
 var bool[] swingHighIsHigher = array.new_bool()
 var bool[] swingHighIsIntermediate = array.new_bool()
 
 // Parallel arrays for Swing Low Data
 var float[] swingLows = array.new_float()
-var label[] swingLowLabels = array.new_label()
+var line[] swingLowLines = array.new_line()
 var bool[] swingLowIsLower = array.new_bool()
 var bool[] swingLowIsIntermediate = array.new_bool()
 
@@ -37,16 +38,16 @@ array_peek(arrayId) =>
 // filters out swings that were not intermediate swings after all swings have been recorded.
 remove_short_term_swings() =>
     if not inputShowShortTermSwings and barstate.islast
-        var swingHighCount = array.size(swingHighLabels)
-        var swingLowCount = array.size(swingLowLabels)
+        var swingHighCount = array.size(swingHighLines)
+        var swingLowCount = array.size(swingLowLines)
 
         for i = 0 to swingHighCount - 1 by 1
             if not array.get(swingHighIsIntermediate, i)
-                label.delete(array.get(swingHighLabels, i))
+                line.delete(array.get(swingHighLines, i))
 
         for i = 0 to swingLowCount - 1 by 1
             if not array.get(swingLowIsIntermediate, i)
-                label.delete(array.get(swingLowLabels, i))
+                line.delete(array.get(swingLowLines, i))
 
 
 // detect swing highs and lows
@@ -58,18 +59,19 @@ if not na(swingHighPrice)
     lastSwingHighPrice = array_peek(swingHighs)
     isHigherHigh = swingHighPrice > lastSwingHighPrice
     isLowerHigh = swingHighPrice < lastSwingHighPrice
-    swingLabel = label.new(bar_index[inputPivotBars], swingHighPrice, color=highcolor, yloc=yloc.price, style=label.style_circle, size=size.tiny)
+    swingLine = line.new(bar_index[inputPivotBars], swingHighPrice, bar_index, swingHighPrice, xloc=xloc.bar_index, extend=extend.right, color=highcolor, style=line.style_solid, width=lineWidth)
 
     // check if last swing high was intermediate
     if isLowerHigh and array_peek(swingHighIsHigher)
         // lower high after a higher high means the previous swing high was intermediate
         if inputHighlightIntermediates
-            label.set_size(array_peek(swingHighLabels), intermediateLabelSize)
+            previousSwingHighLine = array.get(swingHighLines, array.size(swingHighLines) - 1)
+            line.set_width(previousSwingHighLine, lineWidth + 1)
             array.set(swingHighIsIntermediate, array.size(swingHighIsIntermediate) - 1, true)
 
     // save swing
     array.push(swingHighs, swingHighPrice)
-    array.push(swingHighLabels, swingLabel)
+    array.push(swingHighLines, swingLine)
     array.push(swingHighIsHigher, isHigherHigh)
     array.push(swingHighIsIntermediate, false) // can be filled in later, if a lower high forms next
 
@@ -77,18 +79,19 @@ if not na(swingLowPrice)
     lastSwingLowPrice = array_peek(swingLows)
     isHigherLow = swingLowPrice > lastSwingLowPrice
     isLowerLow = swingLowPrice < lastSwingLowPrice
-    swingLabel = label.new(bar_index[inputPivotBars], swingLowPrice, color=lowcolor, yloc=yloc.price, style=label.style_circle, size=size.tiny)
+    swingLine = line.new(bar_index[inputPivotBars], swingLowPrice, bar_index, swingLowPrice, xloc=xloc.bar_index, extend=extend.right, color=lowcolor, style=line.style_solid, width=lineWidth)
 
     // check if last swing low was intermediate
     if isHigherLow and array_peek(swingLowIsLower)
         // higher low after a lower low means the previous swing low was intermediate
         if inputHighlightIntermediates
-            label.set_size(array_peek(swingLowLabels), intermediateLabelSize)
+            previousSwingLowLine = array.get(swingLowLines, array.size(swingLowLines) - 1)
+            line.set_width(previousSwingLowLine, lineWidth + 1)
             array.set(swingLowIsIntermediate, array.size(swingLowIsIntermediate) - 1, true)
 
     // save swing
     array.push(swingLows, swingLowPrice)
-    array.push(swingLowLabels, swingLabel)
+    array.push(swingLowLines, swingLine)
     array.push(swingLowIsLower, isLowerLow)
     array.push(swingLowIsIntermediate, false) // can be filled in later if a higher low forms next
 
