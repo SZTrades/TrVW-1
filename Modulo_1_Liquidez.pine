@@ -17,9 +17,6 @@ var bool inputHighlightIntermediates = true
 var bool inputShowShortTermSwings = true
 var string inputIntermediateSize = "Tiny"
 var intermediateLabelSize = size.tiny
-var int labelOffsetY = 0
-var int highLabelOffsetTicks = 2
-var int lowLabelOffsetTicks = -2
 
 lineStyleValue = lineStyle == "Dashed" ? line.style_dashed : lineStyle == "Dotted" ? line.style_dotted : line.style_solid
 selectedLabelSize = labelSize == "Small" ? size.small : labelSize == "Normal" ? size.normal : size.tiny
@@ -79,7 +76,7 @@ if not na(swingHighPrice)
     isHigherHigh = swingHighPrice > lastSwingHighPrice
     isLowerHigh = swingHighPrice < lastSwingHighPrice
     swingLine = line.new(bar_index[inputPivotBars], swingHighPrice, bar_index, swingHighPrice, xloc=xloc.bar_index, extend=extend.right, color=highcolor, style=lineStyleValue, width=lineWidth)
-    swingLabel = label.new(bar_index + labelOffsetX, swingHighPrice + syminfo.mintick * highLabelOffsetTicks, "1", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=highcolor, size=selectedLabelSize)
+    swingLabel = label.new(bar_index + labelOffsetX, swingHighPrice + syminfo.mintick * 2, "1", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=highcolor, size=selectedLabelSize)
 
     // check if last swing high was intermediate
     if isLowerHigh and array_peek(swingHighIsHigher)
@@ -100,7 +97,7 @@ if not na(swingLowPrice)
     isHigherLow = swingLowPrice > lastSwingLowPrice
     isLowerLow = swingLowPrice < lastSwingLowPrice
     swingLine = line.new(bar_index[inputPivotBars], swingLowPrice, bar_index, swingLowPrice, xloc=xloc.bar_index, extend=extend.right, color=lowcolor, style=lineStyleValue, width=lineWidth)
-    swingLabel = label.new(bar_index + labelOffsetX, swingLowPrice + syminfo.mintick * lowLabelOffsetTicks, "1", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=lowcolor, size=selectedLabelSize)
+    swingLabel = label.new(bar_index + labelOffsetX, swingLowPrice - syminfo.mintick * 2, "1", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=lowcolor, size=selectedLabelSize)
 
     // check if last swing low was intermediate
     if isHigherLow and array_peek(swingLowIsLower)
@@ -132,7 +129,7 @@ if barstate.isnew
                 highLevelBar = line.get_x1(highLineId)
                 highAge = bar_index - highLevelBar + 1
                 highLabelX = line.get_x2(highLineId) + labelOffsetX
-                highLabelY = highLevelPrice + syminfo.mintick * highLabelOffsetTicks
+                highLabelY = highLevelPrice + syminfo.mintick * 2
                 if na(highLabelId)
                     newHighLabel = label.new(highLabelX, highLabelY, str.tostring(highAge), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=highcolor, size=selectedLabelSize)
                     array.set(swingHighLabels, i, newHighLabel)
@@ -155,7 +152,7 @@ if barstate.isnew
                 lowLevelBar = line.get_x1(lowLineId)
                 lowAge = bar_index - lowLevelBar + 1
                 lowLabelX = line.get_x2(lowLineId) + labelOffsetX
-                lowLabelY = lowLevelPrice + syminfo.mintick * lowLabelOffsetTicks
+                lowLabelY = lowLevelPrice - syminfo.mintick * 2
                 if na(lowLabelId)
                     newLowLabel = label.new(lowLabelX, lowLabelY, str.tostring(lowAge), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=lowcolor, size=selectedLabelSize)
                     array.set(swingLowLabels, i, newLowLabel)
@@ -184,7 +181,7 @@ if barstate.isconfirmed
                         line.set_extend(highLineId, extend.none)
                         if not na(highLabelId)
                             highLabelX = bar_index + labelOffsetX
-                            highLabelY = highLevelPrice + syminfo.mintick * highLabelOffsetTicks
+                            highLabelY = highLevelPrice + syminfo.mintick * 2
                             highAge = bar_index - line.get_x1(highLineId) + 1
                             label.set_xy(highLabelId, line.get_x2(highLineId) + labelOffsetX, highLabelY)
                             label.set_text(highLabelId, str.tostring(highAge))
@@ -209,7 +206,7 @@ if barstate.isconfirmed
                         line.set_extend(lowLineId, extend.none)
                         if not na(lowLabelId)
                             lowLabelX = bar_index + labelOffsetX
-                            lowLabelY = lowLevelPrice + syminfo.mintick * lowLabelOffsetTicks
+                            lowLabelY = lowLevelPrice - syminfo.mintick * 2
                             lowAge = bar_index - line.get_x1(lowLineId) + 1
                             label.set_xy(lowLabelId, line.get_x2(lowLineId) + labelOffsetX, lowLabelY)
                             label.set_text(lowLabelId, str.tostring(lowAge))
