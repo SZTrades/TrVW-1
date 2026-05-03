@@ -1,0 +1,151 @@
+//@version=6
+indicator("SZTrades HTF Static Levels Map", shorttitle="SZ HTF Map", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// -----------------------------------------------------------------------------
+// Inputs
+// -----------------------------------------------------------------------------
+groupTf = "Timeframes"
+show1D = input.bool(true, "Include 1D", group=groupTf)
+show2H = input.bool(true, "Include 2h", group=groupTf)
+show1H = input.bool(true, "Include 1h", group=groupTf)
+show15M = input.bool(true, "Include 15m", group=groupTf)
+
+groupDisplay = "Display"
+lineColor = input.color(color.gray, "Line color", group=groupDisplay)
+extendBars = input.int(50, "Line length (bars)", minval=1, group=groupDisplay)
+maxLines = input.int(200, "Max lines visible", minval=2, maxval=500, group=groupDisplay)
+showLabels = input.bool(true, "Show labels (TF + price)", group=groupDisplay)
+
+// -----------------------------------------------------------------------------
+// HTF data (completed candles only, non-repainting)
+// -----------------------------------------------------------------------------
+// We fetch both price levels and "new HTF bar" signal in HTF context.
+// `gaps_on` keeps values only on the HTF close-mapped bars, avoiding repeats.
+[high1D, low1D, new1D] = request.security(
+     syminfo.tickerid,
+     "D",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
+
+[high2H, low2H, new2H] = request.security(
+     syminfo.tickerid,
+     "120",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
+
+[high1H, low1H, new1H] = request.security(
+     syminfo.tickerid,
+     "60",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
+
+[high15M, low15M, new15M] = request.security(
+     syminfo.tickerid,
+     "15",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+f_style_for_index(idx) =>
+    switch idx
+        0 => line.style_solid   // 1D
+        1 => line.style_solid   // 2h
+        2 => line.style_dashed  // 1h
+        => line.style_dotted    // 15m
+
+f_width_for_index(idx) =>
+    idx == 0 ? 2 : 1
+
+var line[] levelLines = array.new_line()
+var label[] levelLabels = array.new_label()
+
+f_add_level(startBarIndex, priceLevel, tfLabel, levelStyle, levelWidth) =>
+    ln = line.new(
+         x1=startBarIndex,
+         y1=priceLevel,
+         x2=startBarIndex + extendBars,
+         y2=priceLevel,
+         xloc=xloc.bar_index,
+         color=lineColor,
+         style=levelStyle,
+         width=levelWidth
+     )
+    label lb = na
+    if showLabels
+        lb := label.new(
+             x=startBarIndex + extendBars,
+             y=priceLevel,
+             text=tfLabel + " " + str.tostring(priceLevel, format.mintick),
+             xloc=xloc.bar_index,
+             style=label.style_label_left,
+             color=color.new(lineColor, 70),
+             textcolor=color.white,
+             size=size.tiny
+         )
+    array.push(levelLines, ln)
+    array.push(levelLabels, lb)
+
+f_trim_objects(maxVisibleLines) =>
+    while array.size(levelLines) > maxVisibleLines
+        oldLine = array.shift(levelLines)
+        oldLabel = array.shift(levelLabels)
+        if not na(oldLine)
+            line.delete(oldLine)
+        if not na(oldLabel)
+            label.delete(oldLabel)
+
+// -----------------------------------------------------------------------------
+// Loop-driven processing across configured HTFs
+// -----------------------------------------------------------------------------
+var string[] tfLabels = array.from("1D", "2h", "1h", "15m")
+var bool[] tfEnabled = array.new_bool(4, false)
+var bool[] tfNewBar = array.new_bool(4, false)
+var float[] tfHighs = array.new_float(4, na)
+var float[] tfLows = array.new_float(4, na)
+
+array.set(tfEnabled, 0, show1D)
+array.set(tfEnabled, 1, show2H)
+array.set(tfEnabled, 2, show1H)
+array.set(tfEnabled, 3, show15M)
+
+array.set(tfNewBar, 0, new1D)
+array.set(tfNewBar, 1, new2H)
+array.set(tfNewBar, 2, new1H)
+array.set(tfNewBar, 3, new15M)
+
+array.set(tfHighs, 0, high1D)
+array.set(tfHighs, 1, high2H)
+array.set(tfHighs, 2, high1H)
+array.set(tfHighs, 3, high15M)
+
+array.set(tfLows, 0, low1D)
+array.set(tfLows, 1, low2H)
+array.set(tfLows, 2, low1H)
+array.set(tfLows, 3, low15M)
+
+for i = 0 to array.size(tfLabels) - 1
+    enabled = array.get(tfEnabled, i)
+    isNewClosedBar = nz(array.get(tfNewBar, i), false)
+    if enabled and isNewClosedBar and barstate.isconfirmed
+        tfName = array.get(tfLabels, i)
+        tfHigh = array.get(tfHighs, i)
+        tfLow = array.get(tfLows, i)
+        tfStyle = f_style_for_index(i)
+        tfWidth = f_width_for_index(i)
+
+        if not na(tfHigh)
+            f_add_level(bar_index, tfHigh, tfName, tfStyle, tfWidth)
+        if not na(tfLow)
+            f_add_level(bar_index, tfLow, tfName, tfStyle, tfWidth)
+
+f_trim_objects(maxLines)
