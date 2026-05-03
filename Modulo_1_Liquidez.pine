@@ -1,0 +1,226 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("M1 Liquidez (Swings)", shorttitle="M1 Liquidity", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// === Liquidity Module Settings ===
+var inputPivotBars = input(5, "Pivot Candles", group="Liquidity Module")
+var highcolor = input.color(color.rgb(184, 184, 184), "Swing High Color", group="Liquidity Module")
+var lowcolor = input.color(color.rgb(76, 175, 80), "Swing Low Color", group="Liquidity Module")
+var lineWidth = input.int(1, "Line Width", minval=1, maxval=4, group="Liquidity Module")
+var lineStyle = input.string("Solid", "Line Style", options=["Solid", "Dashed", "Dotted"], group="Liquidity Module")
+var labelSize = input.string("Tiny", "Label Size", options=["Tiny", "Small", "Normal"], group="Liquidity Module")
+
+// Fixed variables (not user inputs)
+var bool inputHighlightIntermediates = true
+var bool inputShowShortTermSwings = true
+var string inputIntermediateSize = "Tiny"
+var intermediateLabelSize = size.tiny
+
+lineStyleValue = lineStyle == "Dashed" ? line.style_dashed : lineStyle == "Dotted" ? line.style_dotted : line.style_solid
+selectedLabelSize = labelSize == "Small" ? size.small : labelSize == "Normal" ? size.normal : size.tiny
+
+// Parallel arrays for Swing High Data
+var float[] swingHighs = array.new_float()
+var line[] swingHighLines = array.new_line()
+var label[] swingHighLabels = array.new_label()
+var bool[] swingHighIsHigher = array.new_bool()
+var bool[] swingHighIsIntermediate = array.new_bool()
+var bool[] swingHighSwept = array.new_bool()
+var int[] swingHighCreatedBars = array.new_int()
+
+// Parallel arrays for Swing Low Data
+var float[] swingLows = array.new_float()
+var line[] swingLowLines = array.new_line()
+var label[] swingLowLabels = array.new_label()
+var bool[] swingLowIsLower = array.new_bool()
+var bool[] swingLowIsIntermediate = array.new_bool()
+var bool[] swingLowSwept = array.new_bool()
+var int[] swingLowCreatedBars = array.new_int()
+
+// see last element pushed an an array
+array_peek(arrayId) =>
+    int arraySize = array.size(arrayId)
+    if arraySize > 0
+        array.get(arrayId, arraySize - 1)
+    else
+        na
+
+// filters out swings that were not intermediate swings after all swings have been recorded.
+remove_short_term_swings() =>
+    if not inputShowShortTermSwings and barstate.islast
+        var swingHighCount = array.size(swingHighLines)
+        var swingLowCount = array.size(swingLowLines)
+
+        for i = 0 to swingHighCount - 1 by 1
+            if not array.get(swingHighIsIntermediate, i)
+                line.delete(array.get(swingHighLines, i))
+                swingHighLabel = array.get(swingHighLabels, i)
+                if not na(swingHighLabel)
+                    label.delete(swingHighLabel)
+
+        for i = 0 to swingLowCount - 1 by 1
+            if not array.get(swingLowIsIntermediate, i)
+                line.delete(array.get(swingLowLines, i))
+                swingLowLabel = array.get(swingLowLabels, i)
+                if not na(swingLowLabel)
+                    label.delete(swingLowLabel)
+
+
+// detect swing highs and lows
+swingHighPrice = ta.pivothigh(high, inputPivotBars, inputPivotBars)
+swingLowPrice = ta.pivotlow(low, inputPivotBars, inputPivotBars)
+
+
+if not na(swingHighPrice)
+    lastSwingHighPrice = array_peek(swingHighs)
+    isHigherHigh = swingHighPrice > lastSwingHighPrice
+    isLowerHigh = swingHighPrice < lastSwingHighPrice
+    swingLine = line.new(bar_index[inputPivotBars], swingHighPrice, bar_index, swingHighPrice, xloc=xloc.bar_index, extend=extend.none, color=highcolor, style=lineStyleValue, width=lineWidth)
+    swingLabel = label.new(bar_index - 2, swingHighPrice, "1", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_down, color=color.new(color.white, 100), textcolor=highcolor, size=selectedLabelSize)
+
+    // check if last swing high was intermediate
+    if isLowerHigh and array_peek(swingHighIsHigher)
+        // lower high after a higher high means the previous swing high was intermediate
+        if inputHighlightIntermediates
+            array.set(swingHighIsIntermediate, array.size(swingHighIsIntermediate) - 1, true)
+
+    // save swing
+    array.push(swingHighs, swingHighPrice)
+    array.push(swingHighLines, swingLine)
+    array.push(swingHighLabels, swingLabel)
+    array.push(swingHighIsHigher, isHigherHigh)
+    array.push(swingHighIsIntermediate, false) // can be filled in later, if a lower high forms next
+    array.push(swingHighSwept, false)
+    array.push(swingHighCreatedBars, bar_index)
+
+if not na(swingLowPrice)
+    lastSwingLowPrice = array_peek(swingLows)
+    isHigherLow = swingLowPrice > lastSwingLowPrice
+    isLowerLow = swingLowPrice < lastSwingLowPrice
+    swingLine = line.new(bar_index[inputPivotBars], swingLowPrice, bar_index, swingLowPrice, xloc=xloc.bar_index, extend=extend.none, color=lowcolor, style=lineStyleValue, width=lineWidth)
+    swingLabel = label.new(bar_index - 2, swingLowPrice, "1", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_up, color=color.new(color.white, 100), textcolor=lowcolor, size=selectedLabelSize)
+
+    // check if last swing low was intermediate
+    if isHigherLow and array_peek(swingLowIsLower)
+        // higher low after a lower low means the previous swing low was intermediate
+        if inputHighlightIntermediates
+            array.set(swingLowIsIntermediate, array.size(swingLowIsIntermediate) - 1, true)
+
+    // save swing
+    array.push(swingLows, swingLowPrice)
+    array.push(swingLowLines, swingLine)
+    array.push(swingLowLabels, swingLabel)
+    array.push(swingLowIsLower, isLowerLow)
+    array.push(swingLowIsIntermediate, false) // can be filled in later if a higher low forms next
+    array.push(swingLowSwept, false)
+    array.push(swingLowCreatedBars, bar_index)
+
+
+remove_short_term_swings()
+
+// Update age labels for active liquidity lines.
+if barstate.isnew
+    int swingHighLabelCount = array.size(swingHighLines)
+    if swingHighLabelCount > 0
+        for i = 0 to swingHighLabelCount - 1 by 1
+            line highLineId = array.get(swingHighLines, i)
+            label highLabelId = array.get(swingHighLabels, i)
+            bool highWasSwept = array.get(swingHighSwept, i)
+            if not na(highLineId) and not highWasSwept
+                line.set_x2(highLineId, bar_index + 10)
+                line.set_extend(highLineId, extend.none)
+                highLevelPrice = line.get_y1(highLineId)
+                highLevelBar = line.get_x1(highLineId)
+                highAge = bar_index - highLevelBar + 1
+                highLabelX = line.get_x2(highLineId) - 2
+                highLabelY = highLevelPrice
+                if na(highLabelId)
+                    newHighLabel = label.new(highLabelX, highLabelY, str.tostring(highAge), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_down, color=color.new(color.white, 100), textcolor=highcolor, size=selectedLabelSize)
+                    array.set(swingHighLabels, i, newHighLabel)
+                else
+                    label.set_xy(highLabelId, highLabelX, highLabelY)
+                    label.set_text(highLabelId, str.tostring(highAge))
+                    label.set_textcolor(highLabelId, highcolor)
+                    label.set_size(highLabelId, selectedLabelSize)
+                    label.set_style(highLabelId, label.style_label_down)
+                    label.set_color(highLabelId, color.new(color.white, 100))
+
+    int swingLowLabelCount = array.size(swingLowLines)
+    if swingLowLabelCount > 0
+        for i = 0 to swingLowLabelCount - 1 by 1
+            line lowLineId = array.get(swingLowLines, i)
+            label lowLabelId = array.get(swingLowLabels, i)
+            bool lowWasSwept = array.get(swingLowSwept, i)
+            if not na(lowLineId) and not lowWasSwept
+                line.set_x2(lowLineId, bar_index + 10)
+                line.set_extend(lowLineId, extend.none)
+                lowLevelPrice = line.get_y1(lowLineId)
+                lowLevelBar = line.get_x1(lowLineId)
+                lowAge = bar_index - lowLevelBar + 1
+                lowLabelX = line.get_x2(lowLineId) - 2
+                lowLabelY = lowLevelPrice
+                if na(lowLabelId)
+                    newLowLabel = label.new(lowLabelX, lowLabelY, str.tostring(lowAge), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_up, color=color.new(color.white, 100), textcolor=lowcolor, size=selectedLabelSize)
+                    array.set(swingLowLabels, i, newLowLabel)
+                else
+                    label.set_xy(lowLabelId, lowLabelX, lowLabelY)
+                    label.set_text(lowLabelId, str.tostring(lowAge))
+                    label.set_textcolor(lowLabelId, lowcolor)
+                    label.set_size(lowLabelId, selectedLabelSize)
+                    label.set_style(lowLabelId, label.style_label_up)
+                    label.set_color(lowLabelId, color.new(color.white, 100))
+
+// Sweep management: cut line when price touches/exceeds the liquidity level.
+if barstate.isconfirmed
+    int swingHighCount = array.size(swingHighLines)
+    if swingHighCount > 0
+        for i = 0 to swingHighCount - 1 by 1
+            line highLineId = array.get(swingHighLines, i)
+            bool highWasSwept = array.get(swingHighSwept, i)
+            int highCreatedBar = array.get(swingHighCreatedBars, i)
+            if not highWasSwept and not na(highLineId)
+                // Skip lines that were created on this same bar.
+                if bar_index > highCreatedBar
+                    highLevelPrice = line.get_y1(highLineId)
+                    if high >= highLevelPrice
+                        highLabelId = array.get(swingHighLabels, i)
+                        line.set_x2(highLineId, bar_index)
+                        line.set_extend(highLineId, extend.none)
+                        if not na(highLabelId)
+                            highLabelX = bar_index - 2
+                            highLabelY = highLevelPrice
+                            highAge = bar_index - line.get_x1(highLineId) + 1
+                            label.set_xy(highLabelId, line.get_x2(highLineId) - 2, highLabelY)
+                            label.set_text(highLabelId, str.tostring(highAge))
+                            label.set_textcolor(highLabelId, highcolor)
+                            label.set_size(highLabelId, selectedLabelSize)
+                            label.set_style(highLabelId, label.style_label_down)
+                            label.set_color(highLabelId, color.new(color.white, 100))
+                        array.set(swingHighSwept, i, true)
+
+    int swingLowCount = array.size(swingLowLines)
+    if swingLowCount > 0
+        for i = 0 to swingLowCount - 1 by 1
+            line lowLineId = array.get(swingLowLines, i)
+            bool lowWasSwept = array.get(swingLowSwept, i)
+            int lowCreatedBar = array.get(swingLowCreatedBars, i)
+            if not lowWasSwept and not na(lowLineId)
+                // Skip lines that were created on this same bar.
+                if bar_index > lowCreatedBar
+                    lowLevelPrice = line.get_y1(lowLineId)
+                    if low <= lowLevelPrice
+                        lowLabelId = array.get(swingLowLabels, i)
+                        line.set_x2(lowLineId, bar_index)
+                        line.set_extend(lowLineId, extend.none)
+                        if not na(lowLabelId)
+                            lowLabelX = bar_index - 2
+                            lowLabelY = lowLevelPrice
+                            lowAge = bar_index - line.get_x1(lowLineId) + 1
+                            label.set_xy(lowLabelId, line.get_x2(lowLineId) - 2, lowLabelY)
+                            label.set_text(lowLabelId, str.tostring(lowAge))
+                            label.set_textcolor(lowLabelId, lowcolor)
+                            label.set_size(lowLabelId, selectedLabelSize)
+                            label.set_style(lowLabelId, label.style_label_up)
+                            label.set_color(lowLabelId, color.new(color.white, 100))
+                        array.set(swingLowSwept, i, true)
