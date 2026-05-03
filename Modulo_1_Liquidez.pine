@@ -17,6 +17,7 @@ lineStyleInput = input.string("Solid", "Estilo de Linea", options=["Solid", "Das
 
 labelTextSize = input.string(size.tiny, "Tamano Texto Etiqueta", options=[size.auto, size.tiny, size.small, size.normal], group=groupLabels)
 labelPosition = input.string("Right", "Posicion Etiqueta", options=["Center", "Left", "Right"], group=groupLabels)
+labelOffsetX = input.int(0, "Offset X de Etiqueta (barras)", group=groupLabels)
 minBarsForLabel = input.int(5, "Mostrar etiqueta solo si Velas >= ", minval=1, group=groupLabels)
 
 // -----------------------------------------------------------------------------
@@ -32,6 +33,11 @@ labelXByPosition(levelBarIndex, currentBarIndex, pos) =>
     barsSpan = math.max(currentBarIndex - levelBarIndex, 0)
     centerBar = levelBarIndex + int(math.floor(barsSpan * 0.5))
     pos == "Left" ? levelBarIndex : pos == "Center" ? centerBar : currentBarIndex
+
+labelXWithOffset(levelBarIndex, currentBarIndex, pos, xOffset) =>
+    xBase = labelXByPosition(levelBarIndex, currentBarIndex, pos)
+    xWithOffset = xBase + xOffset
+    pos == "Center" ? math.min(math.max(xWithOffset, levelBarIndex), currentBarIndex) : xWithOffset
 
 // -----------------------------------------------------------------------------
 // Parallel arrays for highs
@@ -91,7 +97,7 @@ if highCount > 0
             levelLine = array.get(swingHighLines, i)
             levelLabel = array.get(swingHighLabels, i)
 
-            labelX = labelXByPosition(levelBarIndex, bar_index, labelPosition)
+            labelX = labelXWithOffset(levelBarIndex, bar_index, labelPosition, labelOffsetX)
             labelY = levelPrice + syminfo.mintick * 5.0
 
             // Keep matured labels anchored to the selected line position while active.
@@ -156,7 +162,7 @@ if lowCount > 0
             levelLine = array.get(swingLowLines, i)
             levelLabel = array.get(swingLowLabels, i)
 
-            labelX = labelXByPosition(levelBarIndex, bar_index, labelPosition)
+            labelX = labelXWithOffset(levelBarIndex, bar_index, labelPosition, labelOffsetX)
             labelY = levelPrice - syminfo.mintick * 5.0
 
             // Keep matured labels anchored to the selected line position while active.
