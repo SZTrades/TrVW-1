@@ -5,8 +5,8 @@ indicator("M1 Liquidez (Swings)", shorttitle="M1 Liquidity", overlay=true, max_l
 
 // === Liquidity Module Settings ===
 var inputPivotBars = input(5, "Pivot Candles", group="Liquidity Module")
-var highcolor = input.color(color.rgb(70, 184, 42), "High Color", group="Liquidity Module")
-var lowcolor = input.color(color.rgb(200, 200, 200), "Low Color", group="Liquidity Module")
+var highcolor = input.color(color.rgb(70, 184, 42), "Swing High Color", group="Liquidity Module")
+var lowcolor = input.color(color.rgb(200, 200, 200), "Swing Low Color", group="Liquidity Module")
 var lineWidth = input.int(1, "Line Width", minval=1, maxval=4, group="Liquidity Module")
 var lineStyle = input.string("Solid", "Line Style", options=["Solid", "Dashed", "Dotted"], group="Liquidity Module")
 var deleteOnSweep = input.bool(false, "Delete line after sweep", group="Liquidity Module")
