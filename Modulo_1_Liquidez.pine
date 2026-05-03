@@ -129,7 +129,7 @@ if barstate.isnew
                 highLevelPrice = line.get_y1(highLineId)
                 highLevelBar = line.get_x1(highLineId)
                 highAge = bar_index - highLevelBar + 1
-                highLabelX = bar_index + labelOffsetX
+                highLabelX = line.get_x2(highLineId) + labelOffsetX
                 highLabelY = highLevelPrice + syminfo.mintick * labelOffsetY
                 if na(highLabelId)
                     newHighLabel = label.new(highLabelX, highLabelY, str.tostring(highAge), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=highcolor, size=selectedLabelSize)
@@ -152,7 +152,7 @@ if barstate.isnew
                 lowLevelPrice = line.get_y1(lowLineId)
                 lowLevelBar = line.get_x1(lowLineId)
                 lowAge = bar_index - lowLevelBar + 1
-                lowLabelX = bar_index + labelOffsetX
+                lowLabelX = line.get_x2(lowLineId) + labelOffsetX
                 lowLabelY = lowLevelPrice - syminfo.mintick * labelOffsetY
                 if na(lowLabelId)
                     newLowLabel = label.new(lowLabelX, lowLabelY, str.tostring(lowAge), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=lowcolor, size=selectedLabelSize)
@@ -178,11 +178,18 @@ if barstate.isconfirmed
                     highLevelPrice = line.get_y1(highLineId)
                     if high >= highLevelPrice
                         highLabelId = array.get(swingHighLabels, i)
-                        if not na(highLabelId)
-                            label.delete(highLabelId)
-                            array.set(swingHighLabels, i, na)
                         line.set_x2(highLineId, bar_index)
                         line.set_extend(highLineId, extend.none)
+                        if not na(highLabelId)
+                            highLabelX = bar_index + labelOffsetX
+                            highLabelY = highLevelPrice + syminfo.mintick * labelOffsetY
+                            highAge = bar_index - line.get_x1(highLineId) + 1
+                            label.set_xy(highLabelId, highLabelX, highLabelY)
+                            label.set_text(highLabelId, str.tostring(highAge))
+                            label.set_textcolor(highLabelId, highcolor)
+                            label.set_size(highLabelId, selectedLabelSize)
+                            label.set_style(highLabelId, label.style_none)
+                            label.set_color(highLabelId, color.new(color.white, 100))
                         array.set(swingHighSwept, i, true)
 
     int swingLowCount = array.size(swingLowLines)
@@ -196,9 +203,16 @@ if barstate.isconfirmed
                     lowLevelPrice = line.get_y1(lowLineId)
                     if low <= lowLevelPrice
                         lowLabelId = array.get(swingLowLabels, i)
-                        if not na(lowLabelId)
-                            label.delete(lowLabelId)
-                            array.set(swingLowLabels, i, na)
                         line.set_x2(lowLineId, bar_index)
                         line.set_extend(lowLineId, extend.none)
+                        if not na(lowLabelId)
+                            lowLabelX = bar_index + labelOffsetX
+                            lowLabelY = lowLevelPrice - syminfo.mintick * labelOffsetY
+                            lowAge = bar_index - line.get_x1(lowLineId) + 1
+                            label.set_xy(lowLabelId, lowLabelX, lowLabelY)
+                            label.set_text(lowLabelId, str.tostring(lowAge))
+                            label.set_textcolor(lowLabelId, lowcolor)
+                            label.set_size(lowLabelId, selectedLabelSize)
+                            label.set_style(lowLabelId, label.style_none)
+                            label.set_color(lowLabelId, color.new(color.white, 100))
                         array.set(swingLowSwept, i, true)
