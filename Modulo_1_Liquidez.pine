@@ -1,19 +1,18 @@
 // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 
 //@version=5
-indicator("M1 Liquidez (Swings)", overlay=true, max_labels_count=500)
+indicator("M1 Liquidez (Swings)", shorttitle="M1 Liquidity", overlay=true, max_labels_count=500)
 
+// === Liquidity Module Settings ===
+var inputPivotBars = input(5, "Pivot Candles", group="Liquidity Module")
+var highcolor = input.color(color.red, "High Color", group="Liquidity Module")
+var lowcolor = input.color(color.green, "Low Color", group="Liquidity Module")
+
+// Fixed variables (not user inputs)
 var bool inputHighlightIntermediates = true
-var string inputIntermediateSize = "Tiny"
 var bool inputShowShortTermSwings = true
-var inputPivotBars = input(5, "Pivot Candles")
-var highcolor = input.color(color.red, title="High", tooltip="select a color for ST/IT Highs")
-var lowcolor = input.color(color.green, title="Low", tooltip="select a color for ST/IT Lows")
-var circleSize = input.string("Tiny", "Tamaño de los círculos", options=["Tiny", "Small", "Normal"])
-var circleOffsetTicks = input.int(0, "Desplazamiento vertical de círculos (ticks)", minval=-10, maxval=10)
-
-var intermediateLabelSize = inputIntermediateSize == "Auto" ? size.auto : inputIntermediateSize == "Tiny" ? size.tiny : inputIntermediateSize == "Small" ? size.small : size.normal
-var selectedCircleSize = circleSize == "Small" ? size.small : circleSize == "Normal" ? size.normal : size.tiny
+var string inputIntermediateSize = "Tiny"
+var intermediateLabelSize = size.tiny
 
 // Parallel arrays for Swing High Data
 var float[] swingHighs = array.new_float()
@@ -59,7 +58,7 @@ if not na(swingHighPrice)
     lastSwingHighPrice = array_peek(swingHighs)
     isHigherHigh = swingHighPrice > lastSwingHighPrice
     isLowerHigh = swingHighPrice < lastSwingHighPrice
-    swingLabel = label.new(bar_index[inputPivotBars], swingHighPrice + syminfo.mintick * circleOffsetTicks, color=highcolor, yloc=yloc.price, style=label.style_circle, size=selectedCircleSize)
+    swingLabel = label.new(bar_index[inputPivotBars], swingHighPrice, color=highcolor, yloc=yloc.price, style=label.style_circle, size=size.tiny)
 
     // check if last swing high was intermediate
     if isLowerHigh and array_peek(swingHighIsHigher)
@@ -78,7 +77,7 @@ if not na(swingLowPrice)
     lastSwingLowPrice = array_peek(swingLows)
     isHigherLow = swingLowPrice > lastSwingLowPrice
     isLowerLow = swingLowPrice < lastSwingLowPrice
-    swingLabel = label.new(bar_index[inputPivotBars], swingLowPrice + syminfo.mintick * circleOffsetTicks, color=lowcolor, yloc=yloc.price, style=label.style_circle, size=selectedCircleSize)
+    swingLabel = label.new(bar_index[inputPivotBars], swingLowPrice, color=lowcolor, yloc=yloc.price, style=label.style_circle, size=size.tiny)
 
     // check if last swing low was intermediate
     if isHigherLow and array_peek(swingLowIsLower)
