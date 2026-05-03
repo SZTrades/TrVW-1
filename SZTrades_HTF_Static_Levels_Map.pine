@@ -19,22 +19,39 @@ showLabels = input.bool(true, "Show labels (TF + price)", group=groupDisplay)
 // -----------------------------------------------------------------------------
 // HTF data (completed candles only, non-repainting)
 // -----------------------------------------------------------------------------
-new1D = ta.change(time("D")) != 0
-new2H = ta.change(time("120")) != 0
-new1H = ta.change(time("60")) != 0
-new15M = ta.change(time("15")) != 0
+// We fetch both price levels and "new HTF bar" signal in HTF context.
+// `gaps_on` keeps values only on the HTF close-mapped bars, avoiding repeats.
+[high1D, low1D, new1D] = request.security(
+     syminfo.tickerid,
+     "D",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
 
-high1D = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_off)
-low1D = request.security(syminfo.tickerid, "D", low[1], lookahead=barmerge.lookahead_off)
+[high2H, low2H, new2H] = request.security(
+     syminfo.tickerid,
+     "120",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
 
-high2H = request.security(syminfo.tickerid, "120", high[1], lookahead=barmerge.lookahead_off)
-low2H = request.security(syminfo.tickerid, "120", low[1], lookahead=barmerge.lookahead_off)
+[high1H, low1H, new1H] = request.security(
+     syminfo.tickerid,
+     "60",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
 
-high1H = request.security(syminfo.tickerid, "60", high[1], lookahead=barmerge.lookahead_off)
-low1H = request.security(syminfo.tickerid, "60", low[1], lookahead=barmerge.lookahead_off)
-
-high15M = request.security(syminfo.tickerid, "15", high[1], lookahead=barmerge.lookahead_off)
-low15M = request.security(syminfo.tickerid, "15", low[1], lookahead=barmerge.lookahead_off)
+[high15M, low15M, new15M] = request.security(
+     syminfo.tickerid,
+     "15",
+     [high, low, ta.change(time) != 0],
+     lookahead=barmerge.lookahead_off,
+     gaps=barmerge.gaps_on
+ )
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -118,7 +135,7 @@ array.set(tfLows, 3, low15M)
 
 for i = 0 to array.size(tfLabels) - 1
     enabled = array.get(tfEnabled, i)
-    isNewClosedBar = array.get(tfNewBar, i)
+    isNewClosedBar = nz(array.get(tfNewBar, i), false)
     if enabled and isNewClosedBar and barstate.isconfirmed
         tfName = array.get(tfLabels, i)
         tfHigh = array.get(tfHighs, i)
