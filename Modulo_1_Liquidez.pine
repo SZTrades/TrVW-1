@@ -9,6 +9,7 @@ var highcolor = input.color(color.rgb(70, 184, 42), "High Color", group="Liquidi
 var lowcolor = input.color(color.rgb(200, 200, 200), "Low Color", group="Liquidity Module")
 var lineWidth = input.int(1, "Line Width", minval=1, maxval=4, group="Liquidity Module")
 var lineStyle = input.string("Solid", "Line Style", options=["Solid", "Dashed", "Dotted"], group="Liquidity Module")
+var deleteOnSweep = input.bool(false, "Delete line after sweep", group="Liquidity Module")
 
 // Fixed variables (not user inputs)
 var bool inputHighlightIntermediates = true
@@ -23,12 +24,14 @@ var float[] swingHighs = array.new_float()
 var line[] swingHighLines = array.new_line()
 var bool[] swingHighIsHigher = array.new_bool()
 var bool[] swingHighIsIntermediate = array.new_bool()
+var bool[] swingHighSwept = array.new_bool()
 
 // Parallel arrays for Swing Low Data
 var float[] swingLows = array.new_float()
 var line[] swingLowLines = array.new_line()
 var bool[] swingLowIsLower = array.new_bool()
 var bool[] swingLowIsIntermediate = array.new_bool()
+var bool[] swingLowSwept = array.new_bool()
 
 // see last element pushed an an array
 array_peek(arrayId) =>
@@ -75,6 +78,7 @@ if not na(swingHighPrice)
     array.push(swingHighLines, swingLine)
     array.push(swingHighIsHigher, isHigherHigh)
     array.push(swingHighIsIntermediate, false) // can be filled in later, if a lower high forms next
+    array.push(swingHighSwept, false)
 
 if not na(swingLowPrice)
     lastSwingLowPrice = array_peek(swingLows)
@@ -93,6 +97,45 @@ if not na(swingLowPrice)
     array.push(swingLowLines, swingLine)
     array.push(swingLowIsLower, isLowerLow)
     array.push(swingLowIsIntermediate, false) // can be filled in later if a higher low forms next
+    array.push(swingLowSwept, false)
 
 
 remove_short_term_swings()
+
+// Sweep management: cut line when price touches/exceeds the liquidity level.
+if barstate.isconfirmed
+    int swingHighCount = array.size(swingHighLines)
+    if swingHighCount > 0
+        for i = 0 to swingHighCount - 1 by 1
+            line highLineId = array.get(swingHighLines, i)
+            bool highWasSwept = array.get(swingHighSwept, i)
+            if not highWasSwept and not na(highLineId)
+                // Skip lines that were created on this same bar.
+                if line.get_x2(highLineId) < bar_index
+                    highLevelPrice = line.get_y1(highLineId)
+                    if high >= highLevelPrice
+                        if deleteOnSweep
+                            line.delete(highLineId)
+                            array.set(swingHighLines, i, na)
+                        else
+                            line.set_x2(highLineId, bar_index)
+                            line.set_extend(highLineId, extend.none)
+                        array.set(swingHighSwept, i, true)
+
+    int swingLowCount = array.size(swingLowLines)
+    if swingLowCount > 0
+        for i = 0 to swingLowCount - 1 by 1
+            line lowLineId = array.get(swingLowLines, i)
+            bool lowWasSwept = array.get(swingLowSwept, i)
+            if not lowWasSwept and not na(lowLineId)
+                // Skip lines that were created on this same bar.
+                if line.get_x2(lowLineId) < bar_index
+                    lowLevelPrice = line.get_y1(lowLineId)
+                    if low <= lowLevelPrice
+                        if deleteOnSweep
+                            line.delete(lowLineId)
+                            array.set(swingLowLines, i, na)
+                        else
+                            line.set_x2(lowLineId, bar_index)
+                            line.set_extend(lowLineId, extend.none)
+                        array.set(swingLowSwept, i, true)
