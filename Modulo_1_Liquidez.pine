@@ -1,5 +1,5 @@
 //@version=6
-indicator("Modulo 1: Liquidez (Swings)", shorttitle="M1 Liquidez", overlay=true, max_lines_count=5000, max_labels_count=5000)
+indicator("Modulo 1: Liquidez (Swings)", shorttitle="M1 Liquidez", overlay=true, max_lines_count=500, max_labels_count=500)
 
 // -----------------------------------------------------------------------------
 // Inputs
@@ -9,7 +9,7 @@ groupLines = "Lineas de Liquidez"
 groupLabels = "Etiquetas de Maduracion"
 
 pivotBars = input.int(5, "Pivot Length", minval=1, group=groupSwings)
-maxVisibleSwings = input.int(100, "Max Sweeps Visibles", minval=10, maxval=5000, group=groupSwings)
+maxVisibleSwings = input.int(100, "Max Sweeps Visibles", minval=10, maxval=500, group=groupSwings)
 
 colorHigh = input.color(color.red, "Color Swing High", group=groupLines)
 colorLow = input.color(color.green, "Color Swing Low", group=groupLines)
