@@ -8,9 +8,8 @@ groupSwings = "Swings"
 groupLines = "Lineas de Liquidez"
 groupLabels = "Etiquetas de Maduracion"
 
-pivotBars = input.int(5, "Pivot Length", minval=1, group=groupSwings)
+pivotBars = input.int(3, "Pivot Length", minval=1, group=groupSwings)
 maxVisibleSwings = input.int(100, "Max Sweeps Visibles", minval=10, maxval=500, group=groupSwings)
-showShortTermSwings = input.bool(false, "Mostrar swings cortos", group=groupSwings)
 
 colorHigh = input.color(color.red, "Color Swing High", group=groupLines)
 colorLow = input.color(color.green, "Color Swing Low", group=groupLines)
@@ -51,19 +50,6 @@ var float[] swingLowPrices = array.new_float()
 var int[] swingLowBars = array.new_int()
 var bool[] swingLowIsActive = array.new_bool()
 
-// -----------------------------------------------------------------------------
-// Store all pivot swings for intermediate confirmation logic
-// -----------------------------------------------------------------------------
-var float[] allSwingHighs = array.new_float()
-var int[] allSwingHighBars = array.new_int()
-var bool[] allSwingHighIsHigher = array.new_bool()
-var bool[] allSwingHighIsIntermediate = array.new_bool()
-
-var float[] allSwingLows = array.new_float()
-var int[] allSwingLowBars = array.new_int()
-var bool[] allSwingLowIsLower = array.new_bool()
-var bool[] allSwingLowIsIntermediate = array.new_bool()
-
 trimHighVisibility(maxItems) =>
     while array.size(swingHighLines) > maxItems
         oldLine = array.pop(swingHighLines)
@@ -95,69 +81,23 @@ selectedLineStyle = lineStyleFromInput(lineStyleInput)
 
 if not na(swingHighPrice)
     swingBarIndex = bar_index - pivotBars
-    lastHighPrice = array.size(allSwingHighs) > 0 ? array.get(allSwingHighs, array.size(allSwingHighs) - 1) : na
-    isHigherHigh = not na(lastHighPrice) and swingHighPrice > lastHighPrice
-    isLowerHigh = not na(lastHighPrice) and swingHighPrice < lastHighPrice
-
-    array.push(allSwingHighs, swingHighPrice)
-    array.push(allSwingHighBars, swingBarIndex)
-    array.push(allSwingHighIsHigher, isHigherHigh)
-    array.push(allSwingHighIsIntermediate, false)
-
-    drawLineNow = showShortTermSwings
-    drawPrice = swingHighPrice
-    drawBar = swingBarIndex
-
-    if isLowerHigh and array.size(allSwingHighs) > 1
-        prevHighIndex = array.size(allSwingHighs) - 2
-        if array.get(allSwingHighIsHigher, prevHighIndex)
-            array.set(allSwingHighIsIntermediate, prevHighIndex, true)
-            if not showShortTermSwings
-                drawLineNow := true
-                drawPrice := array.get(allSwingHighs, prevHighIndex)
-                drawBar := array.get(allSwingHighBars, prevHighIndex)
-
-    if drawLineNow
-        highLine = line.new(drawBar, drawPrice, bar_index, drawPrice, xloc=xloc.bar_index, extend=extend.right, color=colorHigh, style=selectedLineStyle, width=lineWidth)
-        array.unshift(swingHighLines, highLine)
-        array.unshift(swingHighLabels, na)
-        array.unshift(swingHighPrices, drawPrice)
-        array.unshift(swingHighBars, drawBar)
-        array.unshift(swingHighIsActive, true)
-        trimHighVisibility(maxVisibleSwings)
+    highLine = line.new(swingBarIndex, swingHighPrice, bar_index, swingHighPrice, xloc=xloc.bar_index, extend=extend.right, color=colorHigh, style=selectedLineStyle, width=lineWidth)
+    array.unshift(swingHighLines, highLine)
+    array.unshift(swingHighLabels, na)
+    array.unshift(swingHighPrices, swingHighPrice)
+    array.unshift(swingHighBars, swingBarIndex)
+    array.unshift(swingHighIsActive, true)
+    trimHighVisibility(maxVisibleSwings)
 
 if not na(swingLowPrice)
     swingBarIndex = bar_index - pivotBars
-    lastLowPrice = array.size(allSwingLows) > 0 ? array.get(allSwingLows, array.size(allSwingLows) - 1) : na
-    isHigherLow = not na(lastLowPrice) and swingLowPrice > lastLowPrice
-    isLowerLow = not na(lastLowPrice) and swingLowPrice < lastLowPrice
-
-    array.push(allSwingLows, swingLowPrice)
-    array.push(allSwingLowBars, swingBarIndex)
-    array.push(allSwingLowIsLower, isLowerLow)
-    array.push(allSwingLowIsIntermediate, false)
-
-    drawLineNow = showShortTermSwings
-    drawPrice = swingLowPrice
-    drawBar = swingBarIndex
-
-    if isHigherLow and array.size(allSwingLows) > 1
-        prevLowIndex = array.size(allSwingLows) - 2
-        if array.get(allSwingLowIsLower, prevLowIndex)
-            array.set(allSwingLowIsIntermediate, prevLowIndex, true)
-            if not showShortTermSwings
-                drawLineNow := true
-                drawPrice := array.get(allSwingLows, prevLowIndex)
-                drawBar := array.get(allSwingLowBars, prevLowIndex)
-
-    if drawLineNow
-        lowLine = line.new(drawBar, drawPrice, bar_index, drawPrice, xloc=xloc.bar_index, extend=extend.right, color=colorLow, style=selectedLineStyle, width=lineWidth)
-        array.unshift(swingLowLines, lowLine)
-        array.unshift(swingLowLabels, na)
-        array.unshift(swingLowPrices, drawPrice)
-        array.unshift(swingLowBars, drawBar)
-        array.unshift(swingLowIsActive, true)
-        trimLowVisibility(maxVisibleSwings)
+    lowLine = line.new(swingBarIndex, swingLowPrice, bar_index, swingLowPrice, xloc=xloc.bar_index, extend=extend.right, color=colorLow, style=selectedLineStyle, width=lineWidth)
+    array.unshift(swingLowLines, lowLine)
+    array.unshift(swingLowLabels, na)
+    array.unshift(swingLowPrices, swingLowPrice)
+    array.unshift(swingLowBars, swingBarIndex)
+    array.unshift(swingLowIsActive, true)
+    trimLowVisibility(maxVisibleSwings)
 
 // -----------------------------------------------------------------------------
 // Manage high sweeps
