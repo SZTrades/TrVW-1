@@ -63,7 +63,7 @@ f_add_level(startBarIndex, priceLevel, tfLabel, levelStyle, levelWidth) =>
          style=levelStyle,
          width=levelWidth
      )
-    lb = na
+    label lb = na
     if showLabels
         lb := label.new(
              x=startBarIndex + extendBars,
