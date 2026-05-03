@@ -16,6 +16,8 @@ lineWidth = input.int(1, "Grosor de Linea", minval=1, maxval=4, group=groupLines
 lineStyleInput = input.string("Solid", "Estilo de Linea", options=["Solid", "Dashed", "Dotted"], group=groupLines)
 
 labelTextSize = input.string(size.tiny, "Tamano Texto Etiqueta", options=[size.auto, size.tiny, size.small, size.normal], group=groupLabels)
+labelPosition = input.string("Right", "Posicion Etiqueta", options=["Center", "Left", "Right"], group=groupLabels)
+minBarsForLabel = input.int(5, "Mostrar etiqueta solo si Velas >= ", minval=1, group=groupLabels)
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -25,6 +27,11 @@ lineStyleFromInput(styleText) =>
 
 labelText(barsAlive) =>
     str.tostring(barsAlive)
+
+labelXByPosition(levelBarIndex, currentBarIndex, pos) =>
+    barsSpan = math.max(currentBarIndex - levelBarIndex, 0)
+    centerBar = levelBarIndex + int(math.floor(barsSpan * 0.5))
+    pos == "Left" ? levelBarIndex : pos == "Center" ? centerBar : currentBarIndex
 
 // -----------------------------------------------------------------------------
 // Parallel arrays for highs
@@ -84,10 +91,13 @@ if highCount > 0
             levelLine = array.get(swingHighLines, i)
             levelLabel = array.get(swingHighLabels, i)
 
-            // Keep matured labels anchored to the right edge while line is active.
+            labelX = labelXByPosition(levelBarIndex, bar_index, labelPosition)
+            labelY = levelPrice + syminfo.mintick * 5.0
+
+            // Keep matured labels anchored to the selected line position while active.
             if not na(levelLabel)
-                label.set_x(levelLabel, bar_index)
-                label.set_y(levelLabel, levelPrice + syminfo.mintick * 2.0)
+                label.set_x(levelLabel, labelX)
+                label.set_y(levelLabel, labelY)
 
             partialSweep = high >= levelPrice and close < levelPrice
             totalSweep = close >= levelPrice
@@ -95,26 +105,28 @@ if highCount > 0
 
             if eventDetected
                 barsAlive = math.max(bar_index - levelBarIndex, 0) + 1
-                labelX = bar_index
-                labelY = levelPrice + syminfo.mintick * 2.0
                 textValue = labelText(barsAlive)
 
-                if na(levelLabel)
-                    newLabel = label.new(labelX, labelY, textValue, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=colorHigh, size=labelTextSize, text_formatting=text.format_bold)
-                    array.set(swingHighLabels, i, newLabel)
-                else
-                    label.set_x(levelLabel, labelX)
-                    label.set_y(levelLabel, labelY)
-                    label.set_text(levelLabel, textValue)
-                    label.set_style(levelLabel, label.style_none)
-                    label.set_color(levelLabel, color.new(color.white, 100))
-                    label.set_textcolor(levelLabel, colorHigh)
-                    label.set_size(levelLabel, labelTextSize)
-                    label.set_text_formatting(levelLabel, text.format_bold)
+                if barsAlive >= minBarsForLabel
+                    if na(levelLabel)
+                        newLabel = label.new(labelX, labelY, textValue, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=colorHigh, size=labelTextSize, text_formatting=text.format_bold)
+                        array.set(swingHighLabels, i, newLabel)
+                    else
+                        label.set_x(levelLabel, labelX)
+                        label.set_y(levelLabel, labelY)
+                        label.set_text(levelLabel, textValue)
+                        label.set_style(levelLabel, label.style_none)
+                        label.set_color(levelLabel, color.new(color.white, 100))
+                        label.set_textcolor(levelLabel, colorHigh)
+                        label.set_size(levelLabel, labelTextSize)
+                        label.set_text_formatting(levelLabel, text.format_bold)
 
                 if totalSweep
                     line.set_x2(levelLine, bar_index)
                     line.set_extend(levelLine, extend.none)
+                    if not na(levelLabel)
+                        label.delete(levelLabel)
+                        array.set(swingHighLabels, i, na)
                     array.set(swingHighIsActive, i, false)
                 else
                     line.set_x2(levelLine, bar_index)
@@ -122,6 +134,9 @@ if highCount > 0
 
                     replacementPrice = close + syminfo.mintick
                     replacementLine = line.new(bar_index, replacementPrice, bar_index, replacementPrice, xloc=xloc.bar_index, extend=extend.right, color=colorHigh, style=selectedLineStyle, width=lineWidth)
+                    if not na(levelLabel)
+                        label.delete(levelLabel)
+                    array.set(swingHighLabels, i, na)
                     array.set(swingHighLines, i, replacementLine)
                     array.set(swingHighPrices, i, replacementPrice)
                     array.set(swingHighBars, i, bar_index)
@@ -141,10 +156,13 @@ if lowCount > 0
             levelLine = array.get(swingLowLines, i)
             levelLabel = array.get(swingLowLabels, i)
 
-            // Keep matured labels anchored to the right edge while line is active.
+            labelX = labelXByPosition(levelBarIndex, bar_index, labelPosition)
+            labelY = levelPrice - syminfo.mintick * 5.0
+
+            // Keep matured labels anchored to the selected line position while active.
             if not na(levelLabel)
-                label.set_x(levelLabel, bar_index)
-                label.set_y(levelLabel, levelPrice - syminfo.mintick * 2.0)
+                label.set_x(levelLabel, labelX)
+                label.set_y(levelLabel, labelY)
 
             partialSweep = low <= levelPrice and close > levelPrice
             totalSweep = close <= levelPrice
@@ -152,26 +170,28 @@ if lowCount > 0
 
             if eventDetected
                 barsAlive = math.max(bar_index - levelBarIndex, 0) + 1
-                labelX = bar_index
-                labelY = levelPrice - syminfo.mintick * 2.0
                 textValue = labelText(barsAlive)
 
-                if na(levelLabel)
-                    newLabel = label.new(labelX, labelY, textValue, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=colorLow, size=labelTextSize, text_formatting=text.format_bold)
-                    array.set(swingLowLabels, i, newLabel)
-                else
-                    label.set_x(levelLabel, labelX)
-                    label.set_y(levelLabel, labelY)
-                    label.set_text(levelLabel, textValue)
-                    label.set_style(levelLabel, label.style_none)
-                    label.set_color(levelLabel, color.new(color.white, 100))
-                    label.set_textcolor(levelLabel, colorLow)
-                    label.set_size(levelLabel, labelTextSize)
-                    label.set_text_formatting(levelLabel, text.format_bold)
+                if barsAlive >= minBarsForLabel
+                    if na(levelLabel)
+                        newLabel = label.new(labelX, labelY, textValue, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=colorLow, size=labelTextSize, text_formatting=text.format_bold)
+                        array.set(swingLowLabels, i, newLabel)
+                    else
+                        label.set_x(levelLabel, labelX)
+                        label.set_y(levelLabel, labelY)
+                        label.set_text(levelLabel, textValue)
+                        label.set_style(levelLabel, label.style_none)
+                        label.set_color(levelLabel, color.new(color.white, 100))
+                        label.set_textcolor(levelLabel, colorLow)
+                        label.set_size(levelLabel, labelTextSize)
+                        label.set_text_formatting(levelLabel, text.format_bold)
 
                 if totalSweep
                     line.set_x2(levelLine, bar_index)
                     line.set_extend(levelLine, extend.none)
+                    if not na(levelLabel)
+                        label.delete(levelLabel)
+                        array.set(swingLowLabels, i, na)
                     array.set(swingLowIsActive, i, false)
                 else
                     line.set_x2(levelLine, bar_index)
@@ -179,6 +199,9 @@ if lowCount > 0
 
                     replacementPrice = close - syminfo.mintick
                     replacementLine = line.new(bar_index, replacementPrice, bar_index, replacementPrice, xloc=xloc.bar_index, extend=extend.right, color=colorLow, style=selectedLineStyle, width=lineWidth)
+                    if not na(levelLabel)
+                        label.delete(levelLabel)
+                    array.set(swingLowLabels, i, na)
                     array.set(swingLowLines, i, replacementLine)
                     array.set(swingLowPrices, i, replacementPrice)
                     array.set(swingLowBars, i, bar_index)
