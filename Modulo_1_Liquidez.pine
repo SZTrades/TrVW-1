@@ -128,7 +128,7 @@ if barstate.isnew
             label highLabelId = array.get(swingHighLabels, i)
             bool highWasSwept = array.get(swingHighSwept, i)
             if not na(highLineId) and not highWasSwept
-                line.set_x2(highLineId, bar_index)
+                line.set_x2(highLineId, bar_index + 10)
                 line.set_extend(highLineId, extend.none)
                 highLevelPrice = line.get_y1(highLineId)
                 highLevelBar = line.get_x1(highLineId)
@@ -153,7 +153,7 @@ if barstate.isnew
             label lowLabelId = array.get(swingLowLabels, i)
             bool lowWasSwept = array.get(swingLowSwept, i)
             if not na(lowLineId) and not lowWasSwept
-                line.set_x2(lowLineId, bar_index)
+                line.set_x2(lowLineId, bar_index + 10)
                 line.set_extend(lowLineId, extend.none)
                 lowLevelPrice = line.get_y1(lowLineId)
                 lowLevelBar = line.get_x1(lowLineId)
