@@ -1,5 +1,5 @@
 //@version=6
-indicator("Modulo 1: Liquidez (Swings)", shorttitle="M1 Liquidez", overlay=true, max_lines_count=500, max_labels_count=500)
+indicator("Modulo 1: Liquidez (Swings)", shorttitle="M1 Liquidez", overlay=true, max_lines_count=5000, max_labels_count=5000)
 
 // -----------------------------------------------------------------------------
 // Inputs
@@ -9,16 +9,14 @@ groupLines = "Lineas de Liquidez"
 groupLabels = "Etiquetas de Maduracion"
 
 pivotBars = input.int(5, "Pivot Length", minval=1, group=groupSwings)
+maxVisibleSwings = input.int(100, "Max Sweeps Visibles", minval=10, maxval=5000, group=groupSwings)
 
 colorHigh = input.color(color.red, "Color Swing High", group=groupLines)
 colorLow = input.color(color.green, "Color Swing Low", group=groupLines)
 lineWidth = input.int(1, "Grosor de Linea", minval=1, maxval=4, group=groupLines)
 lineStyleInput = input.string("Solid", "Estilo de Linea", options=["Solid", "Dashed", "Dotted"], group=groupLines)
 
-labelTextSize = input.string(size.tiny, "Tamano Texto Etiqueta", options=[size.auto, size.tiny, size.small, size.normal], group=groupLabels)
-labelPosition = input.string("Right", "Posicion Etiqueta", options=["Center", "Left", "Right"], group=groupLabels)
-labelOffsetX = input.int(0, "Offset X de Etiqueta (barras)", group=groupLabels)
-minBarsForLabel = input.int(5, "Mostrar etiqueta solo si Velas >= ", minval=1, group=groupLabels)
+minBarsForLabel = input.int(3, "Mostrar etiqueta solo si Velas >= ", minval=1, group=groupLabels)
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -29,15 +27,10 @@ lineStyleFromInput(styleText) =>
 labelText(barsAlive) =>
     str.tostring(barsAlive)
 
-labelXByPosition(levelBarIndex, currentBarIndex, pos) =>
-    barsSpan = math.max(currentBarIndex - levelBarIndex, 0)
-    centerBar = levelBarIndex + int(math.floor(barsSpan * 0.5))
-    pos == "Left" ? levelBarIndex : pos == "Center" ? centerBar : currentBarIndex
-
-labelXWithOffset(levelBarIndex, currentBarIndex, pos, xOffset) =>
-    xBase = labelXByPosition(levelBarIndex, currentBarIndex, pos)
-    xWithOffset = xBase + xOffset
-    pos == "Center" ? math.min(math.max(xWithOffset, levelBarIndex), currentBarIndex) : xWithOffset
+labelTextSize = size.tiny
+labelXOffsetBars = -1
+highLabelOffsetTicks = 3.0
+lowLabelOffsetTicks = -3.0
 
 // -----------------------------------------------------------------------------
 // Parallel arrays for highs
@@ -57,6 +50,28 @@ var float[] swingLowPrices = array.new_float()
 var int[] swingLowBars = array.new_int()
 var bool[] swingLowIsActive = array.new_bool()
 
+trimHighVisibility(maxItems) =>
+    while array.size(swingHighLines) > maxItems
+        oldLine = array.pop(swingHighLines)
+        oldLabel = array.pop(swingHighLabels)
+        array.pop(swingHighPrices)
+        array.pop(swingHighBars)
+        array.pop(swingHighIsActive)
+        line.delete(oldLine)
+        if not na(oldLabel)
+            label.delete(oldLabel)
+
+trimLowVisibility(maxItems) =>
+    while array.size(swingLowLines) > maxItems
+        oldLine = array.pop(swingLowLines)
+        oldLabel = array.pop(swingLowLabels)
+        array.pop(swingLowPrices)
+        array.pop(swingLowBars)
+        array.pop(swingLowIsActive)
+        line.delete(oldLine)
+        if not na(oldLabel)
+            label.delete(oldLabel)
+
 // -----------------------------------------------------------------------------
 // Detect swings
 // -----------------------------------------------------------------------------
@@ -67,20 +82,22 @@ selectedLineStyle = lineStyleFromInput(lineStyleInput)
 if not na(swingHighPrice)
     swingBarIndex = bar_index - pivotBars
     highLine = line.new(swingBarIndex, swingHighPrice, bar_index, swingHighPrice, xloc=xloc.bar_index, extend=extend.right, color=colorHigh, style=selectedLineStyle, width=lineWidth)
-    array.push(swingHighLines, highLine)
-    array.push(swingHighLabels, na)
-    array.push(swingHighPrices, swingHighPrice)
-    array.push(swingHighBars, swingBarIndex)
-    array.push(swingHighIsActive, true)
+    array.unshift(swingHighLines, highLine)
+    array.unshift(swingHighLabels, na)
+    array.unshift(swingHighPrices, swingHighPrice)
+    array.unshift(swingHighBars, swingBarIndex)
+    array.unshift(swingHighIsActive, true)
+    trimHighVisibility(maxVisibleSwings)
 
 if not na(swingLowPrice)
     swingBarIndex = bar_index - pivotBars
     lowLine = line.new(swingBarIndex, swingLowPrice, bar_index, swingLowPrice, xloc=xloc.bar_index, extend=extend.right, color=colorLow, style=selectedLineStyle, width=lineWidth)
-    array.push(swingLowLines, lowLine)
-    array.push(swingLowLabels, na)
-    array.push(swingLowPrices, swingLowPrice)
-    array.push(swingLowBars, swingBarIndex)
-    array.push(swingLowIsActive, true)
+    array.unshift(swingLowLines, lowLine)
+    array.unshift(swingLowLabels, na)
+    array.unshift(swingLowPrices, swingLowPrice)
+    array.unshift(swingLowBars, swingBarIndex)
+    array.unshift(swingLowIsActive, true)
+    trimLowVisibility(maxVisibleSwings)
 
 // -----------------------------------------------------------------------------
 // Manage high sweeps
@@ -97,8 +114,8 @@ if highCount > 0
             levelLine = array.get(swingHighLines, i)
             levelLabel = array.get(swingHighLabels, i)
 
-            labelX = labelXWithOffset(levelBarIndex, bar_index, labelPosition, labelOffsetX)
-            labelY = levelPrice + syminfo.mintick * 5.0
+            labelX = bar_index + labelXOffsetBars
+            labelY = levelPrice + syminfo.mintick * highLabelOffsetTicks
 
             // Keep matured labels anchored to the selected line position while active.
             if not na(levelLabel)
@@ -162,8 +179,8 @@ if lowCount > 0
             levelLine = array.get(swingLowLines, i)
             levelLabel = array.get(swingLowLabels, i)
 
-            labelX = labelXWithOffset(levelBarIndex, bar_index, labelPosition, labelOffsetX)
-            labelY = levelPrice - syminfo.mintick * 5.0
+            labelX = bar_index + labelXOffsetBars
+            labelY = levelPrice + syminfo.mintick * lowLabelOffsetTicks
 
             // Keep matured labels anchored to the selected line position while active.
             if not na(levelLabel)
