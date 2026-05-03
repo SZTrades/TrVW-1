@@ -1,230 +1,95 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 //@version=6
-indicator("Modulo 1: Liquidez (Swings)", shorttitle="M1 Liquidez", overlay=true, max_lines_count=500, max_labels_count=500)
+indicator("Modulo 1: Liquidez (Swings)", overlay=true, max_lines_count=500)
 
-// -----------------------------------------------------------------------------
-// Inputs
-// -----------------------------------------------------------------------------
-groupSwings = "Swings"
-groupLines = "Lineas de Liquidez"
-groupLabels = "Etiquetas de Maduracion"
+var inputHighlightIntermediates = input.bool(true, "Highlight Intermediate Swing Highs and Lows")
+var inputIntermediateSize = input.string("Tiny", "Intermediate Swing Label Size", options=["Auto", "Tiny", "Small", "Normal"])
+var inputShowShortTermSwings = input.bool(false, "Short Term Swings")
+var inputPivotBars = input.int(2, "Pivot Candles", minval=1)
+var highcolor = input.color(color.red, title="High", tooltip="Select a color for ST/IT highs")
+var lowcolor = input.color(color.green, title="Low", tooltip="Select a color for ST/IT lows")
+var lineWidth = input.int(1, "Line Width", minval=1, maxval=4)
 
-pivotBars = input.int(3, "Pivot Length", minval=1, group=groupSwings)
-maxVisibleSwings = input.int(100, "Max Sweeps Visibles", minval=10, maxval=500, group=groupSwings)
+// Kept for compatibility with the original script inputs.
+var intermediateLabelSize = inputIntermediateSize == "Auto" ? size.auto : inputIntermediateSize == "Tiny" ? size.tiny : inputIntermediateSize == "Small" ? size.small : size.normal
 
-colorHigh = input.color(color.red, "Color Swing High", group=groupLines)
-colorLow = input.color(color.green, "Color Swing Low", group=groupLines)
-lineWidth = input.int(1, "Grosor de Linea", minval=1, maxval=4, group=groupLines)
-lineStyleInput = input.string("Solid", "Estilo de Linea", options=["Solid", "Dashed", "Dotted"], group=groupLines)
+intermediateLineWidth = inputIntermediateSize == "Auto" ? lineWidth : inputIntermediateSize == "Tiny" ? lineWidth : inputIntermediateSize == "Small" ? math.min(4, lineWidth + 1) : math.min(4, lineWidth + 2)
 
-minBarsForLabel = input.int(3, "Mostrar etiqueta solo si Velas >= ", minval=1, group=groupLabels)
-
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
-lineStyleFromInput(styleText) =>
-    styleText == "Dashed" ? line.style_dashed : styleText == "Dotted" ? line.style_dotted : line.style_solid
-
-labelText(barsAlive) =>
-    str.tostring(barsAlive)
-
-labelTextSize = size.tiny
-labelXOffsetBars = -1
-highLabelOffsetTicks = 3.0
-lowLabelOffsetTicks = -3.0
-
-// -----------------------------------------------------------------------------
-// Parallel arrays for highs
-// -----------------------------------------------------------------------------
+// Parallel arrays for Swing High Data
+var float[] swingHighs = array.new_float()
 var line[] swingHighLines = array.new_line()
-var label[] swingHighLabels = array.new_label()
-var float[] swingHighPrices = array.new_float()
-var int[] swingHighBars = array.new_int()
-var bool[] swingHighIsActive = array.new_bool()
+var bool[] swingHighIsHigher = array.new_bool()
+var bool[] swingHighIsIntermediate = array.new_bool()
 
-// -----------------------------------------------------------------------------
-// Parallel arrays for lows
-// -----------------------------------------------------------------------------
+// Parallel arrays for Swing Low Data
+var float[] swingLows = array.new_float()
 var line[] swingLowLines = array.new_line()
-var label[] swingLowLabels = array.new_label()
-var float[] swingLowPrices = array.new_float()
-var int[] swingLowBars = array.new_int()
-var bool[] swingLowIsActive = array.new_bool()
+var bool[] swingLowIsLower = array.new_bool()
+var bool[] swingLowIsIntermediate = array.new_bool()
 
-trimHighVisibility(maxItems) =>
-    while array.size(swingHighLines) > maxItems
-        oldLine = array.pop(swingHighLines)
-        oldLabel = array.pop(swingHighLabels)
-        array.pop(swingHighPrices)
-        array.pop(swingHighBars)
-        array.pop(swingHighIsActive)
-        line.delete(oldLine)
-        if not na(oldLabel)
-            label.delete(oldLabel)
+// See last element pushed in an array.
+array_peek(arrayId) =>
+    int arraySize = array.size(arrayId)
+    if arraySize > 0
+        array.get(arrayId, arraySize - 1)
+    else
+        na
 
-trimLowVisibility(maxItems) =>
-    while array.size(swingLowLines) > maxItems
-        oldLine = array.pop(swingLowLines)
-        oldLabel = array.pop(swingLowLabels)
-        array.pop(swingLowPrices)
-        array.pop(swingLowBars)
-        array.pop(swingLowIsActive)
-        line.delete(oldLine)
-        if not na(oldLabel)
-            label.delete(oldLabel)
+// Filters out swings that were not intermediate swings after all swings have been recorded.
+remove_short_term_swings() =>
+    if not inputShowShortTermSwings and barstate.islast
+        int swingHighCount = array.size(swingHighLines)
+        int swingLowCount = array.size(swingLowLines)
 
-// -----------------------------------------------------------------------------
-// Detect swings
-// -----------------------------------------------------------------------------
-swingHighPrice = ta.pivothigh(high, pivotBars, pivotBars)
-swingLowPrice = ta.pivotlow(low, pivotBars, pivotBars)
-selectedLineStyle = lineStyleFromInput(lineStyleInput)
+        for i = 0 to swingHighCount - 1 by 1
+            if not array.get(swingHighIsIntermediate, i)
+                line.delete(array.get(swingHighLines, i))
+
+        for i = 0 to swingLowCount - 1 by 1
+            if not array.get(swingLowIsIntermediate, i)
+                line.delete(array.get(swingLowLines, i))
+
+
+// Detect swing highs and lows.
+swingHighPrice = ta.pivothigh(high, inputPivotBars, inputPivotBars)
+swingLowPrice = ta.pivotlow(low, inputPivotBars, inputPivotBars)
 
 if not na(swingHighPrice)
-    swingBarIndex = bar_index - pivotBars
-    highLine = line.new(swingBarIndex, swingHighPrice, bar_index, swingHighPrice, xloc=xloc.bar_index, extend=extend.right, color=colorHigh, style=selectedLineStyle, width=lineWidth)
-    array.unshift(swingHighLines, highLine)
-    array.unshift(swingHighLabels, na)
-    array.unshift(swingHighPrices, swingHighPrice)
-    array.unshift(swingHighBars, swingBarIndex)
-    array.unshift(swingHighIsActive, true)
-    trimHighVisibility(maxVisibleSwings)
+    lastSwingHighPrice = array_peek(swingHighs)
+    isHigherHigh = swingHighPrice > lastSwingHighPrice
+    isLowerHigh = swingHighPrice < lastSwingHighPrice
+    swingLine = line.new(bar_index[inputPivotBars], swingHighPrice, bar_index, swingHighPrice, xloc=xloc.bar_index, extend=extend.right, color=highcolor, style=line.style_solid, width=lineWidth)
+
+    // Check if last swing high was intermediate.
+    if isLowerHigh and array_peek(swingHighIsHigher)
+        // Lower high after a higher high means the previous swing high was intermediate.
+        if inputHighlightIntermediates
+            line.set_width(array_peek(swingHighLines), intermediateLineWidth)
+            array.set(swingHighIsIntermediate, array.size(swingHighIsIntermediate) - 1, true)
+
+    // Save swing.
+    array.push(swingHighs, swingHighPrice)
+    array.push(swingHighLines, swingLine)
+    array.push(swingHighIsHigher, isHigherHigh)
+    array.push(swingHighIsIntermediate, false) // Can be filled in later, if a lower high forms next.
 
 if not na(swingLowPrice)
-    swingBarIndex = bar_index - pivotBars
-    lowLine = line.new(swingBarIndex, swingLowPrice, bar_index, swingLowPrice, xloc=xloc.bar_index, extend=extend.right, color=colorLow, style=selectedLineStyle, width=lineWidth)
-    array.unshift(swingLowLines, lowLine)
-    array.unshift(swingLowLabels, na)
-    array.unshift(swingLowPrices, swingLowPrice)
-    array.unshift(swingLowBars, swingBarIndex)
-    array.unshift(swingLowIsActive, true)
-    trimLowVisibility(maxVisibleSwings)
+    lastSwingLowPrice = array_peek(swingLows)
+    isHigherLow = swingLowPrice > lastSwingLowPrice
+    isLowerLow = swingLowPrice < lastSwingLowPrice
+    swingLine = line.new(bar_index[inputPivotBars], swingLowPrice, bar_index, swingLowPrice, xloc=xloc.bar_index, extend=extend.right, color=lowcolor, style=line.style_solid, width=lineWidth)
 
-// -----------------------------------------------------------------------------
-// Manage high sweeps
-// Partial sweep (wick): high >= level and close < level
-// Total sweep (close): close >= level
-// -----------------------------------------------------------------------------
-highCount = array.size(swingHighLines)
-if highCount > 0
-    for i = 0 to highCount - 1
-        isActive = array.get(swingHighIsActive, i)
-        if isActive
-            levelPrice = array.get(swingHighPrices, i)
-            levelBarIndex = array.get(swingHighBars, i)
-            levelLine = array.get(swingHighLines, i)
-            levelLabel = array.get(swingHighLabels, i)
+    // Check if last swing low was intermediate.
+    if isHigherLow and array_peek(swingLowIsLower)
+        // Higher low after a lower low means the previous swing low was intermediate.
+        if inputHighlightIntermediates
+            line.set_width(array_peek(swingLowLines), intermediateLineWidth)
+            array.set(swingLowIsIntermediate, array.size(swingLowIsIntermediate) - 1, true)
 
-            labelX = bar_index + labelXOffsetBars
-            labelY = levelPrice + syminfo.mintick * highLabelOffsetTicks
+    // Save swing.
+    array.push(swingLows, swingLowPrice)
+    array.push(swingLowLines, swingLine)
+    array.push(swingLowIsLower, isLowerLow)
+    array.push(swingLowIsIntermediate, false) // Can be filled in later if a higher low forms next.
 
-            // Keep matured labels anchored to the selected line position while active.
-            if not na(levelLabel)
-                label.set_x(levelLabel, labelX)
-                label.set_y(levelLabel, labelY)
-
-            partialSweep = high >= levelPrice and close < levelPrice
-            totalSweep = close >= levelPrice
-            eventDetected = partialSweep or totalSweep
-
-            if eventDetected
-                barsAlive = math.max(bar_index - levelBarIndex, 0) + 1
-                textValue = labelText(barsAlive)
-
-                if barsAlive >= minBarsForLabel
-                    if na(levelLabel)
-                        newLabel = label.new(labelX, labelY, textValue, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=colorHigh, size=labelTextSize, text_formatting=text.format_bold)
-                        array.set(swingHighLabels, i, newLabel)
-                    else
-                        label.set_x(levelLabel, labelX)
-                        label.set_y(levelLabel, labelY)
-                        label.set_text(levelLabel, textValue)
-                        label.set_style(levelLabel, label.style_none)
-                        label.set_color(levelLabel, color.new(color.white, 100))
-                        label.set_textcolor(levelLabel, colorHigh)
-                        label.set_size(levelLabel, labelTextSize)
-                        label.set_text_formatting(levelLabel, text.format_bold)
-
-                if totalSweep
-                    line.set_x2(levelLine, bar_index)
-                    line.set_extend(levelLine, extend.none)
-                    if not na(levelLabel)
-                        label.delete(levelLabel)
-                        array.set(swingHighLabels, i, na)
-                    array.set(swingHighIsActive, i, false)
-                else
-                    line.set_x2(levelLine, bar_index)
-                    line.set_extend(levelLine, extend.none)
-
-                    replacementPrice = close + syminfo.mintick
-                    replacementLine = line.new(bar_index, replacementPrice, bar_index, replacementPrice, xloc=xloc.bar_index, extend=extend.right, color=colorHigh, style=selectedLineStyle, width=lineWidth)
-                    if not na(levelLabel)
-                        label.delete(levelLabel)
-                    array.set(swingHighLabels, i, na)
-                    array.set(swingHighLines, i, replacementLine)
-                    array.set(swingHighPrices, i, replacementPrice)
-                    array.set(swingHighBars, i, bar_index)
-
-// -----------------------------------------------------------------------------
-// Manage low sweeps
-// Partial sweep (wick): low <= level and close > level
-// Total sweep (close): close <= level
-// -----------------------------------------------------------------------------
-lowCount = array.size(swingLowLines)
-if lowCount > 0
-    for i = 0 to lowCount - 1
-        isActive = array.get(swingLowIsActive, i)
-        if isActive
-            levelPrice = array.get(swingLowPrices, i)
-            levelBarIndex = array.get(swingLowBars, i)
-            levelLine = array.get(swingLowLines, i)
-            levelLabel = array.get(swingLowLabels, i)
-
-            labelX = bar_index + labelXOffsetBars
-            labelY = levelPrice + syminfo.mintick * lowLabelOffsetTicks
-
-            // Keep matured labels anchored to the selected line position while active.
-            if not na(levelLabel)
-                label.set_x(levelLabel, labelX)
-                label.set_y(levelLabel, labelY)
-
-            partialSweep = low <= levelPrice and close > levelPrice
-            totalSweep = close <= levelPrice
-            eventDetected = partialSweep or totalSweep
-
-            if eventDetected
-                barsAlive = math.max(bar_index - levelBarIndex, 0) + 1
-                textValue = labelText(barsAlive)
-
-                if barsAlive >= minBarsForLabel
-                    if na(levelLabel)
-                        newLabel = label.new(labelX, labelY, textValue, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none, color=color.new(color.white, 100), textcolor=colorLow, size=labelTextSize, text_formatting=text.format_bold)
-                        array.set(swingLowLabels, i, newLabel)
-                    else
-                        label.set_x(levelLabel, labelX)
-                        label.set_y(levelLabel, labelY)
-                        label.set_text(levelLabel, textValue)
-                        label.set_style(levelLabel, label.style_none)
-                        label.set_color(levelLabel, color.new(color.white, 100))
-                        label.set_textcolor(levelLabel, colorLow)
-                        label.set_size(levelLabel, labelTextSize)
-                        label.set_text_formatting(levelLabel, text.format_bold)
-
-                if totalSweep
-                    line.set_x2(levelLine, bar_index)
-                    line.set_extend(levelLine, extend.none)
-                    if not na(levelLabel)
-                        label.delete(levelLabel)
-                        array.set(swingLowLabels, i, na)
-                    array.set(swingLowIsActive, i, false)
-                else
-                    line.set_x2(levelLine, bar_index)
-                    line.set_extend(levelLine, extend.none)
-
-                    replacementPrice = close - syminfo.mintick
-                    replacementLine = line.new(bar_index, replacementPrice, bar_index, replacementPrice, xloc=xloc.bar_index, extend=extend.right, color=colorLow, style=selectedLineStyle, width=lineWidth)
-                    if not na(levelLabel)
-                        label.delete(levelLabel)
-                    array.set(swingLowLabels, i, na)
-                    array.set(swingLowLines, i, replacementLine)
-                    array.set(swingLowPrices, i, replacementPrice)
-                    array.set(swingLowBars, i, bar_index)
+remove_short_term_swings()
