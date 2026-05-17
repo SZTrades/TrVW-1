@@ -1,0 +1,132 @@
+//@version=6
+indicator("Average ATR 2.0", "Average ATR 2.0", overlay=true)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// ATR Settings
+atrPeriods = input.int(4, "ATR Periods", minval=1, maxval=100, group="ATR Settings", tooltip="Number of periods for ATR calculation")
+sessionStart = input.session("1800-1801", "Session Start Time", group="ATR Settings", tooltip="When to start ATR calculation (default: 6:00 PM for next day)")
+sessionEnd = input.session("1800-1801", "Session End Time", group="ATR Settings", tooltip="Session end time for reference")
+multiplier = 0.5 // Hardcoded multiplier for target calculation
+
+// Display Settings
+showTable = input.bool(true, "Show Table", group="Display")
+showLines = input.bool(false, "Show ATR Lines", group="Display")
+tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+tableTextSize = size.small
+tableBgColor = color.new(color.white, 5)
+
+// ====================================
+// ==== ATR Calculation ====
+// ====================================
+
+var array<float> rth_tr_values = array.new_float()
+var bool rth_session_active = false
+
+// Reset at 6:00 PM (18:00) - new daily cycle
+session_start = not na(time(timeframe.period, sessionStart))
+daily_reset = session_start
+
+if daily_reset
+    array.clear(rth_tr_values)
+    rth_session_active := true
+
+// Collect True Range values once session is active
+if rth_session_active
+    current_tr = ta.tr
+    if not na(current_tr) and current_tr > 0
+        array.unshift(rth_tr_values, current_tr)
+
+        // Keep only the specified number of periods
+        if array.size(rth_tr_values) > atrPeriods
+            array.pop(rth_tr_values)
+
+// Calculate current ATR
+current_rth_atr = array.size(rth_tr_values) > 0 ? array.sum(rth_tr_values) / array.size(rth_tr_values) : na
+
+// Calculate target range
+target_range = not na(current_rth_atr) ? current_rth_atr * multiplier : na
+
+// ====================================
+// ==== Multi-Timeframe Analysis ====
+// ====================================
+
+tf_2h_close = request.security(syminfo.tickerid, "120", close)
+tf_2h_open = request.security(syminfo.tickerid, "120", open)
+tf_1h_close = request.security(syminfo.tickerid, "60", close)
+tf_1h_open = request.security(syminfo.tickerid, "60", open)
+tf_30m_close = request.security(syminfo.tickerid, "30", close)
+tf_30m_open = request.security(syminfo.tickerid, "30", open)
+tf_15m_close = request.security(syminfo.tickerid, "15", close)
+tf_15m_open = request.security(syminfo.tickerid, "15", open)
+
+tf_2h_bull = tf_2h_close > tf_2h_open
+tf_1h_bull = tf_1h_close > tf_1h_open
+tf_30m_bull = tf_30m_close > tf_30m_open
+tf_15m_bull = tf_15m_close > tf_15m_open
+
+// ====================================
+// ==== Table Display (Only AVG ATR) ====
+// ====================================
+
+posFromString(pos) =>
+    pos == "top_left" ? position.top_left :
+     pos == "top_center" ? position.top_center :
+     pos == "top_right" ? position.top_right :
+     pos == "middle_left" ? position.middle_left :
+     pos == "middle_center" ? position.middle_center :
+     pos == "middle_right" ? position.middle_right :
+     pos == "bottom_left" ? position.bottom_left :
+     pos == "bottom_center" ? position.bottom_center : position.bottom_right
+
+var table atr_table = na
+var string lastTablePos = ""
+
+setTableCell(tbl, col, row, cellText, txtColor) =>
+    table.cell(tbl, col, row, cellText, text_color=txtColor, text_size=tableTextSize, bgcolor=tableBgColor)
+
+if showTable and barstate.islast
+    desiredPos = posFromString(tablePosition)
+    if na(atr_table) or lastTablePos != tablePosition
+        if not na(atr_table)
+            table.delete(atr_table)
+        atr_table := table.new(desiredPos, columns=2, rows=1, bgcolor=tableBgColor, border_width=1, border_color=color.black)
+        lastTablePos := tablePosition
+
+    table.clear(atr_table, 0, 0, 1, 0)
+
+    setTableCell(atr_table, 0, 0, "Avg. ATR", color.black)
+    atrDisplay = not na(current_rth_atr) ? str.tostring(current_rth_atr, "#.## pts") : "No Data"
+    setTableCell(atr_table, 1, 0, atrDisplay, not na(current_rth_atr) ? color.black : color.gray)
+else
+    if not na(atr_table)
+        table.delete(atr_table)
+        atr_table := na
+        lastTablePos := ""
+
+// ====================================
+// ==== Optional Visual Lines ====
+// ====================================
+
+upper_target = showLines and not na(current_rth_atr) ? close + target_range : na
+lower_target = showLines and not na(current_rth_atr) ? close - target_range : na
+
+plot(upper_target, "Upper Target", color=color.new(color.green, 50), linewidth=1, style=plot.style_circles)
+plot(lower_target, "Lower Target", color=color.new(color.red, 50), linewidth=1, style=plot.style_circles)
+
+// ====================================
+// ==== Background Coloring (Optional) ====
+// ====================================
+
+aligned_count = (tf_2h_bull ? 1 : 0) + (tf_1h_bull ? 1 : 0) + (tf_30m_bull ? 1 : 0) + (tf_15m_bull ? 1 : 0)
+aligned_bear_count = (tf_2h_bull ? 0 : 1) + (tf_1h_bull ? 0 : 1) + (tf_30m_bull ? 0 : 1) + (tf_15m_bull ? 0 : 1)
+
+showBackground = input.bool(false, "Show Alignment Background", group="Display")
+
+strong_bull = aligned_count >= 3
+strong_bear = aligned_bear_count >= 3
+
+bgcolor(showBackground and strong_bull ? color.new(color.green, 95) : showBackground and strong_bear ? color.new(color.red, 95) : na, title="Alignment Background")
+
