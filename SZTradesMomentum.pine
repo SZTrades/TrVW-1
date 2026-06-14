@@ -1,0 +1,197 @@
+// @version=5
+// SZTrades Momentum Alignment Indicator
+// Combines remastered T3, CVD, and DI filters to detect aligned momentum.
+// Derived from open-source works by DaviddTech (T3 & DI, CC BY-NC-SA 4.0)
+// and Ankit_1618 (Cumulative Volume Delta, MPL 2.0). Redistribution must honor originals.
+
+indicator('SZTrades Momentum Alignment', shorttitle='SZT Momentum', overlay=true, max_labels_count=500, max_lines_count=500)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T3 Filter Settings
+// ─────────────────────────────────────────────────────────────────────────────
+useT3 = input.bool(true, 'Use T3 Filter', group='T3 Filter')
+crossT3 = input.bool(true, 'Cross confirmation? - T3', group='T3 Filter')
+inverseT3 = input.bool(false, 'Inverse? - T3', group='T3 Filter')
+lengthT3 = input.int(5, 'Length - T3', minval=1, group='T3 Filter')
+factorT3 = input.float(0.7, 'Factor - T3', minval=0.0, maxval=1.0, group='T3 Filter')
+highlightMovementsT3 = input.bool(true, 'Highlight Movements? - T3', group='T3 Filter')
+srcT3 = input.source(close, 'Source - T3', group='T3 Filter')
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CVD Filter Settings
+// ─────────────────────────────────────────────────────────────────────────────
+useCVD = input.bool(true, 'Use CVD Filter', group='CVD Filter')
+cumulationLength = input.int(14, 'Cumulation Length - CVD', minval=1, group='CVD Filter')
+cvdThreshold = input.float(0.0, 'Delta Threshold', tooltip='Optional threshold to require stronger divergence', group='CVD Filter')
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DI Filter Settings
+// ─────────────────────────────────────────────────────────────────────────────
+useDI = input.bool(true, 'Use Dorsey inertia Filter', group='DI Filter')
+crossDI = input.bool(true, 'Cross confirmation? - DI', group='DI Filter')
+inverseDI = input.bool(false, 'Inverse? - DI', group='DI Filter')
+middleLineLong = input.float(50.0, 'Middle Line Long - DI', group='DI Filter')
+middleLineShort = input.float(50.0, 'Middle Line Short - DI', group='DI Filter')
+stdevLengthDI = input.int(21, 'Std Dev Length - DI', minval=1, group='DI Filter')
+rvIDISmoothLength = input.int(14, 'rvIDI Smoothing Length - DI', minval=1, group='DI Filter')
+smoothLengthDI = input.int(14, 'Inertia Smoothing Length - DI', minval=1, group='DI Filter')
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Display Settings
+// ─────────────────────────────────────────────────────────────────────────────
+showT3Line = input.bool(true, 'Plot T3 line', group='Display')
+showBullSignals = input.bool(true, 'Show Bull Signals', group='Display')
+showBearSignals = input.bool(true, 'Show Bear Signals', group='Display')
+showBreakSignals = input.bool(true, 'Show Break Signals', group='Display')
+backgroundTint = input.bool(true, 'Tint background on alignment', group='Display')
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTF Filter Settings
+// ─────────────────────────────────────────────────────────────────────────────
+htfTimeframe = input.timeframe('60', 'HTF Timeframe', group='HTF Filter')
+htfT3Length = input.int(5, 'HTF T3 Length', minval=1, group='HTF Filter')
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper functions
+// ─────────────────────────────────────────────────────────────────────────────
+gdT3(src, len) =>
+    ta.ema(src, len) * (1 + factorT3) - ta.ema(ta.ema(src, len), len) * factorT3
+
+rvIDIOriginal(src, stdevLen, smoothLen) =>
+    stdev = ta.stdev(src, stdevLen)
+    change = ta.change(src)
+    upSum = ta.ema(change >= 0 ? stdev : 0.0, smoothLen)
+    downSum = ta.ema(change >= 0 ? 0.0 : stdev, smoothLen)
+    denom = upSum + downSum
+    denom == 0.0 ? 50.0 : 100.0 * upSum / denom
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T3 core calculation & filter
+// ─────────────────────────────────────────────────────────────────────────────
+t3 = gdT3(gdT3(gdT3(srcT3, lengthT3), lengthT3), lengthT3)
+t3Direction = t3 > t3[1] ? 1 : t3 < t3[1] ? -1 : 0
+t3Color = highlightMovementsT3 ? (t3Direction > 0 ? color.green : color.red) : #6d1e7f
+
+basicLongT3 = t3Direction > 0 and close > t3
+basicShortT3 = t3Direction < 0 and close < t3
+longTriggerT3 = basicLongT3 and not nz(basicLongT3[1])
+shortTriggerT3 = basicShortT3 and not nz(basicShortT3[1])
+
+var bool t3StateLong = true
+var bool t3StateShort = true
+if barstate.isfirst
+    t3StateLong := not useT3 or basicLongT3
+    t3StateShort := not useT3 or basicShortT3
+else
+    if not useT3
+        t3StateLong := true
+        t3StateShort := true
+    else if crossT3
+        if longTriggerT3
+            t3StateLong := true
+            t3StateShort := false
+        else if shortTriggerT3
+            t3StateLong := false
+            t3StateShort := true
+        else
+            t3StateLong := nz(t3StateLong[1], false)
+            t3StateShort := nz(t3StateShort[1], false)
+    else
+        t3StateLong := basicLongT3
+        t3StateShort := basicShortT3
+
+if inverseT3
+    prevLong = t3StateLong
+    prevShort = t3StateShort
+    t3StateLong := prevShort
+    t3StateShort := prevLong
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTF T3 filter
+// ─────────────────────────────────────────────────────────────────────────────
+t3HTF = request.security(syminfo.tickerid, htfTimeframe, gdT3(close, htfT3Length), lookahead=barmerge.lookahead_off, gaps=barmerge.gaps_off)
+t3HTFDirection = nz(t3HTF > t3HTF[1] ? 1 : t3HTF < t3HTF[1] ? -1 : 0)
+htfLong = t3HTFDirection > 0
+htfShort = t3HTFDirection < 0
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CVD core calculation & filter
+// ─────────────────────────────────────────────────────────────────────────────
+upperWick = close > open ? high - close : high - open
+lowerWick = close > open ? open - low : close - low
+spread = math.max(high - low, syminfo.mintick)
+bodyLength = spread - (upperWick + lowerWick)
+percentUpper = upperWick / spread
+percentLower = lowerWick / spread
+percentBody = bodyLength / spread
+halfWicks = (percentUpper + percentLower) / 2
+
+buyingVolume = close > open ? (percentBody + halfWicks) * volume : halfWicks * volume
+sellingVolume = close < open ? (percentBody + halfWicks) * volume : halfWicks * volume
+
+cumBuy = ta.ema(buyingVolume, cumulationLength)
+cumSell = ta.ema(sellingVolume, cumulationLength)
+cvdDelta = cumBuy - cumSell
+
+bullCVD = not useCVD ? true : cvdDelta > cvdThreshold
+bearCVD = not useCVD ? true : cvdDelta < -cvdThreshold
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DI core calculation & filter
+// ─────────────────────────────────────────────────────────────────────────────
+rvIDI = math.avg(rvIDIOriginal(high, stdevLengthDI, rvIDISmoothLength), rvIDIOriginal(low, stdevLengthDI, rvIDISmoothLength))
+inertiaDI = ta.linreg(rvIDI, smoothLengthDI, 0)
+
+baseLongDI = inertiaDI > middleLineLong
+baseShortDI = inertiaDI < middleLineShort
+longTriggerDI = baseLongDI and not nz(baseLongDI[1])
+shortTriggerDI = baseShortDI and not nz(baseShortDI[1])
+
+var bool diStateLong = true
+var bool diStateShort = true
+if barstate.isfirst
+    diStateLong := not useDI or baseLongDI
+    diStateShort := not useDI or baseShortDI
+else
+    if not useDI
+        diStateLong := true
+        diStateShort := true
+    else if crossDI
+        if longTriggerDI
+            diStateLong := true
+            diStateShort := false
+        else if shortTriggerDI
+            diStateLong := false
+            diStateShort := true
+        else
+            diStateLong := nz(diStateLong[1], false)
+            diStateShort := nz(diStateShort[1], false)
+    else
+        diStateLong := baseLongDI
+        diStateShort := baseShortDI
+
+if inverseDI
+    prevLongDI = diStateLong
+    prevShortDI = diStateShort
+    diStateLong := prevShortDI
+    diStateShort := prevLongDI
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Alignment logic & signalling
+// ─────────────────────────────────────────────────────────────────────────────
+bullAligned = t3StateLong and bullCVD and diStateLong and htfLong
+bearAligned = t3StateShort and bearCVD and diStateShort and htfShort
+
+newBull = bullAligned and not bullAligned[1]
+newBear = bearAligned and not bearAligned[1]
+brokenMomentum = (bullAligned[1] and not bullAligned) or (bearAligned[1] and not bearAligned)
+
+bgcolor(backgroundTint ? (bullAligned ? color.new(color.green, 85) : bearAligned ? color.new(color.red, 85) : na) : na)
+
+plot(showT3Line and useT3 ? t3 : na, title='T3', linewidth=2, color=t3Color)
+
+plotshape(showBullSignals and newBull, title='Bull Alignment', location=location.belowbar, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny)
+plotshape(showBearSignals and newBear, title='Bear Alignment', location=location.abovebar, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny)
+plotshape(showBreakSignals and brokenMomentum, title='Momentum Break', location=location.top, style=shape.circle, color=color.new(color.orange, 0), size=size.tiny, text='X')
+
+plot(showBullSignals or showBearSignals ? (bullAligned ? 1 : bearAligned ? -1 : 0) : na, title='Alignment State', style=plot.style_columns, color=bullAligned ? color.green : bearAligned ? color.red : color.gray, transp=70)
