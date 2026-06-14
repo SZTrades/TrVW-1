@@ -1,0 +1,510 @@
+//@version=6
+// Strategy declaration (kept minimal for compatibility across editors)
+strategy("NY Open AVWAP H1 Bias (MNQ)", overlay=true, initial_capital=100000, pyramiding=0, calc_on_order_fills=true, calc_on_every_tick=true)
+
+// ==========================
+// Inputs
+// ==========================
+// Trading window (ET)
+string TZ_NY = "America/New_York"
+inputSessionStartH = input.int(9, "Window start hour (ET)", minval=0, maxval=23)
+inputSessionStartM = input.int(50, "Window start minute (ET)", minval=0, maxval=59)
+inputSessionEndH   = input.int(10, "Window end hour (ET)", minval=0, maxval=23)
+inputSessionEndM   = input.int(10, "Window end minute (ET)", minval=0, maxval=59)
+
+// Anchors (ET)
+asiaH   = input.int(20, "Asia anchor hour (ET)", minval=0, maxval=23)
+asiaM   = input.int(0,  "Asia anchor minute (ET)", minval=0, maxval=59)
+londonH = input.int(3,  "London anchor hour (ET)", minval=0, maxval=23)
+londonM = input.int(0,  "London anchor minute (ET)", minval=0, maxval=59)
+preH    = input.int(8,  "8:00 anchor hour (ET)", minval=0, maxval=23)
+preM    = input.int(0,  "8:00 anchor minute (ET)", minval=0, maxval=59)
+openH   = input.int(9,  "9:30 anchor hour (ET)", minval=0, maxval=23)
+openM   = input.int(30, "9:30 anchor minute (ET)", minval=0, maxval=59)
+tenH    = input.int(10, "10:00 anchor hour (ET)", minval=0, maxval=23)
+tenM    = input.int(0,  "10:00 anchor minute (ET)", minval=0, maxval=59)
+
+// Session windows (manual override friendly)
+premStartH = input.int(18, "Premarket start hour (ET)", minval=0, maxval=23)
+premStartM = input.int(0,  "Premarket start minute (ET)", minval=0, maxval=59)
+premEndH   = input.int(9,  "Premarket end hour (ET)", minval=0, maxval=23)
+premEndM   = input.int(30, "Premarket end minute (ET)", minval=0, maxval=59)
+
+asiaStartH = input.int(20, "Asia start hour (ET)", minval=0, maxval=23)
+asiaStartM = input.int(0,  "Asia start minute (ET)", minval=0, maxval=59)
+asiaEndH   = input.int(0,  "Asia end hour (ET)", minval=0, maxval=23)
+asiaEndM   = input.int(0,  "Asia end minute (ET)", minval=0, maxval=59)
+
+londonStartH = input.int(2, "London start hour (ET)", minval=0, maxval=23)
+londonStartM = input.int(0, "London start minute (ET)", minval=0, maxval=59)
+londonEndH   = input.int(7, "London end hour (ET)", minval=0, maxval=23)
+londonEndM   = input.int(0, "London end minute (ET)", minval=0, maxval=59)
+
+// Manual premarket H/L override
+useManualPremHL   = input.bool(false, "Use manual Premarket High/Low")
+manualPremHigh    = input.float(0.0, "Premarket High (manual)")
+manualPremLow     = input.float(0.0, "Premarket Low (manual)")
+
+// Daily open line toggle and timing
+showDailyOpenLine = input.bool(true, "Show Daily Open line")
+dailyOpenH = input.int(18, "Daily open hour (ET)", minval=0, maxval=23)
+dailyOpenM = input.int(0,  "Daily open minute (ET)", minval=0, maxval=59)
+dailyCloseH = input.int(17, "Daily close hour (ET)", minval=0, maxval=23)
+dailyCloseM = input.int(0,  "Daily close minute (ET)", minval=0, maxval=59)
+
+// Bias mode
+modeStrict = input.bool(true, "Strict mode (all AVWAPs aligned; else Pragmatic mode)")
+minAligned = input.int(3, "Pragmatic: minimum AVWAPs aligned (out of Asia/London/8:00/9:30)", minval=1, maxval=4)
+requireBos = input.bool(false, "Require BOS (break of internal swing) with reclaim")
+
+// Risk management
+qtyContracts = input.int(1, "Contracts", minval=1)
+atrLen       = input.int(14, "ATR length", minval=1)
+atrMult      = input.float(0.3, "ATR buffer multiplier", step=0.05)
+minTicksBuf  = input.int(10, "Minimum buffer (ticks)", minval=0)
+rMultiple    = input.float(2.0, "Take profit multiple (R)", step=0.25)
+moveToBE     = input.bool(true, "Move stop to BE at 1R")
+timeStopMin  = input.int(15, "Time-stop minutes (exit if not hit TP/SL)", minval=1)
+
+// Visuals
+showLabels   = input.bool(true, "Show entry/exit labels")
+showDebug    = input.bool(false, "Show debug plots")
+showAsiaBox  = input.bool(true, "Show Asia box (pink)")
+showLondonBox= input.bool(true, "Show London box (blue)")
+showWeeklyHL = input.bool(true, "Show Weekly High/Low")
+
+// ==========================
+// Time helpers (ET)
+// ==========================
+nyHour      = hour(time, TZ_NY)
+nyMinute    = minute(time, TZ_NY)
+nyDayOfMon  = dayofmonth(time, TZ_NY)
+nyIsNewDay  = ta.change(nyDayOfMon)
+
+// Keep it on a single line to avoid parser quirks
+inWindow = (nyHour > inputSessionStartH or (nyHour == inputSessionStartH and nyMinute >= inputSessionStartM)) and (nyHour < inputSessionEndH or (nyHour == inputSessionEndH and nyMinute <= inputSessionEndM))
+
+// Helper: session membership handling midnight-crossing sessions
+f_inSession(sh, sm, eh, em) =>
+    sameDay = sh*60 + sm <= eh*60 + em
+    if sameDay
+        ((nyHour > sh or (nyHour == sh and nyMinute >= sm)) and (nyHour < eh or (nyHour == eh and nyMinute < em)))
+    else
+        ((nyHour > sh or (nyHour == sh and nyMinute >= sm)) or (nyHour < eh or (nyHour == eh and nyMinute < em)))
+
+// Daily change flag (compute once per bar)
+newDay = ta.change(time("D", TZ_NY)) != 0
+
+// ==========================
+// 9:00 H1 bias (live candle bias)
+// ==========================
+var float ny9Open = na
+isNY9OpenBar = (nyHour == 9 and nyMinute == 0)
+if isNY9OpenBar
+    ny9Open := open
+biasUp   = not na(ny9Open) and close > ny9Open
+biasDown = not na(ny9Open) and close < ny9Open
+
+// ==========================
+// Anchored VWAP builders (per-anchor state)
+// ==========================
+var float cumPV_asia   = na
+var float cumV_asia    = na
+var float avwap_asia   = na
+var float cumPV_london = na
+var float cumV_london  = na
+var float avwap_london = na
+var float cumPV_pre    = na
+var float cumV_pre     = na
+var float avwap_pre    = na
+var float cumPV_open   = na
+var float cumV_open    = na
+var float avwap_open   = na
+var float cumPV_ten    = na
+var float cumV_ten     = na
+var float avwap_ten    = na
+
+source = hlc3
+pv     = source * volume
+
+isAsiaAnchor   = (nyHour == asiaH   and nyMinute == asiaM)
+isLondonAnchor = (nyHour == londonH and nyMinute == londonM)
+isPreAnchor    = (nyHour == preH    and nyMinute == preM)
+isOpenAnchor   = (nyHour == openH   and nyMinute == openM)
+isTenAnchor    = (nyHour == tenH    and nyMinute == tenM)
+
+// Update Asia AVWAP
+if isAsiaAnchor or na(cumPV_asia)
+    cumPV_asia := pv
+    cumV_asia  := volume
+else
+    cumPV_asia += pv
+    cumV_asia  += volume
+avwap_asia := cumPV_asia / cumV_asia
+
+// Update London AVWAP
+if isLondonAnchor or na(cumPV_london)
+    cumPV_london := pv
+    cumV_london  := volume
+else
+    cumPV_london += pv
+    cumV_london  += volume
+avwap_london := cumPV_london / cumV_london
+
+// Update 8:00 AVWAP
+if isPreAnchor or na(cumPV_pre)
+    cumPV_pre := pv
+    cumV_pre  := volume
+else
+    cumPV_pre += pv
+    cumV_pre  += volume
+avwap_pre := cumPV_pre / cumV_pre
+
+// Update 9:30 AVWAP
+if isOpenAnchor or na(cumPV_open)
+    cumPV_open := pv
+    cumV_open  := volume
+else
+    cumPV_open += pv
+    cumV_open  += volume
+avwap_open := cumPV_open / cumV_open
+
+// Update 10:00 AVWAP
+if isTenAnchor or na(cumPV_ten)
+    cumPV_ten := pv
+    cumV_ten  := volume
+else
+    cumPV_ten += pv
+    cumV_ten  += volume
+avwap_ten := cumPV_ten / cumV_ten
+
+// ==========================
+// Alignment logic (Strict vs Pragmatic)
+// ==========================
+// Only consider anchors available before/within the entry window (ignore 10:00 for 9:30-9:50 decisions)
+aboveAsia   = not na(avwap_asia)   and close > avwap_asia
+aboveLondon = not na(avwap_london) and close > avwap_london
+abovePre    = not na(avwap_pre)    and close > avwap_pre
+aboveOpen   = not na(avwap_open)   and close > avwap_open
+
+belowAsia   = not na(avwap_asia)   and close < avwap_asia
+belowLondon = not na(avwap_london) and close < avwap_london
+belowPre    = not na(avwap_pre)    and close < avwap_pre
+belowOpen   = not na(avwap_open)   and close < avwap_open
+
+strictLong  = biasUp   and aboveAsia   and aboveLondon and abovePre and aboveOpen
+strictShort = biasDown and belowAsia   and belowLondon and belowPre and belowOpen
+
+alignedCountLong  = (aboveAsia?1:0) + (aboveLondon?1:0) + (abovePre?1:0) + (aboveOpen?1:0)
+alignedCountShort = (belowAsia?1:0) + (belowLondon?1:0) + (belowPre?1:0) + (belowOpen?1:0)
+
+pragLong  = biasUp   and aboveOpen   and alignedCountLong  >= minAligned
+pragShort = biasDown and belowOpen   and alignedCountShort >= minAligned
+
+passLong  = (modeStrict ? strictLong  : pragLong)
+passShort = (modeStrict ? strictShort : pragShort)
+
+// ==========================
+// Previous Day High/Low (robust via 1D security)
+// ==========================
+pdh = request.security(syminfo.tickerid, "1D", high[1], lookahead=barmerge.lookahead_off)
+pdl = request.security(syminfo.tickerid, "1D", low[1],  lookahead=barmerge.lookahead_off)
+plot(pdh, color=color.new(color.fuchsia, 0), title="PDH")
+plot(pdl, color=color.new(color.fuchsia, 0), title="PDL")
+
+// ==========================
+// Weekly High/Low (previous and current for context)
+// ==========================
+wh  = request.security(syminfo.tickerid, "1W", high,   lookahead=barmerge.lookahead_off)
+wl  = request.security(syminfo.tickerid, "1W", low,    lookahead=barmerge.lookahead_off)
+pwh = request.security(syminfo.tickerid, "1W", high[1],lookahead=barmerge.lookahead_off)
+pwl = request.security(syminfo.tickerid, "1W", low[1], lookahead=barmerge.lookahead_off)
+plot(showWeeklyHL ? pwh : na, color=color.new(color.green, 0), title="Prev Weekly High")
+plot(showWeeklyHL ? pwl : na, color=color.new(color.blue,  0), title="Prev Weekly Low")
+
+// Premarket (18:00–9:30 ET by default)
+inPrem = f_inSession(premStartH, premStartM, premEndH, premEndM)
+var float premHigh = na
+var float premLow  = na
+if barstate.isfirst or newDay
+    premHigh := na
+    premLow  := na
+premHigh := inPrem and (na(premHigh) or high > premHigh) ? high : premHigh
+premLow  := inPrem and (na(premLow)  or low  < premLow)  ? low  : premLow
+premHiPlot = useManualPremHL and manualPremHigh != 0.0 ? manualPremHigh : premHigh
+premLoPlot = useManualPremHL and manualPremLow  != 0.0 ? manualPremLow  : premLow
+plot(premHiPlot, color=color.new(color.orange, 0), title="Premarket High")
+plot(premLoPlot, color=color.new(color.orange, 0), title="Premarket Low")
+
+// Asia session hi/low and box
+inAsia = f_inSession(asiaStartH, asiaStartM, asiaEndH, asiaEndM)
+var float asiaHigh = na
+var float asiaLow  = na
+if barstate.isfirst or newDay
+    asiaHigh := na
+    asiaLow  := na
+asiaHigh := inAsia and (na(asiaHigh) or high > asiaHigh) ? high : asiaHigh
+asiaLow  := inAsia and (na(asiaLow)  or low  < asiaLow)  ? low  : asiaLow
+
+// London session hi/low and box
+inLondon = f_inSession(londonStartH, londonStartM, londonEndH, londonEndM)
+var float londonHigh = na
+var float londonLow  = na
+if barstate.isfirst or newDay
+    londonHigh := na
+    londonLow  := na
+londonHigh := inLondon and (na(londonHigh) or high > londonHigh) ? high : londonHigh
+londonLow  := inLondon and (na(londonLow)  or low  < londonLow)  ? low  : londonLow
+
+// Draw Asia (20:00–00:00) and London (02:00–07:00) as boxes with H/L lines extended right
+var box  asiaBox   = na
+var line asiaHiLn  = na
+var line asiaLoLn  = na
+var int  asiaT0    = na
+
+var box  londonBox = na
+var line londonHiLn= na
+var line londonLoLn= na
+var int  londonT0  = na
+
+// Asia session box and lines
+if inAsia and not inAsia[1]
+    // session start
+    asiaT0 := time
+    // reset extremes at session start
+    asiaHigh := high
+    asiaLow  := low
+    if showAsiaBox
+        asiaBox := box.new(asiaT0, asiaHigh, asiaT0, asiaLow, xloc=xloc.bar_time, bgcolor=color.new(color.fuchsia, 85), border_color=color.fuchsia)
+    // create lines anchored at session start
+    asiaHiLn := line.new(asiaT0, asiaHigh, time, asiaHigh, xloc=xloc.bar_time, extend=extend.none, color=color.fuchsia, width=1)
+    asiaLoLn := line.new(asiaT0, asiaLow,  time, asiaLow,  xloc=xloc.bar_time, extend=extend.none, color=color.fuchsia, width=1)
+
+if inAsia
+    // update extremes
+    asiaHigh := math.max(asiaHigh, high)
+    asiaLow  := math.min(asiaLow,  low)
+    // update box bounds
+    if not na(asiaBox)
+        box.set_right(asiaBox, time)
+        box.set_top(asiaBox,   asiaHigh)
+        box.set_bottom(asiaBox,asiaLow)
+    // update lines (left at start, right at now)
+    if not na(asiaHiLn)
+        line.set_xy1(asiaHiLn, asiaT0, asiaHigh)
+        line.set_xy2(asiaHiLn, time,   asiaHigh)
+    if not na(asiaLoLn)
+        line.set_xy1(asiaLoLn, asiaT0, asiaLow)
+        line.set_xy2(asiaLoLn, time,   asiaLow)
+
+// After session ends, keep extending lines to the right at fixed prices
+if not inAsia and not na(asiaHiLn)
+    line.set_x2(asiaHiLn, time)
+if not inAsia and not na(asiaLoLn)
+    line.set_x2(asiaLoLn, time)
+
+// London session box and lines
+if inLondon and not inLondon[1]
+    londonT0 := time
+    londonHigh := high
+    londonLow  := low
+    if showLondonBox
+        londonBox := box.new(londonT0, londonHigh, londonT0, londonLow, xloc=xloc.bar_time, bgcolor=color.new(color.blue, 85), border_color=color.blue)
+    londonHiLn := line.new(londonT0, londonHigh, time, londonHigh, xloc=xloc.bar_time, extend=extend.none, color=color.blue, width=1)
+    londonLoLn := line.new(londonT0, londonLow,  time, londonLow,  xloc=xloc.bar_time, extend=extend.none, color=color.blue, width=1)
+
+if inLondon
+    londonHigh := math.max(londonHigh, high)
+    londonLow  := math.min(londonLow,  low)
+    if not na(londonBox)
+        box.set_right(londonBox, time)
+        box.set_top(londonBox,   londonHigh)
+        box.set_bottom(londonBox,londonLow)
+    if not na(londonHiLn)
+        line.set_xy1(londonHiLn, londonT0, londonHigh)
+        line.set_xy2(londonHiLn, time,     londonHigh)
+    if not na(londonLoLn)
+        line.set_xy1(londonLoLn, londonT0, londonLow)
+        line.set_xy2(londonLoLn, time,     londonLow)
+
+if not inLondon and not na(londonHiLn)
+    line.set_x2(londonHiLn, time)
+if not inLondon and not na(londonLoLn)
+    line.set_x2(londonLoLn, time)
+
+// Daily open line (start at dailyOpenH:M, stop at dailyCloseH:M) + label
+var line dailyOpenLine = na
+var label dailyOpenLabel = na
+var bool dailyOpenActive = false
+isDailyOpenMinute  = (nyHour == dailyOpenH and nyMinute == dailyOpenM)
+isDailyCloseMinute = (nyHour == dailyCloseH and nyMinute == dailyCloseM)
+
+if showDailyOpenLine
+    // Start new line at open minute
+    if isDailyOpenMinute and not isDailyOpenMinute[1]
+        dailyOpenLine := line.new(time, open, time, open, xloc=xloc.bar_time, extend=extend.none, color=color.black, style=line.style_dotted, width=2)
+        dailyOpenLabel := label.new(time, open, "Daily Open", xloc=xloc.bar_time, style=label.style_label_left, color=color.new(color.white, 100), textcolor=color.black, size=size.tiny)
+        dailyOpenActive := true
+    // Extend line and keep label aligned until close minute
+    if dailyOpenActive and not na(dailyOpenLine)
+        line.set_x2(dailyOpenLine, time)
+        if not na(dailyOpenLabel)
+            label.set_x(dailyOpenLabel, time)
+            label.set_y(dailyOpenLabel, line.get_y1(dailyOpenLine))
+    // Stop extending at close minute
+    if isDailyCloseMinute and not isDailyCloseMinute[1] and dailyOpenActive and not na(dailyOpenLine)
+        line.set_x2(dailyOpenLine, time)
+        dailyOpenActive := false
+
+// ==========================
+// Trigger: Reclaim AVWAP 9:30 (+ optional BOS)
+// ==========================
+reclaimLong  = ta.crossover(close, avwap_open)
+reclaimShort = ta.crossunder(close, avwap_open)
+
+// Swings (for BOS and stops)
+left  = 2
+right = 2
+ph = ta.pivothigh(high, left, right)
+pl = ta.pivotlow(low, left, right)
+
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+if not na(ph)
+    lastSwingHigh := ph
+if not na(pl)
+    lastSwingLow := pl
+
+bosLong  = not na(lastSwingHigh) and close > lastSwingHigh
+bosShort = not na(lastSwingLow)  and close < lastSwingLow
+
+triggerLong  = reclaimLong  and (requireBos ? bosLong  : true)
+triggerShort = reclaimShort and (requireBos ? bosShort : true)
+
+// Distance control: avoid chasing too far from AVWAP 9:30 (optional)
+atr = ta.atr(atrLen)
+maxDistATR = input.float(1.0, "Max distance from 9:30 AVWAP (ATR units)", step=0.1)
+withinDistLong  = not na(avwap_open) and (close - avwap_open) <= maxDistATR * atr
+withinDistShort = not na(avwap_open) and (avwap_open - close) <= maxDistATR * atr
+
+// ==========================
+// Per-day trade limits (NY day)
+// ==========================
+var bool tradedLongToday  = false
+var bool tradedShortToday = false
+var int  lastNYDom = na
+// Detect new NY day using daily time change; cast to bool
+bool isNewSessionBar = ta.change(time("D", TZ_NY)) != 0
+
+// Initialize on first bar
+if barstate.isfirst
+    tradedLongToday  := false
+    tradedShortToday := false
+    lastNYDom := nyDayOfMon
+
+// Reset flags on new session bar
+if isNewSessionBar
+    tradedLongToday  := false
+    tradedShortToday := false
+    lastNYDom := nyDayOfMon
+
+canLong  = inWindow and passLong  and not tradedLongToday
+canShort = inWindow and passShort and not tradedShortToday
+
+// ==========================
+// Orders and risk management
+// ==========================
+// Buffers
+bufferTicks  = minTicksBuf * syminfo.mintick
+bufferATR    = atr * atrMult
+bufferPoints = math.max(bufferTicks, bufferATR)
+
+// State for BE and time-stop
+var float longStopAtEntry  = na
+var float longTPAtEntry    = na
+var float shortStopAtEntry = na
+var float shortTPAtEntry   = na
+var int   longEntryTime    = na
+var int   shortEntryTime   = na
+
+enterLongCond  = canLong  and triggerLong  and withinDistLong  and not na(lastSwingLow)
+enterShortCond = canShort and triggerShort and withinDistShort and not na(lastSwingHigh)
+
+if enterLongCond and strategy.position_size <= 0
+    // Compute stop/TP from swing + buffer
+    longStop  = lastSwingLow - bufferPoints
+    // Approximate entry at close
+    longEntry = close
+    rDist     = math.max(longEntry - longStop, syminfo.mintick)
+    longTP    = longEntry + rMultiple * rDist
+
+    strategy.entry(id="L", direction=strategy.long, qty=qtyContracts)
+    strategy.exit(id="L-EXIT", from_entry="L", stop=longStop, limit=longTP)
+
+    tradedLongToday := true
+    longStopAtEntry := longStop
+    longTPAtEntry   := longTP
+    longEntryTime   := time
+
+if enterShortCond and strategy.position_size >= 0
+    shortStop  = lastSwingHigh + bufferPoints
+    shortEntry = close
+    rDist      = math.max(shortStop - shortEntry, syminfo.mintick)
+    shortTP    = shortEntry - rMultiple * rDist
+
+    strategy.entry(id="S", direction=strategy.short, qty=qtyContracts)
+    strategy.exit(id="S-EXIT", from_entry="S", stop=shortStop, limit=shortTP)
+
+    tradedShortToday := true
+    shortStopAtEntry := shortStop
+    shortTPAtEntry   := shortTP
+    shortEntryTime   := time
+
+// Move to BE at 1R
+if moveToBE and strategy.position_size > 0 and not na(longStopAtEntry)
+    entry = strategy.position_avg_price
+    rDist = entry - longStopAtEntry
+    if rDist > 0 and close - entry >= rDist
+        strategy.exit(id="L-EXIT", from_entry="L", stop=entry, limit=longTPAtEntry)
+
+if moveToBE and strategy.position_size < 0 and not na(shortStopAtEntry)
+    entry = strategy.position_avg_price
+    rDist = shortStopAtEntry - entry
+    if rDist > 0 and entry - close >= rDist
+        strategy.exit(id="S-EXIT", from_entry="S", stop=entry, limit=shortTPAtEntry)
+
+// Time-stop (minutes)
+if strategy.position_size > 0 and not na(longEntryTime)
+    minsInTrade = (time - longEntryTime) / 60000.0
+    if minsInTrade >= timeStopMin
+        strategy.close(id="L")
+        longEntryTime := na
+
+if strategy.position_size < 0 and not na(shortEntryTime)
+    minsInTrade = (time - shortEntryTime) / 60000.0
+    if minsInTrade >= timeStopMin
+        strategy.close(id="S")
+        shortEntryTime := na
+
+// Reset state on flat
+if strategy.position_size == 0
+    longStopAtEntry  := na
+    longTPAtEntry    := na
+    shortStopAtEntry := na
+    shortTPAtEntry   := na
+
+// ==========================
+// Plots & Debug
+// ==========================
+plot(avwap_asia,   color=color.new(color.teal,  0), title="AVWAP Asia")
+plot(avwap_london, color=color.new(color.blue,  0), title="AVWAP London")
+plot(avwap_pre,    color=color.new(color.gray,  0), title="AVWAP 8:00")
+plot(avwap_open,   color=color.new(color.orange,0), title="AVWAP 9:30")
+plot(avwap_ten,    color=color.new(color.purple,0), title="AVWAP 10:00")
+
+plotshape(showLabels and enterLongCond,  title="Long Signal",  style=shape.triangleup,   color=color.new(color.lime, 0), location=location.belowbar, size=size.tiny, text="L")
+plotshape(showLabels and enterShortCond, title="Short Signal", style=shape.triangledown, color=color.new(color.red,  0), location=location.abovebar, size=size.tiny, text="S")
+
+// Debug info
+if showDebug
+    label.new(bar_index, high, text=str.tostring(alignedCountLong) + "/" + str.tostring(alignedCountShort) + " aligned\n" + (passLong?"passLong":"") + (passShort?" passShort":""), style=label.style_label_down, color=color.new(color.silver, 60))
