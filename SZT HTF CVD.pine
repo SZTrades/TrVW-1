@@ -1,0 +1,87 @@
+//@version=6
+indicator("SZT HTF CVD", shorttitle="SZT HTF", overlay=false, max_lines_count=500, max_labels_count=200)
+
+// ─────────────────────────────────────────────
+// Inputs
+// ─────────────────────────────────────────────
+htfRes = input.timeframe("5", "HTF", confirm=true)
+emaLen = input.int(14, "Longitud EMA CVD", minval=1)
+showBuy = input.bool(true, "Mostrar EMA compras")
+showSell = input.bool(true, "Mostrar EMA ventas")
+showCvd = input.bool(true, "Mostrar delta acumulado")
+buyColor = input.color(color.new(color.teal, 0), "Color compras")
+sellColor = input.color(color.new(color.red, 0), "Color ventas")
+cvdPosColor = input.color(color.new(color.green, 0), "Color CVD +")
+cvdNegColor = input.color(color.new(color.red, 0), "Color CVD -")
+waveColor = input.color(color.new(color.gray, 70), "Color wave EMA")
+
+// --- FUNCTION: run full CVD logic IN-HTF context (returns tuple)
+var float _buyEma = na
+var float _sellEma = na
+var float _cvd = na
+var float _wave = na
+
+f_cvd(emaLen) =>
+    _o = open
+    _h = high
+    _l = low
+    _c = close
+    _v = volume
+    ready = not na(_o) and not na(_h) and not na(_l) and not na(_c) and not na(_v) and (_h - _l) >= syminfo.mintick
+    if ready
+        spread = math.max(_h - _l, syminfo.mintick)
+        upperWick = _c > _o ? _h - _c : _h - _o
+        lowerWick = _c > _o ? _o - _l : _c - _l
+        body = spread - (upperWick + lowerWick)
+
+        pctUpper = upperWick / spread
+        pctLower = lowerWick / spread
+        pctBody  = body / spread
+        halfW    = (pctUpper + pctLower) * 0.5
+
+        buyVol  = _c > _o ? (pctBody + halfW) * _v : halfW * _v
+        sellVol = _c < _o ? (pctBody + halfW) * _v : halfW * _v
+
+        alpha = 2.0 / (emaLen + 1.0)
+
+        _buyEma := na(_buyEma) ? buyVol : _buyEma + alpha * (buyVol - _buyEma)
+        _sellEma := na(_sellEma) ? sellVol : _sellEma + alpha * (sellVol - _sellEma)
+        _cvd += nz(buyVol) - nz(sellVol)
+
+        strength = math.max(_buyEma, _sellEma)
+        _wave := na(_wave) ? strength : _wave + alpha * (strength - _wave)
+
+    [_buyEma, _sellEma, _cvd, _wave, time]
+
+// --- Request HTF-calculated series with lookahead OFF for exact timing
+[htfBuyEma, htfSellEma, htfCvd, htfWave, htfTime] = request.security(
+    syminfo.tickerid,
+    htfRes,
+    f_cvd(emaLen),
+    lookahead=barmerge.lookahead_off,
+    gaps=barmerge.gaps_off
+)
+
+// --- Freeze on LTF: just use the HTF outputs (update occurs when HTF closes)
+buySeries = htfBuyEma
+sellSeries = htfSellEma
+cvdSeries = htfCvd
+waveSeries = htfWave
+normBuy = buySeries / (buySeries + sellSeries)
+normSell = sellSeries / (buySeries + sellSeries)
+
+// Optional: detect first LTF bar after HTF close if needed
+htfNewPoint = ta.change(htfTime) != 0
+
+// Plots (same aesthetic)
+pb = plot(showBuy ? buySeries : na, title="EMA Compras", color=buyColor, linewidth=2)
+ps = plot(showSell ? sellSeries : na, title="EMA Ventas", color=sellColor, linewidth=2)
+fill(
+    pb, ps,
+    color =
+        normBuy > normSell ? color.new(color.green, 60) :
+        normBuy < normSell ? color.new(color.red, 60) :
+        color.new(color.yellow, 60)
+)
+plot(waveSeries, title="Wave EMA", color=waveColor, linewidth=2)
+plot(showCvd ? cvdSeries : na, title="HTF CVD", style=plot.style_columns, color=cvdSeries >= 0 ? cvdPosColor : cvdNegColor, linewidth=2)
