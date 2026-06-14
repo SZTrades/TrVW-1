@@ -1,0 +1,179 @@
+//@version=6
+indicator("SZTrades Kernel + JMA Align (Presets)", "SZT Align Presets", overlay = true)
+
+import jdehorty/KernelFunctions/2 as kernels
+
+// =====================
+// ==== Preset I/O  ====
+// =====================
+mode = input.string("Intermedio", "Modo", options=["Agresivo", "Intermedio", "Conservador"], group="Presets")
+
+// =====================
+// ==== Kernel Settings
+// =====================
+useKernelSmoothing = input.bool(false, "Enhance Kernel Smoothing", tooltip="If enabled, alignment uses kernel cross (yhat2 vs yhat1). If disabled, uses kernel rate of change.", group='Kernel Settings')
+h = input.int(8, 'Lookback Window', minval=3, tooltip='Bars used for estimation. Recommended: 3-50', group="Kernel Settings")
+r = input.float(8., 'Relative Weighting', step=0.25, tooltip='Relative weighting of time frames. Recommended: 0.25-25', group="Kernel Settings")
+x = input.int(25, "Regression Level", tooltip='Starting bar index for regression. Smaller = tighter fit. Recommended: 2-25', group="Kernel Settings")
+lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Recommended: 1-2", group='Kernel Settings')
+source = input.source(close, "Source", group="Kernel Settings")
+showKernelLine = input.bool(true, "Show Kernel Line", group = "Kernel Settings")
+kernelLineWidth = input.int(1, "Kernel Line Width", minval = 1, maxval = 5, group = "Kernel Settings")
+
+// =====================
+// ======  JMA  ========
+// =====================
+// Derive JMA length from preset
+jmaLength = mode == "Agresivo" ? 21 : mode == "Intermedio" ? 34 : 50
+jmaPhase = input.int(50, "JMA Phase", minval = -100, maxval = 100, group = "JMA")
+jmaPower = input.int(2, "JMA Power", minval = 1, group = "JMA")
+useJmaColorConfirm = input.bool(true, "Use JMA Color Confirmation", group = "JMA")
+invertJmaSignals = input.bool(false, "Invert JMA Signals", group = "JMA")
+showJmaLine = input.bool(true, "Show JMA Line", group = "JMA")
+jmaLineWidth = input.int(1, "JMA Line Width", minval = 1, maxval = 5, group = "JMA")
+
+// =====================
+// ==== Filters (2m) ===
+// =====================
+useHTF = input.bool(true, "Confirmación HTF", group = "Filtros")
+htfTf = input.timeframe("5", "TF confirmación", group = "Filtros")
+atrLen = 14
+atrMult = mode == "Agresivo" ? 0.8 : mode == "Intermedio" ? 1.0 : 1.5
+confirmBars = mode == "Agresivo" ? 0 : mode == "Intermedio" ? 1 : 2
+cooldownBars = mode == "Agresivo" ? 3 : mode == "Intermedio" ? 5 : 10
+
+// ================================
+// ==== Kernel Regression (Lib) ===
+// ================================
+yhat1 = kernels.rationalQuadratic(source, h, r, x)
+yhat2 = kernels.gaussian(source, h - lag, x)
+
+isBearishRate = yhat1[1] > yhat1
+isBullishRate = yhat1[1] < yhat1
+isBullishSmooth = yhat2 >= yhat1
+isBearishSmooth = yhat2 <= yhat1
+
+kernelBullish = useKernelSmoothing ? isBullishSmooth : isBullishRate
+kernelBearish = useKernelSmoothing ? isBearishSmooth : isBearishRate
+
+// Optional Kernel plot (two-color like kernel regression)
+kernelPlotColor = (useKernelSmoothing ? (yhat2 >= yhat1) : (yhat1 > yhat1[1])) ? color.new(#009988, 0) : color.new(#CC3311, 0)
+plot(showKernelLine ? yhat1 : na, title = "Kernel", color = kernelPlotColor, linewidth = kernelLineWidth)
+
+// ===============
+// ====  JMA  ====
+// ===============
+phaseRatio = jmaPhase < -100 ? 0.5 : jmaPhase > 100 ? 2.5 : jmaPhase / 100 + 1.5
+beta = 0.45 * (jmaLength - 1) / (0.45 * (jmaLength - 1) + 2)
+alpha = math.pow(beta, jmaPower)
+
+var float jma = na
+var float e0 = na
+var float e1 = na
+var float e2 = na
+
+e0 := (1 - alpha) * source + alpha * nz(e0[1])
+e1 := (source - e0) * (1 - beta) + beta * nz(e1[1])
+e2 := (e0 + phaseRatio * e1 - nz(jma[1])) * math.pow(1 - alpha, 2) + math.pow(alpha, 2) * nz(e2[1])
+jma := e2 + nz(jma[1])
+
+// Optional JMA plot (two-color like kernel regression)
+jmaPlotColor = (jma > jma[1]) ? color.new(#009988, 0) : color.new(#CC3311, 0)
+plot(showJmaLine ? jma : na, title = "JMA", color = jmaPlotColor, linewidth = jmaLineWidth)
+
+isUp = jma > jma[1]
+isDown = jma < jma[1]
+longBase = useJmaColorConfirm ? (isUp and close > jma) : (close > jma)
+shortBase = useJmaColorConfirm ? (isDown and close < jma) : (close < jma)
+jmaLong = invertJmaSignals ? shortBase : longBase
+jmaShort = invertJmaSignals ? longBase : shortBase
+
+// ======================
+// ==== Alignment I/O ===
+// ======================
+alignLong = jmaLong and kernelBullish
+alignShort = jmaShort and kernelBearish
+
+// ===== Filters =====
+atr = ta.atr(atrLen)
+distOkLong = math.abs(close - jma) > atrMult * atr
+distOkShort = math.abs(close - jma) > atrMult * atr
+
+alignHTFLong = useHTF ? request.security(syminfo.tickerid, htfTf, jma > jma[1]) : true
+alignHTFShort = useHTF ? request.security(syminfo.tickerid, htfTf, jma < jma[1]) : true
+
+confirmLongOk = confirmBars == 0 ? true : confirmBars == 1 ? (close > jma and jma > jma[1]) : ((close > jma and jma > jma[1]) and (close[1] > jma[1] and jma[1] > jma[2]))
+confirmShortOk = confirmBars == 0 ? true : confirmBars == 1 ? (close < jma and jma < jma[1]) : ((close < jma and jma < jma[1]) and (close[1] < jma[1] and jma[1] < jma[2]))
+
+// Cooldown entre señales
+var int lastSignalBar = na
+cooldownOk = na(lastSignalBar) or (bar_index - lastSignalBar > cooldownBars)
+
+filtersOkLong = distOkLong and alignHTFLong and confirmLongOk and cooldownOk
+filtersOkShort = distOkShort and alignHTFShort and confirmShortOk and cooldownOk
+
+alignLongFiltered = alignLong and filtersOkLong
+alignShortFiltered = alignShort and filtersOkShort
+
+// Start-of-alignment only with cycle gating (non-repainting at bar close)
+var int cycleDir = 0  // 1 = long cycle active, -1 = short cycle active, 0 = none
+alignLongStart = barstate.isconfirmed and alignLongFiltered and not alignLongFiltered[1] and (cycleDir != 1)
+alignShortStart = barstate.isconfirmed and alignShortFiltered and not alignShortFiltered[1] and (cycleDir != -1)
+cycleDir := alignLongStart ? 1 : alignShortStart ? -1 : cycleDir
+// Reset cycle when opposite alignment becomes true
+cycleDir := (cycleDir == 1 and alignShortFiltered) ? 0 : (cycleDir == -1 and alignLongFiltered) ? 0 : cycleDir
+
+if alignLongStart or alignShortStart
+    lastSignalBar := bar_index
+
+// Top-of-chart dots (no labels)
+plotshape(alignLongStart, title='Align Long Start', style=shape.labelup, location=location.belowbar, color=input.color(#009988, "Bar Color Long", group="Display"), size=size.tiny, text="")
+plotshape(alignShortStart, title='Align Short Start', style=shape.labeldown, location=location.abovebar, color=input.color(#CC3311, "Bar Color Short", group="Display"), size=size.tiny, text="")
+
+// Optional: bar coloring while aligned; clears on de-alignment
+barTransp = input.int(50, "Bar Color Transparency", minval=0, maxval=100, group="Display")
+barColorSeries = alignLongFiltered ? color.new(#009988, barTransp) : alignShortFiltered ? color.new(#CC3311, barTransp) : na
+useBarColor = input.bool(true, "Color Bars When Aligned", group="Display")
+barcolor(useBarColor ? barColorSeries : na)
+
+// Alerts
+alertcondition(alignLongStart, title='Kernel+JMA Align Long (Start) [Presets]', message='SZT Align Long ▲ | {{ticker}}@{{close}} | ({{interval}})')
+alertcondition(alignShortStart, title='Kernel+JMA Align Short (Start) [Presets]', message='SZT Align Short ▼ | {{ticker}}@{{close}} | ({{interval}})')
+
+// ============================
+// ==== Volatility Stop (SL) ===
+// ============================
+useVolStop   = input.bool(true,  "Use Volatility Stop", group="Volatility Stop")
+vsLength     = input.int(20,     "Length", minval=2, group="Volatility Stop")
+vsFactor     = input.float(2.0,  "Multiplier", minval=0.25, step=0.25, group="Volatility Stop")
+vsSource     = input.source(close, "Source", group="Volatility Stop")
+vsShowLine   = input.bool(false, "Show Stop Line", group="Volatility Stop")
+vsShowDots   = input.bool(true,  "Show Stop Dots", group="Volatility Stop")
+vsLineWidth  = input.int(1,      "Stop Line Width", minval=1, maxval=5, group="Volatility Stop")
+
+volStop(src, atrlen, atrmult) =>
+    if not na(src)
+        var float regimeMax = src
+        var float regimeMin = src
+        var bool  uptrend   = true
+        var float stop      = na
+        atrM = ta.atr(atrlen) * atrmult
+        regimeMax := math.max(regimeMax, src)
+        regimeMin := math.min(regimeMin, src)
+        stop := nz(uptrend ? math.max(stop, regimeMax - atrM) : math.min(stop, regimeMin + atrM), src)
+        uptrend := src - stop >= 0.0
+        prevUp = (bar_index > 0) ? uptrend[1] : true
+        if uptrend != prevUp
+            regimeMax := src
+            regimeMin := src
+            stop := uptrend ? regimeMax - atrM : regimeMin + atrM
+        [stop, uptrend]
+
+[vsStop, vsUp] = volStop(vsSource, vsLength, vsFactor)
+vsColor = vsUp ? color.new(#009688, 0) : color.new(#F44336, 0)
+plot(useVolStop and vsShowLine ? vsStop : na, title="Volatility Stop", color=vsColor, linewidth=vsLineWidth)
+plot(useVolStop and vsShowDots ? vsStop : na, title="Volatility Stop Dots", style=plot.style_cross, color=vsColor, linewidth=1)
+
+// Data-window output for SL reference
+plot(useVolStop ? vsStop : na, title="SL Level (VolStop)", display=display.data_window)
+
