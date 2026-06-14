@@ -1,0 +1,41 @@
+//@version=5
+// Remaster based on "Dorsey inertia - DI" by DaviddTech
+// Original licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
+// Adapted for SZTrades, preserving license terms.
+
+indicator('SZTrades DI Base', shorttitle='SZT DI', overlay=false)
+
+useDI = input.bool(true, 'Use Dorsey inertia?')
+crossDI = input.bool(true, 'Cross confirmation? - DI')
+inverseDI = input.bool(true, 'Inverse? - DI')
+
+middleLineLong = input.float(title='Middle Line Long - DI', defval=50)
+middleLineShort = input.float(title='Middle Line Short - DI', defval=50)
+
+stdevLengthDI = input.int(title='Standard Deviation Length - DI', defval=21, minval=1)
+rvIDISmoothLength = input.int(title='rvIDI Smoothing Length - DI', defval=14, minval=1)
+smoothLengthDI = input.int(title='Inertia Smoothing Length - DI', defval=14, minval=1)
+
+rvIDIOriginal(src, stdevLen, smoothLen) =>
+    stdev = ta.stdev(src, stdevLen)
+    upSum = ta.ema(ta.change(src) >= 0 ? stdev : 0.0, smoothLen)
+    downSum = ta.ema(ta.change(src) >= 0 ? 0.0 : stdev, smoothLen)
+    denom = upSum + downSum
+    denom == 0 ? 50.0 : 100 * upSum / denom
+
+rvIDI = math.avg(rvIDIOriginal(high, stdevLengthDI, rvIDISmoothLength), rvIDIOriginal(low, stdevLengthDI, rvIDISmoothLength))
+inertiaDI = ta.linreg(rvIDI, smoothLengthDI, 0)
+
+baseColor = inertiaDI > 50 ? #0ebb23 : color.red
+
+signalLongDI = useDI ? (crossDI ? ta.crossover(inertiaDI, middleLineLong) : inertiaDI > middleLineLong) : true
+signalShortDI = useDI ? (crossDI ? ta.crossunder(inertiaDI, middleLineShort) : inertiaDI < middleLineShort) : true
+
+finalLongSignalDI = inverseDI ? signalShortDI : signalLongDI
+finalShortSignalDI = inverseDI ? signalLongDI : signalShortDI
+
+plot(finalLongSignalDI ? 1 : 0, 'Heartbeat Long', display=display.data_window)
+plot(finalShortSignalDI ? -1 : 0, 'Heartbeat Short', display=display.data_window)
+
+plot(inertiaDI, title='inertiaDI', linewidth=2, color=baseColor)
+hline(50, title='Middle Level', linestyle=hline.style_dotted)
