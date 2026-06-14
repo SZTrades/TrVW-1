@@ -1,0 +1,147 @@
+//@version=6
+indicator("SZTrades MTF Alignment + Avg. ATR (2H)", "MTF+ATR2H", overlay=true)
+
+// ====================================
+// ==== Settings ====
+// ====================================
+
+// ATR Settings
+atrPeriods = input.int(4, "ATR Periods", minval=1, maxval=100, group="ATR Settings", tooltip="Number of periods for ATR calculation")
+sessionStart = input.session("1800-1801", "Session Start Time", group="ATR Settings", tooltip="When to start ATR calculation (default: 6:00 PM for next day)")
+sessionEnd = input.session("1800-1801", "Session End Time", group="ATR Settings", tooltip="Session end time for reference")
+multiplier = 0.5 // Hardcoded multiplier for target calculation
+
+// Multi-Timeframe Settings
+showAlignment = input.bool(true, "Show Multi-Timeframe Alignment", group="MTF Settings")
+
+// Display Settings
+showTable = input.bool(true, "Show Table", group="Display")
+showLines = input.bool(false, "Show ATR Lines", group="Display")
+tablePosition = input.string("top_right", "Table Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+
+// ====================================
+// ==== ATR Calculation ====
+// ====================================
+
+var array<float> rth_tr_values = array.new<float>()
+var bool rth_session_active = false
+
+// Check if we're in session (starts at 6PM, runs all day)
+session_start = not na(time(timeframe.period, sessionStart))
+in_session = true // Always collect ATR after 6PM reset
+
+// Reset at 6:00 PM (18:00) - new daily cycle
+daily_reset = session_start
+
+if daily_reset
+    array.clear(rth_tr_values)
+    rth_session_active := true
+
+// Collect True Range values once session is active
+if rth_session_active
+    current_tr = ta.tr
+    if not na(current_tr) and current_tr > 0
+        array.unshift(rth_tr_values, current_tr)
+        
+        // Keep only the specified number of periods
+        if array.size(rth_tr_values) > atrPeriods
+            array.pop(rth_tr_values)
+
+// Calculate current ATR
+current_rth_atr = array.size(rth_tr_values) > 0 ? array.sum(rth_tr_values) / array.size(rth_tr_values) : na
+
+// Calculate target range
+target_range = not na(current_rth_atr) ? current_rth_atr * multiplier : na
+
+// ====================================
+// ==== Multi-Timeframe Analysis ====
+// ====================================
+
+// Replace 4H with 2H timeframe
+tf_2h_close = request.security(syminfo.tickerid, "120", close)
+tf_2h_open = request.security(syminfo.tickerid, "120", open)
+tf_1h_close = request.security(syminfo.tickerid, "60", close)
+tf_1h_open = request.security(syminfo.tickerid, "60", open)
+tf_30m_close = request.security(syminfo.tickerid, "30", close)
+tf_30m_open = request.security(syminfo.tickerid, "30", open)
+tf_15m_close = request.security(syminfo.tickerid, "15", close)
+tf_15m_open = request.security(syminfo.tickerid, "15", open)
+
+// Determine bull/bear for each timeframe
+tf_2h_bull = tf_2h_close > tf_2h_open
+tf_1h_bull = tf_1h_close > tf_1h_open  
+tf_30m_bull = tf_30m_close > tf_30m_open
+tf_15m_bull = tf_15m_close > tf_15m_open
+
+// ====================================
+// ==== Table Display ====
+// ====================================
+
+if showTable and barstate.islast
+    var table mtf_table = table.new(position = tablePosition == "top_left" ? position.top_left : 
+                                   tablePosition == "top_center" ? position.top_center :
+                                   tablePosition == "top_right" ? position.top_right :
+                                   tablePosition == "middle_left" ? position.middle_left :
+                                   tablePosition == "middle_center" ? position.middle_center :
+                                   tablePosition == "middle_right" ? position.middle_right :
+                                   tablePosition == "bottom_left" ? position.bottom_left :
+                                   tablePosition == "bottom_center" ? position.bottom_center :
+                                   position.bottom_right, 
+                                   columns = 2, rows = 6, bgcolor = color.new(color.white, 5), border_width = 1, border_color = color.black)
+    
+    // Clear table
+    table.clear(mtf_table, 0, 0, 1, 5)
+    
+    // ATR Section
+    if not na(current_rth_atr)
+        table.cell(mtf_table, 0, 0, "Avg. ATR", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 0, str.tostring(current_rth_atr, "#.# pts"), text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        
+        table.cell(mtf_table, 0, 1, "Target", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 1, str.tostring(target_range, "#.# pts"), text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+    else
+        // No ATR data available
+        table.cell(mtf_table, 0, 0, "Avg. ATR", text_color = color.black, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 0, "No Data", text_color = color.gray, text_size = size.normal, bgcolor = color.new(color.white, 5))
+        
+        table.cell(mtf_table, 0, 1, "Target", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 1, "No Data", text_color = color.gray, text_size = size.small, bgcolor = color.new(color.white, 5))
+    
+    // Multi-Timeframe Semáforo
+    if showAlignment
+        table.cell(mtf_table, 0, 2, "2H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 2, tf_2h_bull ? "BULL" : "BEAR", text_color = tf_2h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        
+        table.cell(mtf_table, 0, 3, "1H", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 3, tf_1h_bull ? "BULL" : "BEAR", text_color = tf_1h_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        
+        table.cell(mtf_table, 0, 4, "30M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 4, tf_30m_bull ? "BULL" : "BEAR", text_color = tf_30m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+        
+        table.cell(mtf_table, 0, 5, "15M", text_color = color.black, text_size = size.small, bgcolor = color.new(color.white, 5))
+        table.cell(mtf_table, 1, 5, tf_15m_bull ? "BULL" : "BEAR", text_color = tf_15m_bull ? color.green : color.red, text_size = size.small, bgcolor = color.new(color.white, 5))
+
+// ====================================
+// ==== Optional Visual Lines ====
+// ====================================
+
+upper_target = showLines and not na(current_rth_atr) ? close + target_range : na
+lower_target = showLines and not na(current_rth_atr) ? close - target_range : na
+
+plot(upper_target, "Upper Target", color=color.new(color.green, 50), linewidth=1, style=plot.style_circles)
+plot(lower_target, "Lower Target", color=color.new(color.red, 50), linewidth=1, style=plot.style_circles)
+
+// ====================================
+// ==== Background Coloring (Optional) ====
+// ====================================
+
+aligned_count = (tf_2h_bull ? 1 : 0) + (tf_1h_bull ? 1 : 0) + (tf_30m_bull ? 1 : 0) + (tf_15m_bull ? 1 : 0)
+aligned_bear_count = (tf_2h_bull ? 0 : 1) + (tf_1h_bull ? 0 : 1) + (tf_30m_bull ? 0 : 1) + (tf_15m_bull ? 0 : 1)
+
+showBackground = input.bool(false, "Show Alignment Background", group="Display")
+
+strong_bull = aligned_count >= 3
+strong_bear = aligned_bear_count >= 3
+
+bgcolor(showBackground and strong_bull ? color.new(color.green, 95) : showBackground and strong_bear ? color.new(color.red, 95) : na, title="Alignment Background")
+
