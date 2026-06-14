@@ -1,0 +1,69 @@
+//@version=6
+indicator(title="SZTrades Accumulation/Distribution", shorttitle="SZT A/D", overlay=false)
+
+// Settings
+ShowAD = input.bool(true, "Show A/D Line", group = "Display Settings")
+ShowEMA = input.bool(true, "Show EMA", group = "Display Settings")
+EMA_Length = input.int(50, "EMA Length", minval = 1, maxval = 500, group = "EMA Settings", tooltip = "Adjust based on timeframe: 15min=50, 1h=200, 4h=100")
+LineWidth = input.int(1, "Line Width", minval = 1, maxval = 5, group = "Display Settings")
+
+// Color Settings
+AD_Color = input.color(#000000, "A/D Color", group = "Colors")
+EMA_Color = input.color(#FF7000, "EMA Color", group = "Colors")
+
+// Background Settings
+ShowBackground = input.bool(true, "Show Background Color", group = "Background")
+AccumColor = input.color(#00FF00, "Accumulation Color", group = "Background")
+DistribColor = input.color(#FF0000, "Distribution Color", group = "Background")
+BgTransparency = input.int(90, "Background Transparency", minval = 0, maxval = 99, group = "Background", tooltip = "0 = Solid color, 99 = Very transparent")
+
+// Accumulation/Distribution Calculation
+money_flow_multiplier = close == high and close == low or high == low ? 0.0 : (2 * close - low - high) / (high - low)
+money_flow_volume = money_flow_multiplier * volume
+ad_line = ta.cum(money_flow_volume)
+
+// EMA of A/D Line
+ad_ema = ta.ema(ad_line, EMA_Length)
+
+// Plots
+plot(ShowAD ? ad_line : na, title="A/D Line", color=AD_Color, linewidth=LineWidth)
+plot(ShowEMA ? ad_ema : na, title="A/D EMA", color=EMA_Color, linewidth=LineWidth)
+
+
+
+// Background color based on A/D vs EMA (customizable)
+bgcolor(ShowBackground and ShowAD and ShowEMA ? (ad_line > ad_ema ? color.new(AccumColor, BgTransparency) : color.new(DistribColor, BgTransparency)) : na, title="Trend Background")
+
+// Table with current values (optional)
+ShowTable = input.bool(false, "Show Values Table", group = "Display Settings")
+TablePosition = input.string("bottom_right", "Table Position", options = ["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group = "Display Settings")
+
+if ShowTable and barstate.islast
+    var table valuesTable = table.new(position = TablePosition == "top_left" ? position.top_left : 
+                                     TablePosition == "top_center" ? position.top_center :
+                                     TablePosition == "top_right" ? position.top_right :
+                                     TablePosition == "middle_left" ? position.middle_left :
+                                     TablePosition == "middle_center" ? position.middle_center :
+                                     TablePosition == "middle_right" ? position.middle_right :
+                                     TablePosition == "bottom_left" ? position.bottom_left :
+                                     TablePosition == "bottom_center" ? position.bottom_center :
+                                     position.bottom_right, 
+                                     columns = 2, rows = 4, bgcolor = color.new(color.black, 80), border_width = 1)
+    
+    // Clear table
+    table.clear(valuesTable, 0, 0, 1, 3)
+    
+    // Headers and values
+    table.cell(valuesTable, 0, 0, "Metric", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    table.cell(valuesTable, 1, 0, "Value", text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 50))
+    
+    table.cell(valuesTable, 0, 1, "A/D Current", text_color = color.white, text_size = size.small)
+    table.cell(valuesTable, 1, 1, str.tostring(ad_line, "#,###"), text_color = color.white, text_size = size.small)
+    
+    table.cell(valuesTable, 0, 2, "EMA(" + str.tostring(EMA_Length) + ")", text_color = color.white, text_size = size.small)
+    table.cell(valuesTable, 1, 2, str.tostring(ad_ema, "#,###"), text_color = color.white, text_size = size.small)
+    
+    trend_text = ad_line > ad_ema ? "Accumulation" : "Distribution"
+    trend_color = ad_line > ad_ema ? color.green : color.red
+    table.cell(valuesTable, 0, 3, "Trend", text_color = color.white, text_size = size.small)
+    table.cell(valuesTable, 1, 3, trend_text, text_color = trend_color, text_size = size.small)

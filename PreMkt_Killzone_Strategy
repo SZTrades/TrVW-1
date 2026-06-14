@@ -1,0 +1,328 @@
+//@version=6
+strategy("SZTrades PreMkt Killzone Strategy", "SZT PreMkt", overlay=true, margin_long=100, margin_short=100, default_qty_type=strategy.fixed, default_qty_value=2, timezone=timezone.New_York)
+
+// ====================================
+// ==== Strategy Settings ====
+// ====================================
+
+// Session Settings
+killzoneStart = input.session("0700-0900", "Killzone Session", group="Time Settings")
+killzoneEnd = input.session("1330-1331", "Force Close Time", group="Time Settings", tooltip="Close all trades at 1:30 PM") 
+
+// Risk Management
+stopLoss = input.float(2.5, "Stop Loss (pts)", minval=0.5, maxval=10.0, step=0.1, group="Risk Management")
+takeProfit = input.float(5.0, "Take Profit (pts)", minval=1.0, maxval=50.0, step=0.1, group="Risk Management")
+breakEvenLevel = input.float(3.0, "Breakeven Level (pts)", minval=1.0, maxval=5.0, step=0.1, group="Risk Management")
+trailLevel = input.float(3.0, "Trail Level (pts)", minval=1.0, maxval=5.0, step=0.1, group="Risk Management")
+useConfluenceBreak = input.bool(false, "Use Confluence Break Exit", group="Risk Management", tooltip="Exit immediately when A/D or Kernel confluence breaks")
+
+// Filters
+useATRFilter = input.bool(true, "Use ATR Filter", group="Filters")
+atrLength = input.int(14, "ATR Length", minval=5, maxval=50, group="Filters")
+atrLookback = input.int(10, "ATR Average Days", minval=5, maxval=20, group="Filters")
+adEmaLength = input.int(50, "A/D EMA Length", minval=20, maxval=200, group="Filters")
+
+// Advanced Filters
+useRangeFilter = input.bool(true, "Use Range Filter (after first loss)", group="Filters", tooltip="Prevents second trade if price is in upper/lower 20% of daily range")
+trailStep = input.float(2.0, "Trail Step (pts)", minval=0.5, maxval=5.0, step=0.1, group="Risk Management", tooltip="Trail stop every X points when momentum continues")
+
+// Second Trade Settings
+allowSecondTrade = input.bool(true, "Allow Second Trade", group="Trade Management")
+minTimeBetweenTrades = input.int(30, "Min Minutes Between Trades", minval=15, maxval=60, group="Trade Management")
+
+// ====================================
+// ==== AVWAP Calculations ====
+// ====================================
+
+// AVWAP #1 - London (2:00 AM)
+var float avwap_london_sum_pv = 0.0
+var float avwap_london_sum_v = 0.0
+var float avwap_london = na
+var bool avwap_london_active = false
+
+// AVWAP #2 - PreMkt (7:00 AM)
+var float avwap_premkt_sum_pv = 0.0
+var float avwap_premkt_sum_v = 0.0
+var float avwap_premkt = na
+var bool avwap_premkt_active = false
+
+// Daily reset detection
+is_new_day = ta.change(dayofweek) != 0
+
+// London AVWAP (2:00 AM start)
+london_session = not na(time(timeframe.period, "0200-0201", timezone.New_York))
+if london_session and not avwap_london_active
+    avwap_london_active := true
+    avwap_london_sum_pv := 0.0
+    avwap_london_sum_v := 0.0
+    avwap_london := na
+
+if avwap_london_active
+    typical_price = hlc3
+    avwap_london_sum_pv := avwap_london_sum_pv + (typical_price * volume)
+    avwap_london_sum_v := avwap_london_sum_v + volume
+    avwap_london := avwap_london_sum_v > 0 ? avwap_london_sum_pv / avwap_london_sum_v : na
+
+if is_new_day and avwap_london_active
+    avwap_london_active := false
+
+// PreMkt AVWAP (7:00 AM start)
+premkt_session = not na(time(timeframe.period, "0700-0701", timezone.New_York))
+if premkt_session and not avwap_premkt_active
+    avwap_premkt_active := true
+    avwap_premkt_sum_pv := 0.0
+    avwap_premkt_sum_v := 0.0
+    avwap_premkt := na
+
+if avwap_premkt_active
+    typical_price = hlc3
+    avwap_premkt_sum_pv := avwap_premkt_sum_pv + (typical_price * volume)
+    avwap_premkt_sum_v := avwap_premkt_sum_v + volume
+    avwap_premkt := avwap_premkt_sum_v > 0 ? avwap_premkt_sum_pv / avwap_premkt_sum_v : na
+
+if is_new_day and avwap_premkt_active
+    avwap_premkt_active := false
+
+// ====================================
+// ==== Kernel Regression ====
+// ====================================
+
+// Kernel Parameters
+h = 8
+r = 8.0
+x = 25
+lag = 2
+
+// Rational Quadratic Kernel
+rationalQuadratic(src, lookback, relativeWeight, startingBar) =>
+    sumWeightedY = 0.0
+    sumWeights = 0.0
+    
+    for i = 0 to lookback - 1
+        y = src[i]
+        distanceSquared = math.pow(i, 2)
+        alpha = relativeWeight
+        rho = startingBar
+        weight = math.pow(1 + distanceSquared / (2 * alpha * math.pow(rho, 2)), -alpha)
+        
+        sumWeightedY += y * weight
+        sumWeights += weight
+    
+    result = sumWeights > 0 ? sumWeightedY / sumWeights : src
+    result
+
+// Gaussian Kernel
+gaussian(src, lookback, startingBar) =>
+    sumWeightedY = 0.0
+    sumWeights = 0.0
+    
+    for i = 0 to lookback - 1
+        y = src[i]
+        distanceSquared = math.pow(i, 2)
+        sigma = startingBar
+        weight = math.exp(-distanceSquared / (2 * math.pow(sigma, 2)))
+        
+        sumWeightedY += y * weight
+        sumWeights += weight
+    
+    result = sumWeights > 0 ? sumWeightedY / sumWeights : src
+    result
+
+// Calculate Kernels
+yhat1 = rationalQuadratic(close, h, r, x)
+yhat2 = gaussian(close, h - lag, x)
+kernelEstimate = yhat1
+
+// Kernel Direction
+isBullishKernel = close > kernelEstimate
+isBearishKernel = close < kernelEstimate
+
+// ====================================
+// ==== Accumulation/Distribution ====
+// ====================================
+
+// A/D Calculation
+money_flow_multiplier = close == high and close == low or high == low ? 0.0 : (2 * close - low - high) / (high - low)
+money_flow_volume = money_flow_multiplier * volume
+ad_line = ta.cum(money_flow_volume)
+ad_ema = ta.ema(ad_line, adEmaLength)
+
+// A/D Direction
+isBullishAD = ad_line > ad_ema
+isBearishAD = ad_line < ad_ema
+
+// ====================================
+// ==== ATR Filter ====
+// ====================================
+
+current_atr = ta.atr(atrLength)
+avg_atr = ta.sma(current_atr, atrLookback)
+atr_filter = useATRFilter ? current_atr > avg_atr : true
+
+// Daily Range Filter  
+daily_high = request.security(syminfo.tickerid, "1D", high, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+daily_low = request.security(syminfo.tickerid, "1D", low, lookahead=barmerge.lookahead_off, timezone=timezone.New_York)
+daily_range = daily_high - daily_low
+upper_20_percent = daily_high - (daily_range * 0.2)
+lower_20_percent = daily_low + (daily_range * 0.2)
+in_extreme_range = close > upper_20_percent or close < lower_20_percent
+
+// ====================================
+// ==== Session and Entry Logic ====
+// ====================================
+
+// Check if in killzone and force close time
+in_killzone = not na(time(timeframe.period, "0700-0900", timezone.New_York))
+force_close_time = not na(time(timeframe.period, killzoneEnd, timezone.New_York))
+
+// Entry Conditions
+long_avwap_condition = close > avwap_london and close > avwap_premkt
+short_avwap_condition = close < avwap_london and close < avwap_premkt
+
+// Complete Entry Conditions
+long_entry_condition = in_killzone and long_avwap_condition and isBullishKernel and isBullishAD and atr_filter
+short_entry_condition = in_killzone and short_avwap_condition and isBearishKernel and isBearishAD and atr_filter
+
+// Trade Management Variables
+var float entry_price = na
+var float stop_price = na
+var float target_price = na
+var bool breakeven_moved = false
+var bool trailing_active = false
+var int last_trade_time = na
+var bool first_trade_hit_target = false
+var int trades_today = 0
+var bool first_trade_loss = false
+var float highest_profit = 0.0
+var float lowest_profit = 0.0
+
+// Reset daily counters
+if is_new_day
+    trades_today := 0
+    first_trade_hit_target := false
+    first_trade_loss := false
+    last_trade_time := na
+    highest_profit := 0.0
+    lowest_profit := 0.0
+
+// Time filter for second trade
+time_since_last_trade = allowSecondTrade and not na(last_trade_time) ? (time - last_trade_time) / (1000 * 60) : 999
+
+// Range filter for second trade (after first loss)
+range_filter_ok = not useRangeFilter or not first_trade_loss or (first_trade_loss and not in_extreme_range and current_atr > avg_atr)
+
+can_take_second_trade = allowSecondTrade and (na(last_trade_time) or time_since_last_trade >= minTimeBetweenTrades) and not first_trade_hit_target and trades_today < 2 and range_filter_ok
+
+// Entry Logic - Execute immediately when conditions met
+if strategy.position_size == 0 and (na(last_trade_time) or can_take_second_trade)
+    if long_entry_condition and not na(avwap_london) and not na(avwap_premkt) and not na(kernelEstimate)
+        strategy.entry("Long", strategy.long, alert_message="Long Entry: All conditions met")
+        entry_price := close
+        stop_price := entry_price - stopLoss
+        target_price := entry_price + takeProfit
+        breakeven_moved := false
+        trailing_active := false
+        last_trade_time := time
+        trades_today := trades_today + 1
+        highest_profit := 0.0
+        
+    if short_entry_condition and not na(avwap_london) and not na(avwap_premkt) and not na(kernelEstimate)
+        strategy.entry("Short", strategy.short, alert_message="Short Entry: All conditions met")
+        entry_price := close
+        stop_price := entry_price + stopLoss
+        target_price := entry_price - takeProfit
+        breakeven_moved := false
+        trailing_active := false
+        last_trade_time := time
+        trades_today := trades_today + 1
+        lowest_profit := 0.0
+
+// Track trade results for range filter
+if strategy.position_size[1] != 0 and strategy.position_size == 0
+    // Trade just closed - check if it was a loss
+    trade_result = strategy.netprofit - strategy.netprofit[1]
+    if trade_result < 0 and trades_today == 1
+        first_trade_loss := true
+
+// Exit Logic
+if strategy.position_size != 0
+    // Force close at 1:30 PM
+    if force_close_time
+        strategy.close_all(comment="Force Close 1:30 PM")
+    
+    // Long position management
+    if strategy.position_size > 0
+        current_profit = close - entry_price
+        highest_profit := math.max(highest_profit, current_profit)
+        
+        // Move to breakeven
+        if current_profit >= breakEvenLevel and not breakeven_moved
+            stop_price := entry_price
+            breakeven_moved := true
+        
+        // Target hit - check for trailing (Let Winners Run Logic)
+        if current_profit >= takeProfit
+            first_trade_hit_target := true
+            // Check if momentum continues for trailing - Modified conditions
+            if isBullishAD and close > avwap_premkt and isBullishKernel
+                trailing_active := true
+                // Trail every X points
+                trail_level = entry_price + trailLevel + (math.floor(highest_profit / trailStep) * trailStep)
+                stop_price := math.max(stop_price, trail_level)
+            else
+                strategy.close("Long", comment="Target Hit")
+        
+        // Confluence break - exit immediately (optional)
+        if useConfluenceBreak and (not isBullishAD or not isBullishKernel)
+            strategy.close("Long", comment="Confluence Break")
+        else
+            // Regular stop loss
+            strategy.exit("Long SL", "Long", stop=stop_price)
+    
+    // Short position management  
+    if strategy.position_size < 0
+        current_profit = entry_price - close
+        lowest_profit := math.max(lowest_profit, current_profit)
+        
+        // Move to breakeven
+        if current_profit >= breakEvenLevel and not breakeven_moved
+            stop_price := entry_price
+            breakeven_moved := true
+        
+        // Target hit - check for trailing (Let Winners Run Logic)
+        if current_profit >= takeProfit
+            first_trade_hit_target := true
+            // Check if momentum continues for trailing - Modified conditions
+            if isBearishAD and close < avwap_premkt and isBearishKernel
+                trailing_active := true
+                // Trail every X points
+                trail_level = entry_price - trailLevel - (math.floor(lowest_profit / trailStep) * trailStep)
+                stop_price := math.min(stop_price, trail_level)
+            else
+                strategy.close("Short", comment="Target Hit")
+        
+        // Confluence break - exit immediately (optional)
+        if useConfluenceBreak and (not isBearishAD or not isBearishKernel)
+            strategy.close("Short", comment="Confluence Break")
+        else
+            // Regular stop loss
+            strategy.exit("Short SL", "Short", stop=stop_price)
+
+// ====================================
+// ==== Plotting ====
+// ====================================
+
+// Plot AVWAPs
+plot(avwap_london, "London AVWAP", color=color.new(#87CEEB, 20), linewidth=1)
+plot(avwap_premkt, "PreMkt AVWAP", color=color.new(#FF6B35, 20), linewidth=1)
+
+// Plot Kernel
+kernel_color = isBullishKernel ? color.new(#009988, 30) : color.new(#CC3311, 30)
+plot(kernelEstimate, "Kernel", color=kernel_color, linewidth=2)
+
+// Background for killzone
+bgcolor(in_killzone ? color.new(color.yellow, 95) : na, title="Killzone")
+
+// Entry signals
+plotshape(long_entry_condition and strategy.position_size == 0 and (na(last_trade_time) or can_take_second_trade) ? low : na, "Long Entry", shape.labelup, location.belowbar, color.green, size=size.small)
+plotshape(short_entry_condition and strategy.position_size == 0 and (na(last_trade_time) or can_take_second_trade) ? high : na, "Short Entry", shape.labeldown, location.abovebar, color.red, size=size.small)

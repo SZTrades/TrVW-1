@@ -1,0 +1,55 @@
+🎯 **SZTrades Liquidity Sonar - Multi-Timeframe Navigator**
+
+🚀 **Purpose**: Advanced sonar system for navigating murky market waters toward high-probability liquidity zones with precision distance tracking.
+
+🧠 **Philosophy**: "Don't predict where the whale is going - track where it's swimming and position yourself as the smart rémora."
+
+📡 **How It Works**:
+- Real-time distance calculation to key liquidity magnets
+- Previous week levels = primary institutional targets  
+- Clean visual hierarchy with color-coded importance
+- Anti-baguette design prevents chart clutter
+
+🎯 **Target Priority System**:
+🟢 **PW.H/PW.L**: Previous Week High/Low (Main liquidity targets - thick lines)
+🔵 **D.H/D.L**: Daily High/Low (Current session boundaries - medium lines)  
+🟠🟣 **PD.H/PD.L**: Previous Day High/Low (Entremeses - dashed lines)
+
+📊 **Distance Table**:
+```
+┌─ Targets ──┬─ Dist. ──┐
+├─ PW. H ────┼─ +45.3 pts┤ ← Previous Week High
+├─ D. H ─────┼─ +18.7 pts┤ ← Daily High  
+├─ PD. H ────┼─ +12.1 pts┤ ← Previous Day High
+├─ PD. L ────┼─ -23.6 pts┤ ← Previous Day Low
+├─ D. L ─────┼─ -31.2 pts┤ ← Daily Low
+└─ PW. L ────┼─ -180.7 pts┘ ← Previous Week Low
+```
+
+🎨 **Smart Visual Design**:
+- **Clean labels**: No overlap, consistent positioning, auto-cleanup
+- **Color hierarchy**: Green highs, navy lows, orange/purple for PD levels
+- **Professional spacing**: 10-bar offset from price action
+- **Trail prevention**: Labels auto-delete to prevent chart spaghetti
+
+⚙️ **Customizable Settings**:
+- **Level toggles**: Show/hide Weekly, Daily, Previous Day levels
+- **Color control**: Individual colors for each level type
+- **Table position**: 9 positioning options
+- **Ray transparency**: Adjustable opacity (20% default)
+
+🧭 **Best Use Cases**:
+- **Swing trading**: Navigate toward weekly liquidity pools
+- **Intraday scalping**: Respect daily boundaries with precision
+- **Risk management**: Know exact distance to key levels
+- **Multi-timeframe analysis**: HTF bias with precise entry levels
+
+💡 **Pro Tips**:
+- **Weekly levels** = where institutions hunt liquidity
+- **Daily levels** = current session's operating range  
+- **Previous day** = yesterday's unfinished business
+- **Distance data** = size your risk and targets accordingly
+
+🇲🇽 **Mexican Excellence**: Built with the precision of a Guadalajara engineer and the style of a Monterrey businessman.
+
+Perfect for traders who want to swim with the whales instead of fighting the current. ¡Órale!
